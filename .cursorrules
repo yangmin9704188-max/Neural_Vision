@@ -1,0 +1,276 @@
+# .cursorrules — AI Fitting Engine (Ops + Structure) v1
+# Last updated: 2026-01-31
+#
+# PURPOSE
+# - Minimize agent inference by forcing canonical sources, fixed folders, and evidence-based progress logging.
+# - Prevent entropy: no ad-hoc folders, no duplicate “contracts/docs” trees, no silent moves.
+#
+# ABSOLUTE RULE: If any instruction below conflicts with a local file, the local file wins ONLY if it is listed under
+# "Canonical Sources (must read)". Otherwise, treat this file as authoritative.
+
+──────────────────────────────────────────────────────────────────────────────
+0) Canonical Sources (must read before any work)
+──────────────────────────────────────────────────────────────────────────────
+MUST read these FIRST (in order):
+
+1) docs/ops/INDEX.md
+   - Single entrypoint for what is canonical vs legacy.
+   - If a path is not reachable from INDEX.md (Canonical section), treat it as non-canonical unless user says otherwise.
+
+2) docs/ops/DIRECTORY_CHARTER_v1.md
+   - Folder meanings, creation rules, sanctuary rules, depth limits, and consolidation rules.
+
+3) docs/ops/dashboard/EXPORT_CONTRACT_v0.md
+   - Exports surface contract (progress log, work briefs), cross-folder write boundary, facts-only.
+
+4) docs/ops/dashboard/PLAN_v0.yaml
+   - Mechanical plan (step IDs, totals, dependencies). DO NOT reinterpret semantics beyond what it encodes.
+
+5) docs/ops/dashboard/LAB_SOURCES_v0.yaml
+   - Maps lab roots (hub/fitting_lab/garment_lab) to export surfaces.
+
+NOTE (SSoT Pack v1):
+- The project’s “truth” for module semantics (Body/Fitting/Garment), unlock conditions (U1/U2), and phase mapping
+  is defined as “SSoT Pack v1” in INDEX.md.
+- Do NOT guess the locations of SSoT Pack documents. Only use the paths listed in INDEX.md.
+
+──────────────────────────────────────────────────────────────────────────────
+1) Roles & Work Boundaries (Hub vs Labs)
+──────────────────────────────────────────────────────────────────────────────
+Definitions:
+- Hub = main repo root (AI_model).
+- Labs = fitting_lab, garment_lab (external folders) referenced by LAB_SOURCES_v0.yaml.
+
+Hub agents (Cursor/GPT) MAY:
+- Modify Hub code/docs within allowed areas (see §2).
+- Generate or update hub exports/brief/** (generated-only).
+- Read other labs’ exports/progress/** (read-only) IF configured in LAB_SOURCES_v0.yaml.
+
+Hub agents MUST NOT:
+- Write into fitting_lab or garment_lab except:
+  - <lab_root>/exports/brief/**  (generated-only publish surface)
+- Modify lab code, lab docs, or any non-exports paths.
+
+Lab agents (Anti-gravity/Claude in fitting_lab, garment_lab) MAY:
+- Append to their own progress log:
+  - <lab_root>/exports/progress/PROGRESS_LOG.jsonl (append-only)
+- Read their own work brief:
+  - <lab_root>/exports/brief/<MODULE>_WORK_BRIEF.md (read-only; generated-only)
+
+Lab agents MUST NOT:
+- Edit hub canonical docs/contracts.
+- Edit generated-only briefs.
+- Create new top-level folder structures in labs unless user explicitly approves.
+
+──────────────────────────────────────────────────────────────────────────────
+2) Directory Charter Enforcement (No Entropy)
+──────────────────────────────────────────────────────────────────────────────
+A) Allowed top-level folders (Hub)
+- Only create/modify within the set defined by docs/ops/DIRECTORY_CHARTER_v1.md.
+- If a folder is not in the Charter, DO NOT create it. Escalate to user.
+
+B) Depth limit
+- Do NOT create folders deeper than 3 levels below a top-level folder without user approval.
+  (Example depth counting: docs/ops/dashboard = depth 3; docs/ops/dashboard/v0/x = depth 5 → forbidden.)
+
+C) Consolidation rule
+- Never create duplicate-purpose folders (e.g., contracts under docs, docs under contracts).
+- Use the Charter-defined location.
+
+──────────────────────────────────────────────────────────────────────────────
+3) Sanctuary (Agent “hands off” areas)
+──────────────────────────────────────────────────────────────────────────────
+These are structurally sensitive. Do not modify unless:
+(1) You write a short change rationale first, and
+(2) User explicitly says “OK” for that rationale.
+
+SANCTUARY:
+- contracts/**            (machine-readable contracts/schemas/keysets)
+- core/**                 (shared pure utilities; see §4)
+- docs/ops/legacy/**      (immutable archive; append-only indices only if Charter allows)
+- docs/ops/dashboard/PLAN_v0.yaml
+- docs/ops/dashboard/EXPORT_CONTRACT_v0.md
+- docs/ops/DIRECTORY_CHARTER_v1.md
+
+Allowed exception:
+- Updating generated outputs:
+  - docs/ops/PROJECT_DASHBOARD.md (renderer output)
+  - exports/brief/** (renderer output)
+These are “generated-only” and can be overwritten by tools.
+
+──────────────────────────────────────────────────────────────────────────────
+4) core/ Purity Rule (No I/O)
+──────────────────────────────────────────────────────────────────────────────
+core/ MUST remain pure-functional utilities:
+- OK: pure transforms, string/path generation (return strings/Path objects), unit conversions, validators (in-memory).
+- NOT OK: disk/network I/O (open/read/write files), subprocess calls, environment-dependent behavior.
+
+Business logic stays inside modules/**.
+
+──────────────────────────────────────────────────────────────────────────────
+5) Facts-only Rule (No PASS/FAIL, No thresholds/clamps)
+──────────────────────────────────────────────────────────────────────────────
+Across ALL outputs (docs, logs, briefs, dashboard, scripts):
+- Do NOT use PASS/FAIL judgments.
+- Do NOT invent thresholds or clamps.
+- Missing values may exist (NaN) but must serialize to null in JSON outputs.
+- Use warnings/reasons as facts: missing field, file not found, schema validation error, command exit code, etc.
+
+Allowed status vocabulary:
+- UNLOCKED / BLOCKED
+- done/total/remaining counts
+- file existence (exists/missing), schema valid/invalid (with validator output), command exit code.
+
+──────────────────────────────────────────────────────────────────────────────
+6) Progress Logging & DoD Strictness (Evidence-first)
+──────────────────────────────────────────────────────────────────────────────
+Progress events are the ONLY way to move dashboard counts:
+- Location: exports/progress/PROGRESS_LOG.jsonl (per folder)
+- Mode: append-only (no edits to existing lines)
+
+CRITICAL: DoD completion events MUST be evidence-backed.
+An agent may append a progress event (dod_done_delta > 0) ONLY if:
+1) Each evidence_paths entry is a real path (relative/absolute acceptable per contract),
+2) The evidence is verifiable by facts:
+   - file exists (and is the correct file), OR
+   - schema validation command ran and exit code/output recorded, OR
+   - deterministic script output captured (commands + exit code) AND tied to an evidence file.
+
+Minimum acceptable evidence (examples):
+- “Created/updated file X” where X exists.
+- “Schema validated file X” where validator output is recorded (exit code, message).
+- “Rendered dashboard/brief” where output file exists and tool exit code is 0.
+
+NOT acceptable evidence:
+- “I think it’s done”, screenshots without file paths, unverified claims, semantic interpretation without artifacts.
+
+If evidence is incomplete:
+- Append NOTHING for DoD.
+- Instead add a warning/reason in the relevant summary or brief.
+
+──────────────────────────────────────────────────────────────────────────────
+7) Dashboard & Brief Automation (Generated-only surfaces)
+──────────────────────────────────────────────────────────────────────────────
+A) Dashboard pipeline (Hub)
+- PLAN_v0.yaml + LAB_SOURCES_v0.yaml + PROGRESS_LOG.jsonl → tools/render_dashboard_v0.py → docs/ops/PROJECT_DASHBOARD.md
+
+B) Work briefs pipeline (Hub)
+- tools/render_work_briefs_v0.py generates:
+  - exports/brief/BODY_WORK_BRIEF.md
+  - exports/brief/FITTING_WORK_BRIEF.md
+  - exports/brief/GARMENT_WORK_BRIEF.md
+- tools/publish_work_briefs_v0.py publishes to labs:
+  - fitting_lab/exports/brief/FITTING_WORK_BRIEF.md
+  - garment_lab/exports/brief/GARMENT_WORK_BRIEF.md
+Write boundary: ONLY <lab_root>/exports/brief/**
+
+C) Generated-only rule
+- Never hand-edit docs/ops/PROJECT_DASHBOARD.md
+- Never hand-edit exports/brief/**
+
+Start/End-of-day ops updates MUST use py tools/update_ops_v0.py --hub-root . as the single entrypoint (postprocess_round hook is for round close-out only).
+
+
+──────────────────────────────────────────────────────────────────────────────
+8) Ops Start-of-Work Protocol (Low-prompt operation)
+──────────────────────────────────────────────────────────────────────────────
+At the start of any Hub work session, run the ops updater first:
+
+- Command (Hub root):
+  py tools/update_ops_v0.py --hub-root .
+
+If tools/update_ops_v0.py does not exist:
+- STOP and report as a facts-only warning to the user.
+- Do NOT “approximate” the update with ad-hoc steps.
+
+What update_ops_v0 is expected to do (contract-level expectation):
+- Render dashboard
+- Render work briefs
+- Publish lab briefs (if LAB_SOURCES has paths)
+
+──────────────────────────────────────────────────────────────────────────────
+8.1) Natural-language Triggers (User phrases → required ops actions)
+──────────────────────────────────────────────────────────────────────────────
+When the user says any of the following (Korean phrases), the agent MUST execute the mapped actions
+in the Hub (AI_model repo root). Facts-only. Never invent progress. Exit-0 expected.
+
+Global rule:
+- For start/end-of-day: ALWAYS run update_ops_v0.py, not ad-hoc partial scripts.
+- postprocess_round.py hook is ONLY for round close-out (after round finalization), not for daily brief.
+
+Trigger A (Start of day)
+User phrase examples:
+- "작업 시작 문서 보내줘"
+- "오늘 작업 브리프 갱신해줘"
+- "대시보드/브리프 업데이트"
+Required actions (in order):
+1) Run (Hub root):
+   py tools/update_ops_v0.py --hub-root .
+2) Provide the user paths to the refreshed outputs (facts-only):
+   - docs/ops/PROJECT_DASHBOARD.md
+   - exports/brief/BODY_WORK_BRIEF.md
+   - exports/brief/FITTING_WORK_BRIEF.md
+   - exports/brief/GARMENT_WORK_BRIEF.md
+3) Confirm publish results (facts-only, only if lab roots are configured in LAB_SOURCES_v0.yaml):
+   - <fitting_lab_root>/exports/brief/FITTING_WORK_BRIEF.md
+   - <garment_lab_root>/exports/brief/GARMENT_WORK_BRIEF.md
+If lab roots are TBD/missing/unreachable: print one warning line and continue (no crash).
+
+Trigger B (End of day / wrap-up)
+User phrase examples:
+- "작업 끝났어 문서 업데이트 해줘"
+- "오늘 작업 정리하고 대시보드 갱신해줘"
+- "마감했어. 브리프/대시보드 업데이트"
+Required actions:
+0) DoD progress integrity gate (strict):
+   - The agent MUST NOT append progress events unless it has concrete evidence paths that exist.
+   - If evidence is not provided, DO NOT append any new progress; only run update_ops_v0.py.
+1) Run (Hub root):
+   py tools/update_ops_v0.py --hub-root .
+2) Summarize (facts-only):
+   - Whether any new lines were appended to exports/progress/PROGRESS_LOG.jsonl (count if known)
+   - Whether docs/ops/PROJECT_DASHBOARD.md was regenerated (timestamp change is acceptable)
+   - Whether brief files were regenerated/published
+   - Any warnings emitted by update_ops_v0.py / renderer / publisher
+
+
+
+──────────────────────────────────────────────────────────────────────────────
+9) Moves, Legacy, and Stubs (Safe refactor rules)
+──────────────────────────────────────────────────────────────────────────────
+A) Moving files
+- Do not move anything unless a Reference Inventory classifies it SAFE-MOVE or NEEDS-STUB.
+- For NEEDS-STUB:
+  - Move the real file to docs/ops/legacy/** per Charter rules
+  - Leave a stub at the old path pointing to the new path
+- Never “delete”; prefer move + stub.
+
+B) Legacy is history-only
+- Legacy docs are NOT decision sources.
+- If a stub exists, follow it to the canonical location or INDEX.md.
+
+C) Append-only lineage
+- Update legacy indices only in append-only manner (per Charter).
+
+──────────────────────────────────────────────────────────────────────────────
+10) Git & Change Discipline
+──────────────────────────────────────────────────────────────────────────────
+- Keep diffs minimal: smallest surface that satisfies the change.
+- Avoid large refactors, renames, or style-only edits unless explicitly requested.
+- If you must change sanctuary files, follow §3 protocol.
+
+When asked to “clean up structure”:
+- MUST follow Directory Charter + Reference Inventory process.
+- MUST produce a Changeset Report and list touched paths.
+
+──────────────────────────────────────────────────────────────────────────────
+11) Prohibited Behaviors (Hard stops)
+──────────────────────────────────────────────────────────────────────────────
+- Creating new folder trees without Charter.
+- Writing into fitting_lab/garment_lab except exports/brief/**.
+- Editing PROGRESS_LOG.jsonl existing lines (append-only only).
+- Marking DoD done without verifiable evidence.
+- Using legacy docs as decision sources.
+- Introducing thresholds/clamps or PASS/FAIL logic.
+
+END
