@@ -30,7 +30,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-05 00:04:07*
+*Updated: 2026-02-05 00:17:34*
 
 ### Curated ingest
 - run_dir: data/derived/curated_v0/_smoke/round10_3_20260204_232023
@@ -68,7 +68,10 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:FITTING -->
-- N/A (placeholder)
+- brief_path: N/A
+- brief_mtime: N/A
+- warnings:
+  - FITTING_LAB_ROOT not set
 <!-- GENERATED:END:FITTING -->
 
 ---
@@ -94,5 +97,8 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:GARMENT -->
-- N/A (placeholder)
+- brief_path: N/A
+- brief_mtime: N/A
+- warnings:
+  - GARMENT_LAB_ROOT not set
 <!-- GENERATED:END:GARMENT -->

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Render ops/STATUS.md BODY generated section from latest curated and geo runs.
-Read-only: data/derived, exports/runs. Overwrites only GENERATED:BEGIN:BODY..END:BODY.
-Exit 0 always; failures surface as Warnings in output.
+Render ops/STATUS.md BODY/FITTING/GARMENT generated sections.
+BODY: curated + geo runs. FITTING/GARMENT: external lab briefs (read-only).
+Exit 0 always; failures surface as Warnings.
 """
+import os
 from pathlib import Path
 from datetime import datetime
 import json
@@ -11,8 +12,12 @@ import re
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPS_STATUS = REPO_ROOT / "ops" / "STATUS.md"
-MARKER_BEGIN = "<!-- GENERATED:BEGIN:BODY -->"
-MARKER_END = "<!-- GENERATED:END:BODY -->"
+
+MARKERS = {
+    "BODY": ("<!-- GENERATED:BEGIN:BODY -->", "<!-- GENERATED:END:BODY -->"),
+    "FITTING": ("<!-- GENERATED:BEGIN:FITTING -->", "<!-- GENERATED:END:FITTING -->"),
+    "GARMENT": ("<!-- GENERATED:BEGIN:GARMENT -->", "<!-- GENERATED:END:GARMENT -->"),
+}
 
 
 def _parse_run_log(run_log_path: Path) -> dict:
@@ -192,54 +197,114 @@ def _render_body(curated: dict, geo: dict, warnings: list[str]) -> str:
     return "\n".join(lines)
 
 
-def _ensure_markers(text: str) -> str:
-    """If BODY markers missing, insert under first ## Dashboard (generated-only) in Body section."""
-    if MARKER_BEGIN in text and MARKER_END in text:
-        return text
+def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
+    """Read brief from FITTING_LAB_ROOT or GARMENT_LAB_ROOT env. Returns brief_path, mtime, head_12."""
+    out = {"brief_path": "N/A", "brief_mtime": "N/A", "brief_head": []}
+    warnings = []
+    env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
+    lab_root = os.environ.get(env_key, "").strip()
+    if not lab_root:
+        warnings.append(f"{env_key} not set")
+        return out, warnings
 
-    pattern = r"(## Body[\s\S]*?### Dashboard \(generated-only\)\s*\n)"
-    match = re.search(pattern, text)
-    if match:
-        insert = match.group(0) + f"{MARKER_BEGIN}\n- N/A\n{MARKER_END}\n"
-        text = text[: match.start()] + insert + text[match.end() :]
-    else:
-        text = text.rstrip() + f"\n\n{MARKER_BEGIN}\n- N/A\n{MARKER_END}\n"
+    root = Path(lab_root).resolve()
+    if not root.exists():
+        warnings.append(f"{env_key} path not found: {root}")
+        return out, warnings
+
+    brief_name = f"{module}_WORK_BRIEF.md"
+    brief_path = root / "exports" / "brief" / brief_name
+    if not brief_path.exists():
+        warnings.append(f"brief not found: {brief_path}")
+        return out, warnings
+
+    try:
+        out["brief_path"] = str(brief_path)
+        mtime = brief_path.stat().st_mtime
+        try:
+            from zoneinfo import ZoneInfo
+            dt = datetime.fromtimestamp(mtime, tz=ZoneInfo("Asia/Seoul"))
+        except ImportError:
+            dt = datetime.fromtimestamp(mtime)
+        out["brief_mtime"] = dt.strftime("%Y-%m-%d %H:%M:%S")
+        lines = brief_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        out["brief_head"] = lines[:12]
+    except Exception as e:
+        warnings.append(f"brief read failed: {e}")
+
+    return out, warnings
+
+
+def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
+    lines = [f"- brief_path: {brief['brief_path']}", f"- brief_mtime: {brief['brief_mtime']}"]
+    if brief["brief_head"]:
+        lines.append("- brief_head:")
+        for ln in brief["brief_head"]:
+            lines.append(f"  {ln}")
+    if warnings:
+        lines.append("- warnings:")
+        for w in warnings:
+            lines.append(f"  - {w}")
+    return "\n".join(lines)
+
+
+def _ensure_markers(text: str) -> str:
+    """If any markers missing, insert placeholder under ## Dashboard (generated-only) per section."""
+    for module, (mb, me) in MARKERS.items():
+        if mb not in text or me not in text:
+            section = module.lower().capitalize()
+            pattern = rf"(## {section}[\s\S]*?### Dashboard \(generated-only\)\s*\n)"
+            match = re.search(pattern, text)
+            if match:
+                placeholder = f"- N/A (placeholder)\n" if module != "BODY" else "- N/A\n"
+                insert = match.group(0) + f"{mb}\n{placeholder}{me}\n"
+                text = text[: match.start()] + insert + text[match.end() :]
     return text
 
 
 def main() -> int:
+    all_warnings = []
+
     curated, w1 = _latest_curated()
     geo, w2 = _latest_geo()
-    warnings = w1 + w2
+    all_warnings.extend(w1)
+    all_warnings.extend(w2)
 
-    content = _render_body(curated, geo, warnings)
-    block = f"{MARKER_BEGIN}\n{content}\n{MARKER_END}"
+    fitting_brief, w3 = _read_lab_brief("FITTING")
+    garment_brief, w4 = _read_lab_brief("GARMENT")
+    all_warnings.extend(w3)
+    all_warnings.extend(w4)
+
+    body_content = _render_body(curated, geo, w1 + w2)
+    fitting_content = _render_module_brief("FITTING", fitting_brief, w3)
+    garment_content = _render_module_brief("GARMENT", garment_brief, w4)
 
     try:
         text = OPS_STATUS.read_text(encoding="utf-8")
     except Exception as e:
-        print(f"updated ops/STATUS.md (BODY) — read failed: {e}, warnings={len(warnings)+1}")
+        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT) — read failed: {e}, warnings={len(all_warnings)+1}")
         return 0
 
     text = _ensure_markers(text)
 
-    if MARKER_BEGIN in text and MARKER_END in text:
-        text = re.sub(
-            rf"{re.escape(MARKER_BEGIN)}[\s\S]*?{re.escape(MARKER_END)}",
-            block,
-            text,
-            count=1,
-        )
-    else:
-        text = text.rstrip() + "\n\n" + block + "\n"
+    for module, (mb, me) in MARKERS.items():
+        if module == "BODY":
+            content = body_content
+        elif module == "FITTING":
+            content = fitting_content
+        else:
+            content = garment_content
+        block = f"{mb}\n{content}\n{me}"
+        if mb in text and me in text:
+            text = re.sub(rf"{re.escape(mb)}[\s\S]*?{re.escape(me)}", lambda m, b=block: b, text, count=1)
 
     try:
         OPS_STATUS.write_text(text, encoding="utf-8")
     except Exception as e:
-        print(f"updated ops/STATUS.md (BODY) — write failed: {e}, warnings={len(warnings)+1}")
+        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT) — write failed: {e}, warnings={len(all_warnings)+1}")
         return 0
 
-    print(f"updated ops/STATUS.md (BODY), warnings={len(warnings)}")
+    print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT), warnings={len(all_warnings)}")
     return 0
 
 
