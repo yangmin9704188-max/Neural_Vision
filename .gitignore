@@ -1,6 +1,9 @@
 # Migration Round 1: raw/derived data never committed
 data/**
 
+# Exports run outputs (generated-only)
+exports/runs/
+
 # Python
 __pycache__/
 *.pyc
