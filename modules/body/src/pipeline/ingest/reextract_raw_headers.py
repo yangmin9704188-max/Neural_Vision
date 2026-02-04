@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Re-extract column headers from SizeKorea raw files with improved header detection.
-
-Purpose: Accurately extract real column names (Korean headers) by intelligently
-detecting header rows, handling multi-row headers, and cleaning column names.
-
-Output: Saves to verification/runs/column_inventory/<timestamp>/ (not committed).
+Purpose: Re-extract headers from SizeKorea raw with improved detection.
+Inputs: raw CSV/XLSX paths
+Outputs: column_inventory (not committed)
+Status: diagnostic
 """
 
 import argparse

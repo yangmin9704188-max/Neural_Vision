@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Curated v0 Facts-Only Runner (Round 20).
-
-Purpose: Load golden_real_data_v0.npz (measurements only), aggregate per-key stats
-and warnings, emit facts_summary.json + md report. No geometric measurement.
+Purpose: curated v0 npz → facts (measurements only, no geo).
+Inputs: npz path
+Outputs: facts_summary.json, md report
+Status: active
 """
 
 from __future__ import annotations

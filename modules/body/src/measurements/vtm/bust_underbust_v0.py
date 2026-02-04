@@ -1,6 +1,10 @@
+"""
+Purpose: Bust/underbust circumference measurement.
+Inputs: verts, faces (mesh)
+Outputs: BustUnderbustResult
+Status: active
+"""
 # bust_underbust_v0.py
-# Geometric Layer v0 - BUST/UNDERBUST Measurement
-# Purpose: Interface contract fulfillment (form-only, no judgment)
 # Policy compliance:
 # - SEMANTIC_DEFINITION_BUST_VNEXT.md / SEMANTIC_DEFINITION_UNDERBUST_VNEXT.md
 # - CONTRACT_INTERFACE_BUST_UNDERBUST_V0.md

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Sample raw data to observe unit/scale patterns.
-
-Purpose: Observe value ranges in raw data to identify potential unit inconsistencies
-(no inference, observation only).
-
-Output: Logs to stdout (not committed to repo).
+Purpose: Sample value ranges in raw data for unit observation.
+Inputs: raw CSV path
+Outputs: stdout (not committed)
+Status: diagnostic
 """
 
 import argparse

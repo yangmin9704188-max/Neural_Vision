@@ -1,3 +1,9 @@
+"""
+Purpose: Pose normalization policy (A-Pose for measurements).
+Inputs: shape(betas), device
+Outputs: normalized pose tensors
+Status: active
+"""
 import torch
 
 class PoseNormalizer:

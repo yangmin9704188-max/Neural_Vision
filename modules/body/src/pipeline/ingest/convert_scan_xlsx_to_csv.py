@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-Convert scan XLSX to CSV with unit normalization (mm -> m).
+Purpose: Convert scan XLSX to CSV with unit normalization (mm -> m).
+Inputs: scan XLSX path
+Outputs: normalized CSV (meta_unit m)
+Status: one-off
 
-Purpose: Round24 – Convert 20F_data.xlsx to normalized CSV (meta_unit="m").
+Round24 – Convert 20F_data.xlsx to normalized CSV (meta_unit="m").
 Facts-only: no semantic mapping, no answer validation, unit conversion only.
 """
 

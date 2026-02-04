@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Extract context sample (20 columns) from SizeKorea raw CSV files.
+Purpose: Extract ~20 key columns from SizeKorea raw for context.
+Inputs: raw CSV paths
+Outputs: sample JSON/CSV (not committed)
+Status: diagnostic
 
 This script extracts approximately 20 key columns from each source file
 for context understanding purposes. Output files are NOT committed.

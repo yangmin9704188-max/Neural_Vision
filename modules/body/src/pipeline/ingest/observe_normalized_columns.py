@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Observe normalized CSV columns for bust/underbust availability.
-
-Purpose: Record factual observations about column existence and missing rates
-in raw_normalized_v0 files. No inference, observation only.
-
-Output: Logs to verification/runs/ (not committed to repo).
+Purpose: Observe bust/underbust column existence in normalized CSV.
+Inputs: normalized CSV path
+Outputs: observation log (not committed)
+Status: diagnostic
 """
 
 import argparse

@@ -1,5 +1,10 @@
+"""
+Purpose: Shoulder width v1.1.2 measurement.
+Inputs: verts, joints
+Outputs: width_m
+Status: deprecated
+"""
 # shoulder_width_v112.py
-# Shoulder Width v1.1.2 - pure measurement function
 # Policy:
 # 1) distal arm removal by LBS weights (elbow+wrist)
 # 2) arm-axis geometric filter (shoulder->elbow direction)

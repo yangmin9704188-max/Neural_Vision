@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Build SizeKorea glossary and v1 mapping table from ergonomics standard terms.
+Purpose: Build SizeKorea glossary and v1 mapping from ergonomics terms.
+Inputs: XLS, config paths
+Outputs: sizekorea_v1.json, glossary, coverage
+Status: one-off
 
 This script:
 1. Processes XLS file to create glossary (Semantic layer)

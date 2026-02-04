@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Build curated_v0 dataset from SizeKorea raw data.
+Purpose: Build curated_v0 dataset from SizeKorea raw (7th/8th).
+Inputs: data/raw/sizekorea_raw/*.csv|.xlsx, data/column_map/sizekorea_v2.json
+Outputs: curated_v0.parquet|.csv, warnings JSONL
+Status: active
 
 This pipeline:
 1. Extracts columns based on sizekorea column mapping (v2 by default)
@@ -23,8 +26,7 @@ import sys
 import re
 
 # Import canonicalization function
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from data.ingestion import canonicalize_units_to_m
+from .ingestion_units import canonicalize_units_to_m
 
 
 # Source file mapping

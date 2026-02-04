@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Observe SizeKorea raw CSV column names.
-
-Purpose: Record column names from raw CSV files to identify Korean column names
-and prepare for normalization mapping.
-
-Output: Logs to verification/runs/ (not committed to repo).
+Purpose: Observe raw CSV column names for mapping preparation.
+Inputs: raw CSV path
+Outputs: column list log (not committed)
+Status: diagnostic
 """
 
 import argparse

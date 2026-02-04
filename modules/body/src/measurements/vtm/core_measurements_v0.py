@@ -1,6 +1,11 @@
+"""
+Purpose: Core VTM: circumferences, widths, heights, arm length.
+Inputs: verts, faces (mesh)
+Outputs: MeasurementResult (value_m, metadata)
+Status: active
+"""
 # core_measurements_v0.py
 # Geometric Layer v0 - Core Measurements with Metadata
-# Purpose: Measure standard keys with metadata JSON output (schema v0 compliant)
 # Policy compliance:
 # - docs/semantic/measurement_semantics_v0.md
 # - docs/validation/measurement_metadata_schema_v0.md

@@ -1,7 +1,10 @@
+"""
+Purpose: Map anthropometric measurements to SMPL-X parameters.
+Inputs: measurements, SMPL-X model
+Outputs: optimized betas/joints
+Status: active
+"""
 # smart_mapper_v001.py
-# Smart Mapper v0.1 - Core optimization logic
-# 
-# Purpose: Map anthropometric measurements to SMPL-X parameters
 # Policy: Uses frozen A-Pose and Shoulder Width v1.1.2
 #
 # IMPORTANT: This module uses measurement function API results only.

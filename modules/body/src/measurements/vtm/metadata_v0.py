@@ -1,7 +1,10 @@
+"""
+Purpose: Metadata schema v0 helpers for measurement metadata.
+Inputs: standard_key, method params, value_m
+Outputs: metadata dict (JSON-serializable)
+Status: active
+"""
 # metadata_v0.py
-# Metadata Schema v0 - Helper utilities for generating measurement metadata
-# Purpose: Generate metadata JSON according to docs/validation/measurement_metadata_schema_v0.md
-
 from __future__ import annotations
 from typing import Dict, List, Optional, Any, Literal
 import json

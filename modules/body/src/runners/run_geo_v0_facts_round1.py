@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Geometric v0 Facts-Only Runner (Round 1)
-
-Purpose: Collect measurement results + metadata from core_measurements_v0
-and generate facts-only summary report.
+Purpose: geo v0 facts round1: mesh/verts → measurement facts.
+Inputs: manifest, out_dir
+Outputs: facts_summary.json, artifacts/
+Status: active
 """
 
 from __future__ import annotations

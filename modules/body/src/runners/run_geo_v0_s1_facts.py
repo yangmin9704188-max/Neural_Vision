@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Geometric v0 S1 Facts-Only Runner (Round 23)
-
-Purpose: Collect measurement results from S1 manifest (mesh/verts input contract).
-Facts-only: records mesh/verts availability and skip reasons (Type A/B).
+Purpose: U1 runner: S1 manifest mesh/verts → geometric facts.
+Inputs: --manifest (s1_manifest_v0*.json), --out_dir
+Outputs: exports/runs/geo_v0_s1/<run_id>/facts_summary.json, artifacts/
+Status: active
 """
 
 from __future__ import annotations

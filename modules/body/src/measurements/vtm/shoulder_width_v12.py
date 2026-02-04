@@ -1,6 +1,10 @@
+"""
+Purpose: Shoulder width v1.2 prototype (torso cross-section).
+Inputs: verts, joints
+Outputs: width_m
+Status: deprecated
+"""
 # shoulder_width_v12.py
-# Shoulder Width v1.2 - Joint-Anchored Torso Cross-Section (PROTOTYPE)
-#
 # Semantic Definition:
 # - Use L/R shoulder joints as anchors
 # - Define a torso plane at shoulder joint level (perpendicular to vertical axis)

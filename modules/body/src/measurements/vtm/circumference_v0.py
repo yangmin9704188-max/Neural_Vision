@@ -1,6 +1,10 @@
+"""
+Purpose: Bust/waist/hip circumference measurement.
+Inputs: verts, faces (mesh)
+Outputs: CircumferenceResult
+Status: active
+"""
 # circumference_v0.py
-# Geometric Layer v0 - Circumference Measurement
-# Purpose: Interface contract fulfillment (form-only, no judgment)
 # Policy compliance:
 # - Body Measurement Meta-Policy v1.3 (Semantic)
 # - BUST/WAIST/HIP selection rules (max/min)

@@ -273,4 +273,13 @@ When asked to “clean up structure”:
 - Using legacy docs as decision sources.
 - Introducing thresholds/clamps or PASS/FAIL logic.
 
+──────────────────────────────────────────────────────────────────────────────
+12) Code Generation Governance
+──────────────────────────────────────────────────────────────────────────────
+- When creating or modifying Python code under modules/**/src/**:
+  1) First open and read CATALOG.md in the target folder.
+  2) Do NOT create a new file if a similar function already exists; extend or refactor the existing file instead.
+  3) After any code change that adds/removes/repurposes a file, you MUST update the folder's CATALOG.md accordingly.
+- Experiments outputs (exports/, data/derived/, logs) are exempt.
+
 END

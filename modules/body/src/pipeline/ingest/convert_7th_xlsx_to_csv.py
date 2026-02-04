@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Convert 7th SizeKorea XLSX to CSV with human ID preserved as string.
+Purpose: Convert 7th SizeKorea XLSX to CSV, human_id as string.
+Inputs: 7th XLSX path
+Outputs: CSV file
+Status: active
 
 This script ensures that human ID column is read and saved as string type,
 preventing any data corruption (e.g., scientific notation, trailing .0).

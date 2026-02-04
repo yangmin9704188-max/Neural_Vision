@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Inspect SizeKorea raw files and extract column headers inventory.
-
-Purpose: Extract column names (headers) from SizeKorea source files and create
-an inventory showing file-by-file columns, union, and intersection.
-
-Output: Saves to verification/runs/column_inventory/<timestamp>/ (not committed).
+Purpose: Extract column headers inventory from SizeKorea raw (union/intersection).
+Inputs: raw CSV paths
+Outputs: column_inventory (not committed)
+Status: diagnostic
 """
 
 import argparse
