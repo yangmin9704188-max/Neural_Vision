@@ -27,13 +27,13 @@ import re
 
 # Import canonicalization function
 from .ingestion_units import canonicalize_units_to_m
+from . import paths as _paths
 
-
-# Source file mapping
+# Source file mapping (data/external/sizekorea_raw)
 SOURCE_FILES = {
-    "7th": "data/raw/sizekorea_raw/7th_data.csv",  # CSV fallback, XLSX preferred
-    "8th_direct": "data/raw/sizekorea_raw/8th_data_direct.csv",
-    "8th_3d": "data/raw/sizekorea_raw/8th_data_3d.csv",
+    "7th": str(_paths.EXTERNAL_7TH_CSV),
+    "8th_direct": str(_paths.EXTERNAL_8TH_DIRECT_CSV),
+    "8th_3d": str(_paths.EXTERNAL_8TH_3D_CSV),
 }
 
 # Header row for each source (from columns_by_file.json)
@@ -2473,14 +2473,14 @@ def main():
     parser.add_argument(
         '--mapping',
         type=str,
-        default='data/column_map/sizekorea_v2.json',
-        help='Path to sizekorea column mapping file (default: v2)'
+        default=str(_paths.DEFAULT_MAPPING),
+        help='Path to sizekorea column mapping file (default: data/column_map/sizekorea_v2.json)'
     )
     parser.add_argument(
         '--output',
         type=str,
-        default='data/processed/curated_v0/curated_v0.parquet',
-        help='Output file path'
+        default=str(_paths.DERIVED_CURATED_DIR / _paths.now_run_id() / "curated_v0.parquet"),
+        help='Output file path (default: data/derived/curated_v0/<RUN_ID>/curated_v0.parquet)'
     )
     parser.add_argument(
         '--format',

@@ -119,15 +119,19 @@ def main():
         "--files",
         type=str,
         nargs="+",
-        default=[
-            "data/raw/sizekorea_raw/7th_data.csv",
-            "data/raw/sizekorea_raw/8th_data_3d.csv",
-            "data/raw/sizekorea_raw/8th_data_direct.csv"
-        ],
-        help="CSV files to observe (default: 7th_data.csv, 8th_data_3d.csv, 8th_data_direct.csv)"
+        default=None,
+        help="CSV files to observe (default: data/external/sizekorea_raw 7th/8th CSVs)"
     )
     
     args = parser.parse_args()
+    
+    if args.files is None:
+        from . import paths as _paths
+        args.files = [
+            str(_paths.EXTERNAL_7TH_CSV),
+            str(_paths.EXTERNAL_8TH_3D_CSV),
+            str(_paths.EXTERNAL_8TH_DIRECT_CSV),
+        ]
     
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
