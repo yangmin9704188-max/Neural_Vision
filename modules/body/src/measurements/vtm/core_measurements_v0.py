@@ -12,7 +12,7 @@ import numpy as np
 import json
 import math
 
-from core.measurements.metadata_v0 import create_metadata_v0, get_evidence_ref
+from modules.body.src.measurements.vtm.metadata_v0 import create_metadata_v0, get_evidence_ref
 
 # -----------------------------
 # Types

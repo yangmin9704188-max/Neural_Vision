@@ -1,2 +1,6 @@
 # Migration Round 1: raw/derived data never committed
 data/**
+
+# Python
+__pycache__/
+*.pyc

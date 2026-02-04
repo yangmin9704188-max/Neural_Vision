@@ -20,11 +20,11 @@ from typing import Dict, List, Any, Optional
 from collections import defaultdict
 import subprocess
 
-# Add project root to path
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path (4 levels up: runners -> src -> body -> modules -> repo)
+project_root = str(Path(__file__).resolve().parents[4])
 sys.path.insert(0, project_root)
 
-from core.measurements.core_measurements_v0 import (
+from modules.body.src.measurements.vtm.core_measurements_v0 import (
     measure_circumference_v0_with_metadata,
     measure_width_depth_v0_with_metadata,
     measure_height_v0_with_metadata,
@@ -683,7 +683,7 @@ def main():
         "--out_dir",
         type=str,
         default=None,
-        help="Output directory (default: verification/runs/facts/geo_v0/round1_<timestamp>)"
+        help="Output directory (default: exports/runs/geo_v0/round1_<timestamp>)"
     )
     args = parser.parse_args()
     
@@ -757,7 +757,7 @@ def main():
     if args.out_dir is None:
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = Path(f"verification/runs/facts/geo_v0/round1_{timestamp}")
+        out_dir = Path(project_root) / "exports" / "runs" / "geo_v0" / f"round1_{timestamp}"
     else:
         out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

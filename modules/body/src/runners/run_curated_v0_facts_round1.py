@@ -18,7 +18,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Repo root (4 levels up: runners -> src -> body -> modules -> repo)
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 _CORE_KEYS_ORDER = ["HEIGHT_M", "BUST_CIRC_M", "WAIST_CIRC_M", "HIP_CIRC_M", "NECK_CIRC_M"]
 
@@ -239,7 +240,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Curated v0 facts runner (Round 20).")
     default_npz = _PROJECT_ROOT / "verification" / "datasets" / "golden" / "core_measurements_v0" / "golden_real_data_v0.npz"
     ap.add_argument("--npz", type=str, default=str(default_npz), help="Input NPZ path (golden_real_data_v0.npz)")
-    ap.add_argument("--out_dir", type=str, default=None, help="Output dir (default: verification/runs/facts/curated_v0/round20_<timestamp>)")
+    ap.add_argument("--out_dir", type=str, default=None, help="Output dir (default: exports/runs/curated_v0/round20_<timestamp>)")
     args = ap.parse_args()
 
     npz_path = Path(args.npz)
@@ -260,7 +261,7 @@ def main() -> None:
 
     from datetime import datetime
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(args.out_dir) if args.out_dir else _PROJECT_ROOT / "verification" / "runs" / "facts" / "curated_v0" / f"round20_{ts}"
+    out_dir = Path(args.out_dir) if args.out_dir else _PROJECT_ROOT / "exports" / "runs" / "curated_v0" / f"round20_{ts}"
     out_dir = _abs(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
