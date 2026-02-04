@@ -178,6 +178,13 @@ def _render_body(curated: dict, geo: dict, warnings: list[str]) -> str:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [f"*Updated: {ts}*", ""]
+    nw = len(warnings)
+    health = "OK (warnings=0)" if nw == 0 else f"WARN (warnings={nw})"
+    lines.append(f"- health: {health}")
+    if nw > 0:
+        top3 = _sort_warnings(warnings)[:3]
+        lines.append(f"- health_summary: {'; '.join(top3)}")
+    lines.append("")
 
     lines.append("### Curated ingest")
     lines.append(f"- run_dir: {curated['run_dir']}")
@@ -265,7 +272,14 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
 
 
 def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
-    lines = [f"- brief_path: {brief['brief_path']}", f"- brief_mtime: {brief['brief_mtime']}"]
+    nw = len(warnings)
+    health = "OK (warnings=0)" if nw == 0 else f"WARN (warnings={nw})"
+    lines = [f"- health: {health}"]
+    if nw > 0:
+        top3 = _sort_warnings(warnings)[:3]
+        lines.append(f"- health_summary: {'; '.join(top3)}")
+    lines.append(f"- brief_path: {brief['brief_path']}")
+    lines.append(f"- brief_mtime: {brief['brief_mtime']}")
     if brief["brief_head"]:
         lines.append("- brief_head:")
         for ln in brief["brief_head"]:

@@ -1,6 +1,9 @@
 # Migration Round 1: raw/derived data never committed
 data/**
 
+# Ops local config (use .example as template)
+ops/lab_roots.local.json
+
 # Exports run outputs (generated-only)
 exports/runs/
 

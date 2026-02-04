@@ -31,3 +31,10 @@
   - geo runs: exports/runs/geo_v0_s1/<run_id>/
 - Fitting: exports/runs/fitting_v0/<run_id>/ (placeholder)
 - Garment: exports/runs/garment_v0/<run_id>/ (placeholder)
+
+## External Lab Brief Contract
+- 외부 랩은 `<lab_root>/exports/brief/{FITTING,GARMENT}_WORK_BRIEF.md` 를 유지한다.
+- 메인 레포 STATUS는 각 brief의 상단 12줄만 인용(헤더 key: value 순서 고정).
+- lab root 지정 우선순위: ENV(`FITTING_LAB_ROOT`, `GARMENT_LAB_ROOT`) > `ops/lab_roots.local.json`
+- `ops/lab_roots.local.json` 은 로컬 전용(gitignore). `ops/lab_roots.local.json.example` 참고.
+- brief가 없으면 STATUS에 N/A + warning으로 표기됨.
