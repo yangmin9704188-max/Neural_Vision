@@ -1734,6 +1734,7 @@ def main():
     subprocess.run([sys.executable, str(project_root / "tools" / "render_dashboard_v0.py"), "--hub-root", str(project_root)], check=False)
     subprocess.run([sys.executable, str(project_root / "tools" / "render_work_briefs_v0.py"), "--hub-root", str(project_root)], check=False)
     subprocess.run([sys.executable, str(project_root / "tools" / "publish_work_briefs_v0.py"), "--hub-root", str(project_root)], check=False)
+    subprocess.run([sys.executable, str(project_root / "tools" / "render_status.py")], check=False)
 
     print("\nPostprocessing complete!")
 
