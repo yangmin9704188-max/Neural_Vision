@@ -1,8 +1,8 @@
 # Contracts (정본 계약)
 
-| 용도 | 경로 |
+| 용도 | 문서 |
 |------|------|
-| measurement 표준 | contracts/measurement/standard_keys_v0.md, unit_standard_v0.md |
-| measurement coverage | contracts/measurement/coverage/measurement_coverage_v0.csv |
-| dataset 계약 | contracts/datasets/npz_contract_v0.md |
-| fitting 인터페이스 | contracts/fitting/fitting_interface_v0.md |
+| measurement 표준 | [standard_keys_v0](measurement/standard_keys_v0.md), [unit_standard_v0](measurement/unit_standard_v0.md) |
+| measurement coverage | [measurement_coverage_v0.csv](measurement/coverage/measurement_coverage_v0.csv) |
+| dataset 계약 | [npz_contract_v0](datasets/npz_contract_v0.md) |
+| fitting 인터페이스 | [fitting_interface_v0](fitting/fitting_interface_v0.md) |
