@@ -20,8 +20,8 @@ EXTERNAL_8TH_DIRECT_CSV = EXTERNAL_RAW_DIR / "8th_data_direct.csv"
 # Derived outputs
 DERIVED_CURATED_DIR = PROJECT_ROOT / "data" / "derived" / "curated_v0"
 
-# Mapping (data/column_map; gitignore)
-DEFAULT_MAPPING = PROJECT_ROOT / "data" / "column_map" / "sizekorea_v2.json"
+# Mapping (canonical in contracts)
+DEFAULT_MAPPING = PROJECT_ROOT / "contracts" / "measurement" / "coverage" / "sizekorea_v2.json"
 
 
 def ensure_dir(p: Path) -> Path:

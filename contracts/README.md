@@ -3,6 +3,6 @@
 | 용도 | 문서 |
 |------|------|
 | measurement 표준 | [standard_keys_v0](measurement/standard_keys_v0.md), [unit_standard_v0](measurement/unit_standard_v0.md) |
-| measurement coverage | [measurement_coverage_v0.csv](measurement/coverage/measurement_coverage_v0.csv) |
+| measurement coverage | [measurement_coverage_v0.csv](measurement/coverage/measurement_coverage_v0.csv), [sizekorea_v2](measurement/coverage/sizekorea_v2.json) |
 | dataset 계약 | [npz_contract_v0](datasets/npz_contract_v0.md) |
 | fitting 인터페이스 | [fitting_interface_v0](fitting/fitting_interface_v0.md) |
