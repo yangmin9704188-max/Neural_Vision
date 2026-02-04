@@ -1,0 +1,238 @@
+# PLAN_v0.yaml — SSoT Project Plan Definition
+#
+# Status: CANONICAL
+# Created: 2026-01-29
+# Updated: 2026-01-30
+# Purpose: Dashboard renderer가 이 파일을 읽어 진행률을 계산한다.
+#
+# NOTE: This file is a mechanical dashboard plan (step_id/DoD/evidence only).
+#   Semantics and milestone definitions come from SSoT Pack v1 docs:
+#     S1: docs/plans/Body_Module_Plan_v1.md
+#     S2: docs/plans/fitting_module_plan_v1.md
+#     S3: docs/plans/garment_Product Contract v0.9-revC.md
+#     S4: docs/plans/unlock_conditions_u1_u2.md
+#     S5: docs/plans/phase_plan_unlock_driven.md
+#   Do not duplicate plan semantics here; reference SSoT Pack v1 for definitions.
+#
+# Rule: 사람만 편집. 에이전트/렌더러는 읽기 전용.
+# Rule: DoD items는 분자/분모 계산 가능 구조 (total + items[]).
+# Rule: 의존성은 "<module>:<step_id>" 문자열로 명시.
+# Rule: 이 파일의 모든 steps는 milestone 필드에 명시된 단일 milestone에 속한다.
+# Rule: milestone 전환 시 새 PLAN 파일(PLAN_v1.yaml 등)을 생성한다.
+
+version: v0
+
+milestone: M01_baseline
+
+phases:
+  - id: P01
+    name: "Contract & Data Foundation"
+    description: "L1 Contract 정의 및 데이터 계약 확립"
+    steps:
+      - module: body
+        step_id: "B01"
+      - module: fitting
+        step_id: "F01"
+      - module: garment
+        step_id: "G01"
+
+  - id: P02
+    name: "Geometry & Measurement"
+    description: "L2 Geometry 측정 로직 구현 및 L3 Production 파이프라인"
+    steps:
+      - module: body
+        step_id: "B02"
+      - module: body
+        step_id: "B03"
+      - module: fitting
+        step_id: "F02"
+      - module: garment
+        step_id: "G02"
+
+  - id: P03
+    name: "Validation & Confidence"
+    description: "L4 Validation facts 기록 + L5 Confidence 분석"
+    steps:
+      - module: body
+        step_id: "B04"
+      - module: body
+        step_id: "B05"
+      - module: fitting
+        step_id: "F03"
+      - module: fitting
+        step_id: "F04"
+
+  - id: P04
+    name: "Application"
+    description: "L6 Application 최종 모델 튜닝"
+    steps:
+      - module: body
+        step_id: "B06"
+
+modules:
+  body:
+    steps:
+      - id: "B01"
+        name: "Standard Keys Contract"
+        layer: L1
+        depends_on: []
+        dod:
+          total: 3
+          items:
+            - "standard_keys.md 존재 (Evidence: docs/contract/standard_keys.md)"
+            - "contract JSON 파일 존재 (Evidence: contract/*.json)"
+            - "단위/스케일 계약 문서화 (Evidence: docs/contract/UNIT_STANDARD.md)"
+        unlocks:
+          - "body:B02"
+          - "fitting:F01"
+
+      - id: "B02"
+        name: "Geometry Implementation"
+        layer: L2
+        depends_on:
+          - "body:B01"
+        dod:
+          total: 3
+          items:
+            - "geometry_manifest.json 스키마 정의 (Evidence: specs/common/geometry_manifest.schema.json)"
+            - "측정 로직 구현 (Evidence: core/measurements/*.py 또는 modules/body/measurements/*.py)"
+            - "geometry_manifest.json 산출 가능 (Evidence: verification/runs/**/geometry_manifest.json)"
+        unlocks:
+          - "body:B03"
+
+      - id: "B03"
+        name: "Production Pipeline"
+        layer: L3
+        depends_on:
+          - "body:B02"
+        dod:
+          total: 3
+          items:
+            - "대량 데이터 생성 파이프라인 (Evidence: verification/runners/*.py)"
+            - "NPZ 압축 산출 (Evidence: verification/datasets/**/*.npz)"
+            - "Production 산출물에 geometry_manifest.json 포함 (Evidence: verification/runs/**/geometry_manifest.json)"
+        unlocks:
+          - "body:B04"
+          - "fitting:F02"
+
+      - id: "B04"
+        name: "Validation Facts"
+        layer: L4
+        depends_on:
+          - "body:B03"
+        dod:
+          total: 3
+          items:
+            - "facts_summary.json 생성 (Evidence: verification/runs/**/facts_summary.json)"
+            - "KPI Report 생성 (Evidence: reports/validation/*.md)"
+            - "coverage backlog 관리 (Evidence: reports/validation/coverage_backlog.md)"
+        unlocks:
+          - "body:B05"
+          - "fitting:F03"
+
+      - id: "B05"
+        name: "Confidence Analysis"
+        layer: L5
+        depends_on:
+          - "body:B04"
+        dod:
+          total: 2
+          items:
+            - "Feature Weights 산출 (Evidence: artifacts/confidence/feature_weights.json)"
+            - "Correlation Matrix 산출 (Evidence: artifacts/confidence/correlation_matrix.json)"
+        unlocks:
+          - "body:B06"
+
+      - id: "B06"
+        name: "Application Model"
+        layer: L6
+        depends_on:
+          - "body:B05"
+        dod:
+          total: 2
+          items:
+            - "SMPL-X 튜닝 파이프라인 (Evidence: modules/application/*.py)"
+            - "최종 모델 산출물 (Evidence: models/k_smplx/*.pkl)"
+        unlocks: []
+
+  fitting:
+    steps:
+      - id: "F01"
+        name: "Fitting Interface Contract"
+        layer: L1
+        depends_on:
+          - "body:B01"
+        dod:
+          total: 3
+          items:
+            - "fitting_interface_v0.md 존재 (Evidence: docs/contract/fitting_interface_v0.md)"
+            - "fitting_manifest.schema.json 존재 (Evidence: modules/fitting/specs/fitting_manifest.schema.json)"
+            - "interface_ledger_v0.md에 fitting 행 등록 (Evidence: contracts/interface_ledger_v0.md)"
+        unlocks:
+          - "fitting:F02"
+
+      - id: "F02"
+        name: "Fitting Geometry & Runner"
+        layer: L2
+        depends_on:
+          - "fitting:F01"
+          - "body:B03"
+        dod:
+          total: 2
+          items:
+            - "fitting runner 구현 (Evidence: modules/fitting/runners/run_fitting_v0_facts.py)"
+            - "fitting_facts_summary.json 스키마 준수 (Evidence: interface_ledger_v0.md)"
+        unlocks:
+          - "fitting:F03"
+
+      - id: "F03"
+        name: "Fitting Production"
+        layer: L3
+        depends_on:
+          - "fitting:F02"
+          - "body:B04"
+        dod:
+          total: 2
+          items:
+            - "fitting production pipeline 구현 (Evidence: TBD)"
+            - "fitting_facts_summary.json 대량 생성 가능 (Evidence: TBD)"
+        unlocks:
+          - "fitting:F04"
+
+      - id: "F04"
+        name: "Fitting Validation"
+        layer: L4
+        depends_on:
+          - "fitting:F03"
+        dod:
+          total: 2
+          items:
+            - "fitting facts validation 로직 구현 (Evidence: TBD)"
+            - "fitting KPI report 생성 (Evidence: TBD)"
+        unlocks: []
+
+  garment:
+    steps:
+      - id: "G01"
+        name: "Garment Contract"
+        layer: L1
+        depends_on: []
+        dod:
+          total: 2
+          items:
+            - "garment 표준 키 정의 (Evidence: TBD)"
+            - "garment 스키마 정의 (Evidence: TBD)"
+        unlocks:
+          - "garment:G02"
+
+      - id: "G02"
+        name: "Garment Geometry"
+        layer: L2
+        depends_on:
+          - "garment:G01"
+        dod:
+          total: 2
+          items:
+            - "garment geometry 로직 구현 (Evidence: TBD)"
+            - "garment_manifest.json 산출 (Evidence: TBD)"
+        unlocks: []

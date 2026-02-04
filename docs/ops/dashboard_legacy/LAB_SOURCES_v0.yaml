@@ -1,0 +1,36 @@
+# LAB_SOURCES_v0.yaml — Automation Input Source Mapping
+#
+# Status: SKELETON (v0)
+# Created: 2026-01-29
+# Updated: 2026-01-30
+# Purpose: 자동 수집(다음 라운드 구현 예정)을 위한 Lab 경로 매핑
+# Rule: 경로는 절대경로 원칙. 미정은 "TBD_..." 표기.
+# Rule: 이 파일은 자동 수집 스크립트의 입력이며, 사람이 편집한다.
+# Rule: Lab exports must follow EXPORT_CONTRACT_v0.md; do not infer new paths.
+
+version: v0
+
+sources:
+  # body 모듈은 중앙 Hub(ai_model) 내부에서 직접 관리.
+  # body 이벤트는 hub 로컬 PROGRESS_LOG.jsonl에 기록한다.
+  hub:
+    root: "C:/Users/caino/Desktop/AI_model"
+    progress_log_path: "C:/Users/caino/Desktop/AI_model/exports/progress/PROGRESS_LOG.jsonl"
+    progress_snapshot_path: "C:/Users/caino/Desktop/AI_model/exports/progress/PROGRESS_SNAPSHOT.json"  # optional
+    modules: ["body"]
+
+  fitting_lab:
+    root: "C:/Users/caino/Desktop/fitting_lab"
+    progress_log_path: "C:/Users/caino/Desktop/fitting_lab/exports/progress/PROGRESS_LOG.jsonl"
+    progress_snapshot_path: "C:/Users/caino/Desktop/fitting_lab/exports/progress/PROGRESS_SNAPSHOT.json"  # optional
+    modules: ["fitting"]
+
+  garment_lab:
+    root: "C:/Users/caino/Desktop/garment_lab"
+    progress_log_path: "C:/Users/caino/Desktop/garment_lab/exports/progress/PROGRESS_LOG.jsonl"
+    progress_snapshot_path: "C:/Users/caino/Desktop/garment_lab/exports/progress/PROGRESS_SNAPSHOT.json"  # optional
+    modules: ["garment"]
+
+# EXPORT CONTRACT COMPLIANCE
+# - All labs MUST follow EXPORT_CONTRACT_v0.md canonical exports surface.
+# - Hub may write only to exports/brief/** in lab folders.

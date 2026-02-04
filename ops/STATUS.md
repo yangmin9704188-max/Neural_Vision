@@ -30,7 +30,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-04 23:56:43*
+*Updated: 2026-02-05 00:04:07*
 
 ### Curated ingest
 - run_dir: data/derived/curated_v0/_smoke/round10_3_20260204_232023

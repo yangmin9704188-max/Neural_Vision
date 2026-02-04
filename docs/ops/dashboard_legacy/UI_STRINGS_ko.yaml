@@ -1,0 +1,110 @@
+# UI_STRINGS_ko.yaml — Korean labels for PROJECT_DASHBOARD.md (display only)
+# Used when --lang ko. Plan/event semantics and computations unchanged.
+
+# Main title and header
+title: "프로젝트 대시보드"
+milestone: "마일스톤"
+rendered: "렌더 시각"
+
+# Data Sources section
+section_data_sources: "데이터 소스"
+column_source: "소스"
+column_path: "경로"
+column_status: "상태"
+plan_ssot: "계획 (SSoT)"
+lab_sources: "랩 소스"
+export_contract: "내보내기 계약"
+loaded: "로드됨"
+reference: "참조"
+tbd: "TBD"
+missing: "없음"
+not_configured: "미설정"
+
+# Phase x Module Matrix
+section_phase_matrix: "단계 × 모듈 매트릭스"
+column_phase: "단계"
+mod_body: "바디"
+mod_fitting: "피팅"
+mod_garment: "가먼트"
+note_cell_format: "셀 형식: `<step_id>: <done>/<total>`"
+
+# Module Progress
+section_module_progress: "모듈 진행"
+column_step: "스텝"
+column_name: "이름"
+column_layer: "계층"
+column_done: "완료"
+column_total: "전체"
+column_progress: "진행률"
+column_unlocks: "언락"
+row_total: "합계"
+
+# Unlock Status
+section_unlock_status: "언락 상태"
+column_depends_on: "의존"
+column_unlock_status: "언락 상태"
+note_unlock_blocked: "UNLOCKED = 모든 의존 완료. BLOCKED = 미완료 의존 1개 이상."
+
+# Available Work
+section_available_work: "가용 작업 (UNLOCKED, 잔여 > 0)"
+column_module: "모듈"
+column_remaining: "잔여"
+no_available_work: "(현재 가용 작업 없음)"
+note_available: "가용 = UNLOCKED이며 완료 < 전체"
+
+# Next Unlock Targets
+section_next_unlock: "다음 언락 대상 (BLOCKED, 미완료 의존 정확히 1개)"
+column_blocking_dep: "차단 의존"
+column_blocking_progress: "차단 완료/전체"
+no_next_unlock: "(미완료 의존이 정확히 1개인 스텝 없음)"
+note_next_unlock: "다음 언락 = BLOCKED이며 미완료 의존 1개"
+
+# Warnings
+section_warnings: "경고 (사실만)"
+
+# Recent Events
+section_recent_events: "최근 이벤트"
+column_timestamp: "타임스탬프"
+column_lab: "랩"
+column_delta: "델타"
+column_evidence_count: "증거 수"
+column_evidence_sample: "증거 샘플"
+column_note: "비고"
+no_events: "(수집된 이벤트 없음)"
+note_max_events: "최근 이벤트 최대 {max_events}건 표시. 전체 기록은 각 랩 PROGRESS_LOG.jsonl 참조."
+
+# Dependency Graph (Mermaid)
+section_dependency_graph: "의존성 그래프 (Mermaid, 선택)"
+note_mermaid: "위 표가 기본 뷰. Mermaid는 보조용."
+
+# Module display names (for table cells / headings)
+mod_display_body: "바디"
+mod_display_fitting: "피팅"
+mod_display_garment: "가먼트"
+
+# Work Brief (exports/brief/*_WORK_BRIEF.md)
+work_brief_title: "워크 브리프 (생성 전용)"
+module_label: "모듈"
+generated_at: "생성 시각"
+source_progress_log: "소스 진행 로그"
+do_not_hand_edit: "⚠️ 수동 편집 금지. tools/render_work_briefs_v0.py 로 재생성하세요."
+section_status_summary: "1) 상태 요약"
+status_total_line: "완료 / 전체 (이 모듈)"
+unlocked_steps_label: "UNLOCKED 스텝"
+blocked_steps_label: "BLOCKED 스텝"
+warnings_encountered: "입력 읽기 중 경고"
+section_available_work_brief: "2) 가용 작업 (UNLOCKED, 잔여 > 0)"
+no_available_work_brief: "(가용 작업 없음: 잔여 > 0인 UNLOCKED 스텝 없음)"
+section_next_unlock_brief: "3) 다음 언락 대상 (BLOCKED, 미완료 의존 정확히 1개)"
+no_next_unlock_brief: "(미완료 의존이 정확히 1개인 스텝 없음)"
+section_recent_events_brief: "4) 최근 이벤트 (이 모듈)"
+no_events_brief: "(이벤트 없음)"
+section_warnings_brief: "5) 경고 (사실만)"
+warnings_none: "(없음)"
+section_closeout: "마감 (추가 전용 진행 로그)"
+closeout_sentence: "이 모듈의 진행은 append-progress-event 도구로 모듈 진행 로그에 이벤트 한 줄을 추가하여 기록합니다."
+closeout_copy_paste: "복사/붙여넣기 명령 템플릿 (플레이스홀더 교체):"
+step_candidates_label: "스텝 후보 (UNLOCKED, 잔여 > 0):"
+column_current_done: "현재 완료"
+no_step_candidates: "(잔여 작업이 있는 UNLOCKED 스텝 없음.)"
+closeout_warning_path: "경고: 모듈 로그 경로가 TBD이거나 없음. 명령에서 실제 경로를 사용하세요."

@@ -8,6 +8,18 @@
 - Do: evidence-first, 링크로만 참조, data/**/exports/**는 로컬 전용
 - Don't: 모듈 간 파일 직접 수정 금지, 섹션 침범 금지
 
+## Write Boundary (facts-only)
+- data/**, exports/**는 로컬 전용, 커밋 금지
+- Hub가 외부 lab에 쓸 수 있는 경로는 `exports/brief/**` 뿐 (레거시 [EXPORT_CONTRACT_v0](docs/ops/dashboard_legacy/EXPORT_CONTRACT_v0.md) 인용)
+
+## DoD Claim 규약
+- evidence 없으면 claim 금지. 경로 정확 일치 필요.
+- 레거시 [DOD_CLAIM_PROTOCOL_v1](docs/ops/dashboard_legacy/DOD_CLAIM_PROTOCOL_v1.md) 참조
+
+## Commands
+- `py tools/render_status.py` — STATUS.md BODY 갱신
+- docs/ops/dashboard_legacy/ 는 참조용, 실행 비권장
+
 ## Module Shortcuts
 - [Body Status](./STATUS.md#body)
 - [Fitting Status](./STATUS.md#fitting)
