@@ -30,7 +30,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-05 00:17:34*
+*Updated: 2026-02-05 00:24:53*
 
 ### Curated ingest
 - run_dir: data/derived/curated_v0/_smoke/round10_3_20260204_232023
@@ -71,7 +71,7 @@
 - brief_path: N/A
 - brief_mtime: N/A
 - warnings:
-  - FITTING_LAB_ROOT not set
+  - [LAB_ROOT_MISSING] FITTING_LAB_ROOT not set | path=N/A
 <!-- GENERATED:END:FITTING -->
 
 ---
@@ -100,5 +100,5 @@
 - brief_path: N/A
 - brief_mtime: N/A
 - warnings:
-  - GARMENT_LAB_ROOT not set
+  - [LAB_ROOT_MISSING] GARMENT_LAB_ROOT not set | path=N/A
 <!-- GENERATED:END:GARMENT -->

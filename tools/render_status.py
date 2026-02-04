@@ -3,15 +3,43 @@
 Render ops/STATUS.md BODY/FITTING/GARMENT generated sections.
 BODY: curated + geo runs. FITTING/GARMENT: external lab briefs (read-only).
 Exit 0 always; failures surface as Warnings.
+Atomic write, stable warnings, text normalization.
 """
+import json
 import os
+import re
 from pathlib import Path
 from datetime import datetime
-import json
-import re
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPS_STATUS = REPO_ROOT / "ops" / "STATUS.md"
+
+# Warning format: [CODE] message | path=<path or N/A>
+def _warn(code: str, message: str, path: str = "N/A") -> str:
+    """Format warning: [CODE] message | path=<path>"""
+    return f"[{code}] {message} | path={path}"
+
+
+def _sort_warnings(warnings: list[str]) -> list[str]:
+    """Sort by CODE then path for stable diff."""
+    def key(w: str) -> tuple:
+        m = re.match(r"\[([^\]]+)\].*\| path=(.*)", w)
+        if m:
+            return (m.group(1), m.group(2))
+        return (w, "")
+
+    return sorted(warnings, key=key)
+
+
+def _normalize_line(line: str) -> str:
+    """CRLF/LF -> LF, tab -> 2 spaces, strip trailing."""
+    s = line.replace("\r\n", "\n").replace("\r", "\n").expandtabs(2)
+    return s.rstrip()
+
+
+def _normalize_lines(lines: list[str]) -> list[str]:
+    return [_normalize_line(ln) for ln in lines]
+
 
 MARKERS = {
     "BODY": ("<!-- GENERATED:BEGIN:BODY -->", "<!-- GENERATED:END:BODY -->"),
@@ -32,7 +60,7 @@ def _parse_run_log(run_log_path: Path) -> dict:
         if m:
             out["cols"] = int(m.group(1))
     except Exception as e:
-        out["warnings"].append(f"RUN_LOG parse failed: {e}")
+        out["warnings"].append(_warn("RUN_LOG_PARSE_FAIL", str(e), str(run_log_path)))
     return out
 
 
@@ -49,12 +77,12 @@ def _latest_curated() -> tuple[dict, list[str]]:
     warnings = []
     base = REPO_ROOT / "data" / "derived" / "curated_v0"
     if not base.exists():
-        warnings.append("data/derived/curated_v0 not found")
+        warnings.append(_warn("CURATED_NOT_FOUND", "data/derived/curated_v0 not found", "N/A"))
         return out, warnings
 
     parquets = list(base.rglob("curated_v0.parquet"))
     if not parquets:
-        warnings.append("no curated_v0.parquet found")
+        warnings.append(_warn("CURATED_PARQUET_NOT_FOUND", "no curated_v0.parquet found", str(base)))
         return out, warnings
 
     latest_parquet = max(parquets, key=lambda p: p.stat().st_mtime)
@@ -91,9 +119,9 @@ def _latest_curated() -> tuple[dict, list[str]]:
                 if out["cols"] is None:
                     out["cols"] = len(df.columns)
             except Exception as e:
-                warnings.append(f"parquet read fallback failed: {e}")
+                warnings.append(_warn("CURATED_PARQUET_META_FAIL", str(e), str(latest_parquet)))
         except Exception as e:
-            warnings.append(f"parquet metadata read failed: {e}")
+            warnings.append(_warn("CURATED_PARQUET_META_FAIL", str(e), str(latest_parquet)))
 
     if latest_parquet.exists():
         out["parquet_size"] = latest_parquet.stat().st_size
@@ -115,12 +143,12 @@ def _latest_geo() -> tuple[dict, list[str]]:
     warnings = []
     base = REPO_ROOT / "exports" / "runs"
     if not base.exists():
-        warnings.append("exports/runs not found")
+        warnings.append(_warn("GEO_FACTS_NOT_FOUND", "exports/runs not found", str(base)))
         return out, warnings
 
     files = list(base.rglob("facts_summary.json"))
     if not files:
-        warnings.append("no facts_summary.json found")
+        warnings.append(_warn("GEO_FACTS_NOT_FOUND", "no facts_summary.json found", str(base)))
         return out, warnings
 
     latest = max(files, key=lambda p: p.stat().st_mtime)
@@ -137,7 +165,7 @@ def _latest_geo() -> tuple[dict, list[str]]:
         out["record_missing_count"] = data.get("record_missing_count")
         out["processed_sink_count"] = data.get("processed_sink_count")
     except Exception as e:
-        warnings.append(f"facts_summary parse failed: {e}")
+        warnings.append(_warn("GEO_FACTS_PARSE_FAIL", str(e), str(latest)))
 
     return out, warnings
 
@@ -190,7 +218,7 @@ def _render_body(curated: dict, geo: dict, warnings: list[str]) -> str:
 
     if warnings:
         lines.append("### Warnings")
-        for w in warnings:
+        for w in _sort_warnings(warnings):
             lines.append(f"- {w}")
         lines.append("")
 
@@ -204,18 +232,18 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
     env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
     lab_root = os.environ.get(env_key, "").strip()
     if not lab_root:
-        warnings.append(f"{env_key} not set")
+        warnings.append(_warn("LAB_ROOT_MISSING", f"{env_key} not set", "N/A"))
         return out, warnings
 
     root = Path(lab_root).resolve()
     if not root.exists():
-        warnings.append(f"{env_key} path not found: {root}")
+        warnings.append(_warn("LAB_ROOT_NOT_FOUND", f"{env_key} path not found", str(root)))
         return out, warnings
 
     brief_name = f"{module}_WORK_BRIEF.md"
     brief_path = root / "exports" / "brief" / brief_name
     if not brief_path.exists():
-        warnings.append(f"brief not found: {brief_path}")
+        warnings.append(_warn("BRIEF_NOT_FOUND", "brief not found", str(brief_path)))
         return out, warnings
 
     try:
@@ -227,10 +255,11 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
         except ImportError:
             dt = datetime.fromtimestamp(mtime)
         out["brief_mtime"] = dt.strftime("%Y-%m-%d %H:%M:%S")
-        lines = brief_path.read_text(encoding="utf-8", errors="replace").splitlines()
-        out["brief_head"] = lines[:12]
+        raw = brief_path.read_text(encoding="utf-8", errors="replace")
+        lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        out["brief_head"] = _normalize_lines(lines[:12])
     except Exception as e:
-        warnings.append(f"brief read failed: {e}")
+        warnings.append(_warn("BRIEF_READ_FAIL", str(e), str(brief_path)))
 
     return out, warnings
 
@@ -243,7 +272,7 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
             lines.append(f"  {ln}")
     if warnings:
         lines.append("- warnings:")
-        for w in warnings:
+        for w in _sort_warnings(warnings):
             lines.append(f"  - {w}")
     return "\n".join(lines)
 
@@ -282,7 +311,7 @@ def main() -> int:
     try:
         text = OPS_STATUS.read_text(encoding="utf-8")
     except Exception as e:
-        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT) — read failed: {e}, warnings={len(all_warnings)+1}")
+        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT), warnings={len(all_warnings)+1}")
         return 0
 
     text = _ensure_markers(text)
@@ -299,9 +328,11 @@ def main() -> int:
             text = re.sub(rf"{re.escape(mb)}[\s\S]*?{re.escape(me)}", lambda m, b=block: b, text, count=1)
 
     try:
-        OPS_STATUS.write_text(text, encoding="utf-8")
+        tmp_path = OPS_STATUS.parent / f"STATUS.md.tmp.{os.getpid()}"
+        tmp_path.write_text(text, encoding="utf-8")
+        os.replace(tmp_path, OPS_STATUS)
     except Exception as e:
-        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT) — write failed: {e}, warnings={len(all_warnings)+1}")
+        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT), warnings={len(all_warnings)+1}")
         return 0
 
     print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT), warnings={len(all_warnings)}")
