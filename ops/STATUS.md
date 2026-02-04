@@ -1,42 +1,86 @@
-# Ops Status (템플릿)
+# Ops STATUS
 
-## Now Unlock
-- 
-
-## Next Unlock
-- 
-
-## Latest run
-- lane:
-- run_id:
-
-## Health
-- green / yellow / red
-
-## Next 3
-- 
-- 
-- 
-
-## Blockers
-- 
-
-## Evidence paths
-- 
+## Editing Rule
+- Body 섹션은 Cursor만 수정
+- Fitting/Garment 섹션은 해당 에이전트만 수정
+- Generated 마커 밖은 자동화가 건드리지 않는다
 
 ---
 
-<!-- GENERATED:BEGIN -->
-## Generated
+## Body
+### Now Unlock
+- 
+### Next Unlock
+- 
+### Latest run
+- lane:
+- run_id:
+### Health
+- green / yellow / red
+### Next 3
+- 
+- 
+- 
+### Blockers
+- 
+### Evidence paths
+- curated: data/derived/curated_v0/<RUN_ID>/
+- geo: exports/runs/geo_v0_s1/<run_id>/
+- contracts: contracts/ (reference only)
 
-### Last Curated Run
-- RUN_ID: _smoke/round10_3_20260204_232023
-- Rows: 451, Cols: 48
-- Parquet size: 80,091 bytes
+### Dashboard (generated-only)
+<!-- GENERATED:BEGIN:BODY -->
+- N/A (not generated yet)
+<!-- GENERATED:END:BODY -->
 
-### Last Geo Run
-- Path: exports/runs/_smoke/round6_6_final/geo_v0_s1/facts_summary.json
-- Processed: 200, Skipped: 0, Total: 200
+---
 
-*Rendered: 2026-02-04 23:37:28*
-<!-- GENERATED:END -->
+## Fitting
+### Now Unlock
+- 
+### Next Unlock
+- 
+### Latest run
+- lane:
+- run_id:
+### Health
+- green / yellow / red
+### Next 3
+- 
+- 
+- 
+### Blockers
+- 
+### Evidence paths
+- fitting runs: exports/runs/fitting_v0/<run_id>/ (placeholder)
+
+### Dashboard (generated-only)
+<!-- GENERATED:BEGIN:FITTING -->
+- N/A (placeholder)
+<!-- GENERATED:END:FITTING -->
+
+---
+
+## Garment
+### Now Unlock
+- 
+### Next Unlock
+- 
+### Latest run
+- lane:
+- run_id:
+### Health
+- green / yellow / red
+### Next 3
+- 
+- 
+- 
+### Blockers
+- 
+### Evidence paths
+- garment runs: exports/runs/garment_v0/<run_id>/ (placeholder)
+
+### Dashboard (generated-only)
+<!-- GENERATED:BEGIN:GARMENT -->
+- N/A (placeholder)
+<!-- GENERATED:END:GARMENT -->
