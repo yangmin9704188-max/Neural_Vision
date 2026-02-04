@@ -37,6 +37,21 @@ from modules.body.src.measurements.vtm.core_measurements_v0 import (
     MeasurementResult,
 )
 
+# Golden path prefix rewrite (legacy verification/... -> local data/...)
+LEGACY_GOLDEN_PREFIX = "verification/datasets/golden/s1_mesh_v0"
+LOCAL_GOLDEN_PREFIX = "data/golden/s1_mesh_v0"
+
+
+def _rewrite_golden_path(path_str: Optional[str], legacy: str = LEGACY_GOLDEN_PREFIX, local: str = LOCAL_GOLDEN_PREFIX) -> Optional[str]:
+    """Rewrite legacy golden path prefix to local data/ path. Path separator normalized via Path."""
+    if path_str is None or not path_str.strip():
+        return path_str
+    normalized = Path(path_str).as_posix()
+    if normalized.startswith(legacy):
+        return local + normalized[len(legacy):]
+    return path_str
+
+
 # This round's keys (same as geo v0)
 CIRCUMFERENCE_KEYS = [
     "NECK_CIRC_M", "BUST_CIRC_M", "UNDERBUST_CIRC_M", 
@@ -694,8 +709,8 @@ def process_case(
     Round65: exec-fail cases also log to exec_failures.jsonl
     """
     case_id = case["case_id"]
-    mesh_path = case.get("mesh_path")
-    verts_path = case.get("verts_path")
+    mesh_path = _rewrite_golden_path(case.get("mesh_path"))
+    verts_path = _rewrite_golden_path(case.get("verts_path"))
     # Round32: has_mesh_path 판정 단일화
     has_mesh_path = (mesh_path is not None) and (str(mesh_path).strip() != "")
     
