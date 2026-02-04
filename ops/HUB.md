@@ -17,8 +17,15 @@
 - 레거시 [DOD_CLAIM_PROTOCOL_v1](docs/ops/dashboard_legacy/DOD_CLAIM_PROTOCOL_v1.md) 참조
 
 ## Commands
+- `py tools/ops/append_progress_event.py` — PROGRESS_LOG.jsonl append (append-only)
 - `py tools/render_work_briefs.py` — PROGRESS_LOG → WORK_BRIEF 렌더
 - `py tools/render_status.py` — STATUS.md BODY/FITTING/GARMENT 갱신 (brief 인용)
+
+## Progress logging
+- PROGRESS_LOG.jsonl은 append-only. `exports/progress/PROGRESS_LOG.jsonl` 에 1줄 JSON 객체로 기록.
+- 예: `py tools/ops/append_progress_event.py --lab-root . --module body --step-id B01 --event note --note "checkpoint" --status OK`
+- 예: `py tools/ops/append_progress_event.py --lab-root $env:FITTING_LAB_ROOT --module fitting --step-id F01 --event note --note "smoke" --status OK`
+- 흐름: append_progress_event → render_work_briefs → render_status
 - docs/ops/dashboard_legacy/ 는 참조용, 실행 비권장
 
 ## Module Shortcuts

@@ -7,6 +7,7 @@ ops/lab_roots.local.json
 # Exports run outputs and generated briefs (generated-only)
 exports/runs/
 exports/brief/
+exports/progress/PROGRESS_LOG.jsonl
 
 # Python
 __pycache__/
