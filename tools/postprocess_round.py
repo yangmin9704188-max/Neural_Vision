@@ -1732,7 +1732,7 @@ def main():
     else:
         print("Warning: round_md_rel not available (round_num not detected from run_dir name). Ingest skipped.", file=sys.stderr)
     subprocess.run([sys.executable, str(project_root / "tools" / "render_dashboard_v0.py"), "--hub-root", str(project_root)], check=False)
-    subprocess.run([sys.executable, str(project_root / "tools" / "render_work_briefs_v0.py"), "--hub-root", str(project_root)], check=False)
+    subprocess.run([sys.executable, str(project_root / "tools" / "render_work_briefs.py")], check=False)
     subprocess.run([sys.executable, str(project_root / "tools" / "publish_work_briefs_v0.py"), "--hub-root", str(project_root)], check=False)
     subprocess.run([sys.executable, str(project_root / "tools" / "render_status.py")], check=False)
 

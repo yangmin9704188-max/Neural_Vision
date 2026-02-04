@@ -17,7 +17,8 @@
 - 레거시 [DOD_CLAIM_PROTOCOL_v1](docs/ops/dashboard_legacy/DOD_CLAIM_PROTOCOL_v1.md) 참조
 
 ## Commands
-- `py tools/render_status.py` — STATUS.md BODY 갱신
+- `py tools/render_work_briefs.py` — PROGRESS_LOG → WORK_BRIEF 렌더
+- `py tools/render_status.py` — STATUS.md BODY/FITTING/GARMENT 갱신 (brief 인용)
 - docs/ops/dashboard_legacy/ 는 참조용, 실행 비권장
 
 ## Module Shortcuts
@@ -31,6 +32,12 @@
   - geo runs: exports/runs/geo_v0_s1/<run_id>/
 - Fitting: exports/runs/fitting_v0/<run_id>/ (placeholder)
 - Garment: exports/runs/garment_v0/<run_id>/ (placeholder)
+
+## Work Briefs (generated from PROGRESS_LOG.jsonl)
+- `py tools/render_work_briefs.py` 가 각 lab의 `exports/progress/PROGRESS_LOG.jsonl` 을 읽어 `exports/brief/*_WORK_BRIEF.md` 를 생성한다.
+- lab roots: ENV(`FITTING_LAB_ROOT`, `GARMENT_LAB_ROOT`) > `ops/lab_roots.local.json`. Body lab = repo root.
+- step별 `dod_done_delta` 누적, `last_event_ts`/`last_step_id`/`last_note` 추출. `dod_done > dod_total` 이면 warning.
+- PLAN은 `docs/ops/dashboard_legacy/PLAN_v0.yaml` (read-only). 렌더 순서: render_work_briefs → render_status.
 
 ## External Lab Brief Contract
 - 외부 랩은 `<lab_root>/exports/brief/{FITTING,GARMENT}_WORK_BRIEF.md` 를 유지한다.

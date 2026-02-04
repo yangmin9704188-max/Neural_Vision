@@ -1,5 +1,5 @@
 # tools/smoke_status.ps1
-# Smoke test for render_status.py. Exit 0 always.
+# Smoke test: render_work_briefs -> render_status. Exit 0 always.
 $ErrorActionPreference = "Continue"
 
 $fitting = $env:FITTING_LAB_ROOT
@@ -11,6 +11,7 @@ if (-not $fitting -and -not $garment) {
     Write-Host ""
 }
 
+py tools/render_work_briefs.py
 py tools/render_status.py
 $r = $LASTEXITCODE
 
