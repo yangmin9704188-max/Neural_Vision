@@ -39,63 +39,41 @@ help:
 	@echo "  make judgment FROM_RUN=<run_dir> DRY_RUN=1 SLUG=smoke"
 
 sync-dry:
-	python tools/sync_state.py --dry-run $(ARGS)
+	@echo "[DEPRECATED] sync-dry is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 sync:
-	python tools/sync_state.py $(ARGS)
+	@echo "[DEPRECATED] sync is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 ai-prompt:
-	python tools/render_ai_prompt.py
+	@echo "[DEPRECATED] ai-prompt is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 ai-prompt-json:
-	python tools/render_ai_prompt.py --format json
+	@echo "[DEPRECATED] ai-prompt-json is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
-# Round execution wrapper
+# Round execution wrapper (legacy verification/runners/* not present; use modules/body/src/runners/*)
 curated_v0_round:
-	@if [ -z "$(RUN_DIR)" ]; then \
-		echo "Error: RUN_DIR is required. Usage: make curated_v0_round RUN_DIR=<out_dir>"; \
-		exit 1; \
-	fi
-	@if [ "$(SKIP_RUNNER)" != "1" ]; then \
-		if [ ! -f "$(RUN_DIR)/facts_summary.json" ]; then \
-			echo "Running curated_v0 facts runner..."; \
-			python verification/runners/run_curated_v0_facts_round1.py \
-				--npz verification/datasets/golden/core_measurements_v0/golden_real_data_v0.npz \
-				--out_dir $(RUN_DIR); \
-		else \
-			echo "facts_summary.json already exists in $(RUN_DIR), skipping runner."; \
-			echo "To force re-run, delete $(RUN_DIR)/facts_summary.json or run without SKIP_RUNNER=1"; \
-		fi \
-	else \
-		echo "SKIP_RUNNER=1: Skipping runner execution."; \
-	fi
-	@echo "Running postprocess_round.py (always executed)..."
-	@python tools/postprocess_round.py --current_run_dir $(RUN_DIR) || true
+	@echo "[DEPRECATED] curated_v0_round is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 geo_v0_s1_round:
-	@if [ -z "$(RUN_DIR)" ]; then \
-		echo "Error: RUN_DIR is required. Usage: make geo_v0_s1_round RUN_DIR=<out_dir>"; \
-		exit 1; \
-	fi
-	@if [ "$(SKIP_RUNNER)" != "1" ]; then \
-		if [ ! -f "$(RUN_DIR)/facts_summary.json" ]; then \
-			echo "Running geo v0 S1 facts runner..."; \
-			python verification/runners/run_geo_v0_s1_facts.py \
-				--manifest verification/datasets/golden/s1_mesh_v0/s1_manifest_v0.json \
-				--out_dir $(RUN_DIR); \
-		else \
-			echo "facts_summary.json already exists in $(RUN_DIR), skipping runner."; \
-			echo "To force re-run, delete $(RUN_DIR)/facts_summary.json or run without SKIP_RUNNER=1"; \
-		fi \
-	else \
-		echo "SKIP_RUNNER=1: Skipping runner execution."; \
-	fi
-	@echo "Running postprocess_round.py (always executed)..."
-	@python tools/postprocess_round.py --current_run_dir $(RUN_DIR) || true
+	@echo "[DEPRECATED] geo_v0_s1_round is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 # Ops lock warning sensor
 ops_guard:
-	@python tools/ops/check_ops_lock.py --base $(BASE) || true
+	@echo "[DEPRECATED] ops_guard is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 # Postprocess shortcut
 postprocess:
@@ -113,39 +91,21 @@ postprocess-baseline:
 
 # Curated v0 baseline round (runner skip, postprocess only)
 curated_v0_baseline:
-	@echo "Running curated_v0_round for baseline: $(BASELINE_RUN_DIR) (SKIP_RUNNER=1)"
-	@$(MAKE) curated_v0_round RUN_DIR=$(BASELINE_RUN_DIR) SKIP_RUNNER=1
+	@echo "[DEPRECATED] curated_v0_baseline is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 # Golden registry patch apply
 golden-apply:
-	@if [ -z "$(PATCH)" ]; then \
-		echo "Error: PATCH is required. Usage: make golden-apply PATCH=<patch.json> [FORCE=1]"; \
-		echo "Example: make golden-apply PATCH=verification/runs/facts/curated_v0/round20_20260125_164801/CANDIDATES/GOLDEN_REGISTRY_PATCH.json"; \
-		exit 1; \
-	fi
-	@if [ "$(FORCE)" = "1" ]; then \
-		python tools/golden_registry.py --add-entry $(PATCH) --registry $(GOLDEN_REGISTRY) --force; \
-	else \
-		python tools/golden_registry.py --add-entry $(PATCH) --registry $(GOLDEN_REGISTRY); \
-	fi
+	@echo "[DEPRECATED] golden-apply is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 # Judgment creation
 judgment:
-	@if [ -z "$(FROM_RUN)" ]; then \
-		echo "Error: FROM_RUN is required. Usage: make judgment FROM_RUN=<run_dir> [OUT_DIR=docs/judgments] [SLUG=...] [DRY_RUN=1]"; \
-		echo "Example: make judgment FROM_RUN=verification/runs/facts/curated_v0/round20_20260125_164801"; \
-		exit 1; \
-	fi
-	@OUT_DIR="$(if $(OUT_DIR),$(OUT_DIR),docs/judgments)"; \
-	DRY_RUN_FLAG=""; \
-	if [ "$(DRY_RUN)" = "1" ]; then \
-		DRY_RUN_FLAG="--dry-run"; \
-	fi; \
-	SLUG_FLAG=""; \
-	if [ -n "$(SLUG)" ]; then \
-		SLUG_FLAG="--slug $(SLUG)"; \
-	fi; \
-	python tools/judgments.py --from-run $(FROM_RUN) --out-dir $$OUT_DIR $$SLUG_FLAG $$DRY_RUN_FLAG
+	@echo "[DEPRECATED] judgment is not supported in this repo layout."
+	@echo "See ops/HUB.md"
+	@exit 2
 
 # Commands documentation generator
 commands-update:
