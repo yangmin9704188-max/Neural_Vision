@@ -106,13 +106,14 @@ def main():
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="verification/runs/column_observation",
-        help="Output directory for observation results (default: verification/runs/column_observation)"
+        default=None,
+        help="Output directory (default: exports/runs/_tools/ingest/observe_normalized_columns/<run_id>)"
     )
     
     args = parser.parse_args()
     
-    output_dir = Path(args.output_dir)
+    from .paths import default_tool_out
+    output_dir = Path(args.output_dir) if args.output_dir else default_tool_out("observe_normalized_columns")
     output_dir.mkdir(parents=True, exist_ok=True)
     
     key_columns = ["human_id", "sex", "age", "height", "weight"]

@@ -112,8 +112,8 @@ def main():
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="verification/runs/column_observation",
-        help="Output directory for observation results (default: verification/runs/column_observation)"
+        default=None,
+        help="Output directory (default: exports/runs/_tools/ingest/observe_sizekorea_columns/<run_id>)"
     )
     parser.add_argument(
         "--files",
@@ -124,6 +124,9 @@ def main():
     )
     
     args = parser.parse_args()
+
+    from .paths import default_tool_out
+    output_dir = Path(args.output_dir) if args.output_dir else default_tool_out("observe_sizekorea_columns")
     
     if args.files is None:
         from . import paths as _paths
@@ -133,7 +136,6 @@ def main():
             str(_paths.EXTERNAL_8TH_DIRECT_CSV),
         ]
     
-    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print("Observing SizeKorea raw CSV columns...")

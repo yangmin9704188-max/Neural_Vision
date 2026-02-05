@@ -541,7 +541,7 @@ def main():
         "--out_dir",
         type=str,
         default=None,
-        help="Output directory (default: verification/runs/column_inventory/<timestamp>)"
+        help="Output directory (default: exports/runs/_tools/ingest/reextract_raw_headers/<run_id>)"
     )
     
     args = parser.parse_args()
@@ -581,12 +581,11 @@ def main():
         return
     
     # Create output directory
+    from .paths import default_tool_out
     if args.out_dir:
         output_dir = Path(args.out_dir)
     else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = Path(f"verification/runs/column_inventory/{timestamp}")
-    
+        output_dir = default_tool_out("reextract_raw_headers")
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print("=" * 80)

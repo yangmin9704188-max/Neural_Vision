@@ -23,6 +23,16 @@ DERIVED_CURATED_DIR = PROJECT_ROOT / "data" / "derived" / "curated_v0"
 # Mapping (canonical in contracts)
 DEFAULT_MAPPING = PROJECT_ROOT / "contracts" / "measurement" / "coverage" / "sizekorea_v2.json"
 
+# Tool run outputs (generated-only, gitignore): exports/runs/_tools/ingest/<tool_name>/<run_id>
+TOOLS_RUNS_DIR = PROJECT_ROOT / "exports" / "runs" / "_tools"
+
+
+def default_tool_out(tool_name: str) -> Path:
+    """Default output directory for ingest tool: exports/runs/_tools/ingest/<tool_name>/<run_id>."""
+    out = TOOLS_RUNS_DIR / "ingest" / tool_name / now_run_id()
+    ensure_dir(out)
+    return out
+
 
 def ensure_dir(p: Path) -> Path:
     """Ensure directory exists, return path."""

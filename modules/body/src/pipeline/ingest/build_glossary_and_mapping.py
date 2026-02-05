@@ -624,8 +624,9 @@ def main():
     
     # 7. Create mapping report
     print("Step 5: Creating mapping report...")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_path = Path(f'verification/runs/mapping_build/{timestamp}/mapping_report.json')
+    from .paths import default_tool_out
+    report_dir = default_tool_out("build_glossary_and_mapping")
+    report_path = report_dir / "mapping_report.json"
     create_mapping_report(mapping_stats, coverage_df, columns_by_file, report_path)
     
     print("\n" + "=" * 80)

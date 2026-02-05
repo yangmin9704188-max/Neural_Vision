@@ -171,7 +171,7 @@ def main():
         '--out_dir',
         type=str,
         default=None,
-        help='Output directory (default: verification/runs/context_samples/<timestamp>)'
+        help='Output directory (default: exports/runs/_tools/ingest/extract_context_sample_20cols/<run_id>)'
     )
     parser.add_argument(
         '--n_rows',
@@ -191,12 +191,11 @@ def main():
     raw_dir = Path(args.raw_dir)
     
     # Determine output directory
+    from .paths import default_tool_out
     if args.out_dir:
         out_dir = Path(args.out_dir)
     else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = Path(f'verification/runs/context_samples/{timestamp}')
-    
+        out_dir = default_tool_out("extract_context_sample_20cols")
     out_dir.mkdir(parents=True, exist_ok=True)
     
     # Load column mapping

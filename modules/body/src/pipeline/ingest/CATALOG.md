@@ -7,6 +7,8 @@
 ## Path convention
 - External raw: data/external/sizekorea_raw (single junction). All 7th/8th CSVs here.
 - Mapping: contracts/measurement/coverage/sizekorea_v2.json (canonical).
+- Default tool out_dir: exports/runs/_tools/ingest/<tool_name>/<run_id> via paths.default_tool_out (generated-only, gitignore).
+- Single source of truth for default outputs: paths.py (TOOLS_RUNS_DIR, default_tool_out).
 
 ## Entries
 - paths.py — Centralized path constants (EXTERNAL_*, DERIVED_CURATED_DIR, DEFAULT_MAPPING). Status: active.
