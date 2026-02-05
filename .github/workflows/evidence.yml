@@ -1,0 +1,213 @@
+name: evidence-check
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  validate-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for git diff to work properly
+
+      - name: Check if infra-only PR and evidence runs changed
+        id: check_infra
+        run: |
+          set -euo pipefail
+          
+          # Determine base and head SHA based on event type
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            echo "Event: pull_request"
+            echo "BASE_SHA=$BASE_SHA"
+            echo "HEAD_SHA=$HEAD_SHA"
+            # Use triple-dot (merge-base) for accurate diff
+            CHANGED_FILES=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || echo "")
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+            echo "Event: push"
+            echo "BASE_SHA=$BASE_SHA"
+            echo "HEAD_SHA=$HEAD_SHA"
+            CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" || echo "")
+          else
+            # workflow_dispatch: compare with previous commit
+            BASE_SHA="HEAD~1"
+            HEAD_SHA="HEAD"
+            echo "Event: workflow_dispatch"
+            echo "BASE_SHA=$BASE_SHA"
+            echo "HEAD_SHA=$HEAD_SHA"
+            CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" || echo "")
+          fi
+          
+          # Handle empty changed files (safety: treat as non-infra)
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No changed files detected. Treating as non-infra for safety."
+            echo "IS_INFRA_ONLY=false" >> "$GITHUB_OUTPUT"
+            echo "HAS_EVIDENCE_RUNS=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES" | while IFS= read -r file; do
+            if [ -n "$file" ]; then
+              echo "  - $file"
+            fi
+          done
+          
+          # Check for artifacts/**/runs/** changes
+          HAS_EVIDENCE_RUNS=false
+          if echo "$CHANGED_FILES" | grep -qE '^artifacts/[^/]+/[^/]+/runs/'; then
+            HAS_EVIDENCE_RUNS=true
+            echo "Evidence runs detected in changed files."
+          fi
+          echo "HAS_EVIDENCE_RUNS=$HAS_EVIDENCE_RUNS" >> "$GITHUB_OUTPUT"
+          
+          # Allowlist: only these paths are considered infra-only
+          # All changed files must match one of these patterns
+          ALLOWLIST_PATTERNS=(
+            "^\.github/"
+            "^tools/"
+            "^docs/"
+            "^Makefile$"
+          )
+          
+          # Check if ALL changed files are in allowlist
+          INFRA_ONLY=true
+          CHANGED_COUNT=0
+          while IFS= read -r file; do
+            if [ -z "$file" ]; then
+              continue
+            fi
+            CHANGED_COUNT=$((CHANGED_COUNT + 1))
+            MATCHED=false
+            for pattern in "${ALLOWLIST_PATTERNS[@]}"; do
+              if echo "$file" | grep -qE "$pattern"; then
+                MATCHED=true
+                break
+              fi
+            done
+            if [ "$MATCHED" = "false" ]; then
+              INFRA_ONLY=false
+              echo "Non-infra file changed (not in allowlist): $file"
+              break
+            fi
+          done <<< "$CHANGED_FILES"
+          
+          # Require at least one changed file for infra-only classification
+          if [ "$CHANGED_COUNT" -eq 0 ]; then
+            INFRA_ONLY=false
+            echo "No changed files found. Treating as non-infra for safety."
+          fi
+          
+          if [ "$INFRA_ONLY" = "true" ]; then
+            echo "IS_INFRA_ONLY=true" >> "$GITHUB_OUTPUT"
+            echo "check_infra computed IS_INFRA_ONLY=true"
+            echo "Detected infra-only PR (path-based). Evidence validation skipped."
+          else
+            echo "IS_INFRA_ONLY=false" >> "$GITHUB_OUTPUT"
+            echo "check_infra computed IS_INFRA_ONLY=false"
+            echo "Non-infra files changed. Evidence validation required."
+          fi
+          
+          # Debug: show output file content
+          echo "GITHUB_OUTPUT content:"
+          cat "$GITHUB_OUTPUT" || echo "Could not read GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: steps.check_infra.outputs.IS_INFRA_ONLY != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        if: steps.check_infra.outputs.IS_INFRA_ONLY != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Validate evidence runs (schema v1.0)
+        if: steps.check_infra.outputs.IS_INFRA_ONLY != 'true' && steps.check_infra.outputs.HAS_EVIDENCE_RUNS == 'true'
+        env:
+          IS_INFRA_ONLY: ${{ steps.check_infra.outputs.IS_INFRA_ONLY }}
+        run: |
+          # Guard: Skip if infra-only (double-check using env var)
+          echo "validate env IS_INFRA_ONLY=${IS_INFRA_ONLY}"
+          if [ "${IS_INFRA_ONLY}" = "true" ]; then
+            echo "Skipping evidence validation for infra-only changes."
+            exit 0
+          fi
+          
+          # Debug: Print version information
+          echo "=== Evidence Validator Version Debug ==="
+          echo "HEAD SHA: $(git rev-parse HEAD)"
+          echo "HEAD commit: $(git log -1 --oneline)"
+          echo "validate_evidence.py SHA256: $(python -c "import hashlib;print(hashlib.sha256(open('tools/validate_evidence.py','rb').read()).hexdigest())")"
+          echo "========================================"
+          
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            python tools/validate_evidence.py --base "$BASE_SHA" --head "$HEAD_SHA"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+            python tools/validate_evidence.py --base "$BASE_SHA" --head "$HEAD_SHA"
+          else
+            python tools/validate_evidence.py --base HEAD~1 --head HEAD
+          fi
+
+      - name: Validate observation & manifest (if present)
+        if: steps.check_infra.outputs.IS_INFRA_ONLY != 'true' && steps.check_infra.outputs.HAS_EVIDENCE_RUNS != 'true'
+        env:
+          IS_INFRA_ONLY: ${{ steps.check_infra.outputs.IS_INFRA_ONLY }}
+        run: |
+          # Guard: Skip if infra-only (double-check using env var)
+          echo "validate env IS_INFRA_ONLY=${IS_INFRA_ONLY}"
+          if [ "${IS_INFRA_ONLY}" = "true" ]; then
+            echo "Skipping evidence validation for infra-only changes."
+            exit 0
+          fi
+          
+          if [ -f logs/observation.md ]; then
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              BASE_SHA="${{ github.event.pull_request.base.sha }}"
+              HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+              python tools/validate_observation.py --require-manifest --base "$BASE_SHA" --head "$HEAD_SHA"
+            elif [ "${{ github.event_name }}" = "push" ]; then
+              BASE_SHA="${{ github.event.before }}"
+              HEAD_SHA="${{ github.sha }}"
+              python tools/validate_observation.py --require-manifest --base "$BASE_SHA" --head "$HEAD_SHA"
+            else
+              python tools/validate_observation.py --require-manifest --base HEAD~1 --head HEAD
+            fi
+          else
+            echo "No observation.md found. Skipping evidence validation."
+          fi
+
+      - name: Skip evidence validation (no runs changed)
+        if: steps.check_infra.outputs.IS_INFRA_ONLY != 'true' && steps.check_infra.outputs.HAS_EVIDENCE_RUNS != 'true'
+        run: |
+          echo "No evidence runs changed; skipping validation."
+
+      - name: Ensure pending_review exists (if required)
+        if: steps.check_infra.outputs.IS_INFRA_ONLY != 'true'
+        run: |
+          if [ -f pending_review.json ]; then
+            echo "pending_review.json found."
+          else
+            echo "No pending_review.json. This is allowed for infra PRs."
+          fi
+
+      - name: Skip evidence validation for infra-only PRs
+        if: steps.check_infra.outputs.IS_INFRA_ONLY == 'true'
+        run: |
+          echo "Detected infra-only PR (path-based). Evidence validation skipped."
+          echo "Changed files are limited to: .github/, tools/, docs/"
+          echo "No ML-related changes detected. Evidence validation not required."

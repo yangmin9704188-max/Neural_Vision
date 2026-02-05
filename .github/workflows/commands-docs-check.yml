@@ -1,0 +1,29 @@
+name: Commands Docs Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check-commands-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Generate COMMANDS.md
+        run: |
+          python tools/ops/generate_commands_md.py
+      
+      - name: Show diff for debugging
+        run: |
+          git diff -- docs/ops/COMMANDS.md || true
+      
+      - name: Check if COMMANDS.md is up to date
+        run: |
+          git diff --exit-code docs/ops/COMMANDS.md || (echo "Error: docs/ops/COMMANDS.md is not up to date. Please run 'make commands-update' and commit the changes." && exit 1)
