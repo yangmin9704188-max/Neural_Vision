@@ -5,6 +5,12 @@ import json
 import subprocess
 from pathlib import Path
 
+# Allow import of path_shim from repo root
+_repo = Path(__file__).resolve().parents[1]
+if str(_repo) not in sys.path:
+    sys.path.insert(0, str(_repo))
+from modules.body.src.utils.path_shim import rewrite_legacy_path
+
 def check_if_changed(base_sha, head_sha, file_path):
     """
     Check if file_path is changed between base and head.
@@ -70,7 +76,8 @@ def validate(require_manifest=False, base_sha=None, head_sha=None):
             if not run_dir:
                 print("[FAIL] artifacts.run_dir이 비어있습니다.")
                 sys.exit(1)
-            
+            run_dir = rewrite_legacy_path(run_dir)
+
             # Check if observation.md or run_dir was changed in this PR
             # If not changed, skip manifest validation (legacy path protection)
             should_skip = False

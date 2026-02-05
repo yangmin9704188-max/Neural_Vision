@@ -12,21 +12,17 @@ from pathlib import Path
 def get_changed_runs(base_sha, head_sha):
     """
     Find changed run directories from git diff.
+    Priority: 1) exports/runs/**, 2) artifacts/**/runs/** (legacy).
     Only returns runs that are actually changed in this PR.
-    
-    Rules:
-    - Only scans artifacts/ paths that are changed in base...head diff
-    - Only includes paths with 'runs' directory (excludes regression/ etc.)
-    - If diff fails or base/head invalid, returns empty (safe skip)
+    If diff fails or base/head invalid, returns empty (safe skip).
     """
     import subprocess
-    
+
     # Validate base and head SHA
     if not base_sha or not head_sha:
         print("WARNING: base or head SHA is empty. Skipping validation (safe skip).")
         return []
-    
-    # Try to verify SHAs exist
+
     try:
         subprocess.run(
             ['git', 'rev-parse', '--verify', base_sha],
@@ -41,8 +37,7 @@ def get_changed_runs(base_sha, head_sha):
     except subprocess.CalledProcessError:
         print(f"WARNING: Invalid SHA (base={base_sha}, head={head_sha}). Skipping validation (safe skip).")
         return []
-    
-    # Get changed files
+
     try:
         result = subprocess.run(
             ['git', 'diff', '--name-only', f'{base_sha}...{head_sha}'],
@@ -55,38 +50,27 @@ def get_changed_runs(base_sha, head_sha):
         print(f"WARNING: git diff failed (base={base_sha}, head={head_sha}). Skipping validation (safe skip).")
         print(f"  Error: {e.stderr}")
         return []
-    
-    # Check if any artifacts/ files changed
-    artifacts_changed = False
+
     run_dirs = set()
-    
+
     for file in changed_files:
         if not file:
             continue
-        
-        # Check if file is under artifacts/
-        if file.startswith('artifacts/'):
-            artifacts_changed = True
-            
-            # Extract run directory from artifacts path
-            # Pattern: artifacts/.../runs/run_id/... or artifacts/.../runs/run_id
-            # IMPORTANT: Only include paths with 'runs' directory (exclude regression/, sensitivity/, etc.)
+        # 1) exports/runs/** (canonical)
+        if file.startswith('exports/runs/'):
+            parts = file.split('/')
+            if len(parts) >= 4:  # exports/runs/<lane>/<run_id>/...
+                run_dir = '/'.join(parts[:4])
+                run_dirs.add(run_dir)
+        # 2) artifacts/**/runs/** (legacy)
+        elif file.startswith('artifacts/'):
             parts = file.split('/')
             if 'runs' in parts:
                 runs_idx = parts.index('runs')
                 if runs_idx + 1 < len(parts):
-                    # Extract up to run_id directory
-                    run_id = parts[runs_idx + 1]
-                    # Build path: artifacts/.../runs/run_id
                     run_dir = '/'.join(parts[:runs_idx + 2])
                     run_dirs.add(run_dir)
-            # Explicitly skip regression/, sensitivity/, etc. (not runs/)
-            # These are legacy folders and should not be validated
-    
-    # If no artifacts changed, return empty (will exit early)
-    if not artifacts_changed:
-        return []
-    
+
     return sorted(run_dirs)
 
 
@@ -188,8 +172,29 @@ def check_pass_fail_rules(manifest, metrics):
     return True, errors, warnings
 
 
+def validate_run_exports(run_dir):
+    """
+    Lightweight validation for exports/runs/** (canonical).
+    Checks facts_summary.json (warn if missing); KPI.md / KPI_DIFF.md optional (warn if missing).
+    Non-fatal: missing files only produce warnings.
+    """
+    run_dir_path = Path(run_dir)
+    run_id = run_dir_path.name
+    warnings = []
+    facts = run_dir_path / 'facts_summary.json'
+    kpi = run_dir_path / 'KPI.md'
+    kpi_diff = run_dir_path / 'KPI_DIFF.md'
+    if not facts.exists():
+        warnings.append(f"facts_summary.json missing (non-fatal)")
+    if not kpi.exists():
+        warnings.append(f"KPI.md missing (non-fatal)")
+    if not kpi_diff.exists():
+        warnings.append(f"KPI_DIFF.md missing (non-fatal)")
+    return True, run_id, warnings
+
+
 def validate_run(run_dir):
-    """Validate a single run directory."""
+    """Validate a single run directory (artifacts/** schema: manifest.json, metrics.json, summary.md)."""
     run_dir_path = Path(run_dir)
     
     manifest_path = run_dir_path / 'manifest.json'
@@ -281,45 +286,53 @@ def main():
             # Fallback: use HEAD~1, but this is a safe skip if diff fails
             base_sha = 'HEAD~1'
     
-    print(f"Checking changed artifacts between {base_sha}...{head_sha}")
+    print(f"Checking changed runs (exports/runs, artifacts/) between {base_sha}...{head_sha}")
     
     # Get changed runs (only artifacts changed in this PR)
     # If diff fails or no artifacts changed, returns empty (safe skip)
     changed_runs = get_changed_runs(base_sha, head_sha)
     
     if not changed_runs:
-        print("No artifacts changed in this PR; skipping validation.")
-        print("(Legacy artifacts (regression/, sensitivity/, etc.) are not scanned)")
+        print("SKIP: No exports/runs or artifacts/runs changed in this PR; skipping validation.")
         return 0
-    
-    print(f"Validating evidence runs: {len(changed_runs)}")
+
+    print(f"Validating evidence runs: {len(changed_runs)} (exports/runs first, then artifacts/)")
     print("")
-    
+
     results = []
     all_warnings = []
-    
+
     for run_dir in changed_runs:
-        passed, primary, delta, delta_pct, errors, fail_rate, warnings = validate_run(run_dir)
-        run_id = Path(run_dir).name
-        status = "PASS" if passed else "FAIL"
-        
-        print(f"[{status}] {run_id}")
-        if primary:
-            print(f"  Primary metric: {primary}")
-        if delta is not None:
-            print(f"  Delta: {delta:.4f} ({delta_pct:+.2f}%)")
-        if fail_rate is not None:
-            print(f"  Fail rate: {fail_rate:.4f}")
-        if errors:
-            for error in errors:
-                print(f"  ERROR: {error}")
-        if warnings:
-            for warning in warnings:
-                print(f"  {warning}")
-                all_warnings.append(f"{run_id}: {warning}")
-        print("")
-        
-        results.append((run_id, passed))
+        if run_dir.startswith('exports/runs'):
+            passed, run_id, warnings = validate_run_exports(run_dir)
+            status = "PASS"
+            print(f"[{status}] {run_id} (exports/runs)")
+            if warnings:
+                for w in warnings:
+                    print(f"  {w}")
+                    all_warnings.append(f"{run_id}: {w}")
+            print("")
+            results.append((run_id, passed))
+        else:
+            passed, primary, delta, delta_pct, errors, fail_rate, warnings = validate_run(run_dir)
+            run_id = Path(run_dir).name
+            status = "PASS" if passed else "FAIL"
+            print(f"[{status}] {run_id}")
+            if primary:
+                print(f"  Primary metric: {primary}")
+            if delta is not None:
+                print(f"  Delta: {delta:.4f} ({delta_pct:+.2f}%)")
+            if fail_rate is not None:
+                print(f"  Fail rate: {fail_rate:.4f}")
+            if errors:
+                for error in errors:
+                    print(f"  ERROR: {error}")
+            if warnings:
+                for warning in warnings:
+                    print(f"  {warning}")
+                    all_warnings.append(f"{run_id}: {warning}")
+            print("")
+            results.append((run_id, passed))
     
     # Summary
     passed_count = sum(1 for _, p in results if p)

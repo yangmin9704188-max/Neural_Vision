@@ -61,11 +61,15 @@ jobs:
             fi
           done
           
-          # Check for artifacts/**/runs/** changes
+          # Check for exports/runs/** or artifacts/**/runs/** changes
           HAS_EVIDENCE_RUNS=false
+          if echo "$CHANGED_FILES" | grep -qE '^exports/runs/'; then
+            HAS_EVIDENCE_RUNS=true
+            echo "Evidence runs (exports/runs) detected in changed files."
+          fi
           if echo "$CHANGED_FILES" | grep -qE '^artifacts/[^/]+/[^/]+/runs/'; then
             HAS_EVIDENCE_RUNS=true
-            echo "Evidence runs detected in changed files."
+            echo "Evidence runs (artifacts) detected in changed files."
           fi
           echo "HAS_EVIDENCE_RUNS=$HAS_EVIDENCE_RUNS" >> "$GITHUB_OUTPUT"
           

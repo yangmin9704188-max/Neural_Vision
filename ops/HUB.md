@@ -41,6 +41,8 @@
 - Fitting: exports/runs/fitting_v0/<run_id>/ (placeholder)
 - Garment: exports/runs/garment_v0/<run_id>/ (placeholder)
 - Progress log: `exports/progress/PROGRESS_LOG.jsonl` (append-only, local only)
+- Canonical evidence paths: data/** (local), exports/runs/** (generated-only)
+- Legacy verification/* references are supported via shim; verification/ is not canonical
 
 ## Work Briefs (generated from PROGRESS_LOG.jsonl)
 - `py tools/render_work_briefs.py` 가 각 lab의 `exports/progress/PROGRESS_LOG.jsonl` 을 읽어 `exports/brief/*_WORK_BRIEF.md` 를 생성한다.

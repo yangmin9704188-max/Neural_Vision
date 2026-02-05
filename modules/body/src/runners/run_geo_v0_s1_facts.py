@@ -36,20 +36,18 @@ from modules.body.src.measurements.vtm.core_measurements_v0 import (
     measure_hip_group_with_shared_slice,
     MeasurementResult,
 )
+from modules.body.src.utils.path_shim import rewrite_legacy_path
 
-# Golden path prefix rewrite (legacy verification/... -> local data/...)
+# Golden path prefix rewrite (legacy verification/... -> local data/...); delegates to path_shim
 LEGACY_GOLDEN_PREFIX = "verification/datasets/golden/s1_mesh_v0"
 LOCAL_GOLDEN_PREFIX = "data/golden/s1_mesh_v0"
 
 
 def _rewrite_golden_path(path_str: Optional[str], legacy: str = LEGACY_GOLDEN_PREFIX, local: str = LOCAL_GOLDEN_PREFIX) -> Optional[str]:
-    """Rewrite legacy golden path prefix to local data/ path. Path separator normalized via Path."""
-    if path_str is None or not path_str.strip():
+    """Rewrite legacy golden path via path_shim (verification/datasets/golden -> data/golden)."""
+    if path_str is None or not str(path_str).strip():
         return path_str
-    normalized = Path(path_str).as_posix()
-    if normalized.startswith(legacy):
-        return local + normalized[len(legacy):]
-    return path_str
+    return rewrite_legacy_path(str(path_str))
 
 
 # This round's keys (same as geo v0)
