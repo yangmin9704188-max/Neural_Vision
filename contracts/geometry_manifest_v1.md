@@ -4,6 +4,12 @@
 
 **Location**: `contracts/geometry_manifest_v1.schema.json`
 
+## Run directory and manifest location
+
+- **run_dir**: Leaf output directory where a module runner writes outputs directly (e.g. `exports/runs/geo_v0_s1/<run_id>/` for Body).
+- **geometry_manifest.json** MUST always be located at `<run_dir>/geometry_manifest.json`.
+- **artifacts**: Each entry MUST be a path relative to `<run_dir>` only (no leading `/`, no `..`, no drive letters). Paths outside run_dir are invalid.
+
 ## Required fields
 
 | Field | Type | Rule |

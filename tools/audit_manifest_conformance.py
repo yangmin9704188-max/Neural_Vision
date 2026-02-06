@@ -302,9 +302,24 @@ def main() -> int:
         default=None,
         help="Canonical schema path (default: contracts/geometry_manifest_v1.schema.json)",
     )
-    parser.add_argument("--run_dir_body", type=Path, default=None, help="Body run directory")
-    parser.add_argument("--run_dir_fitting", type=Path, default=None, help="Fitting run directory")
-    parser.add_argument("--run_dir_garment", type=Path, default=None, help="Garment run directory")
+    parser.add_argument(
+        "--run_dir_body",
+        type=Path,
+        default=None,
+        help="Body run directory (leaf dir where geometry_manifest.json exists)",
+    )
+    parser.add_argument(
+        "--run_dir_fitting",
+        type=Path,
+        default=None,
+        help="Fitting run directory (leaf dir where geometry_manifest.json exists)",
+    )
+    parser.add_argument(
+        "--run_dir_garment",
+        type=Path,
+        default=None,
+        help="Garment run directory (leaf dir where geometry_manifest.json exists)",
+    )
     parser.add_argument(
         "--strict_drift",
         action="store_true",
