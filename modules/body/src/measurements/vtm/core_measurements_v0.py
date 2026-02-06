@@ -37,6 +37,117 @@ HeightLengthKey = Literal[
     "HEIGHT_M", "CROTCH_HEIGHT_M", "KNEE_HEIGHT_M", "ARM_LEN_M"
 ]
 
+# K_fit=10: fixed subset for Step1 geo stability + observability (facts-only)
+K_FIT_10_KEYS = [
+    "HEIGHT_M",
+    "BUST_CIRC_M", "WAIST_CIRC_M", "HIP_CIRC_M",
+    "CHEST_WIDTH_M", "CHEST_DEPTH_M",
+    "WAIST_WIDTH_M", "WAIST_DEPTH_M",
+    "HIP_WIDTH_M", "HIP_DEPTH_M",
+]
+
+# Canonical warning codes (deterministic; no float formatting)
+WARNING_EMPTY_SLICE_POINTS = "EMPTY_SLICE_POINTS"
+WARNING_DEGENERATE_SLICE = "DEGENERATE_SLICE"
+WARNING_HULL_FAILED = "HULL_FAILED"
+WARNING_FALLBACK_USED = "FALLBACK_USED"
+WARNING_COMPONENT_SELECT_FAILED = "COMPONENT_SELECT_FAILED"
+WARNING_NUMERIC_INVALID = "NUMERIC_INVALID"
+WARNING_UNSTABLE_PROJECTION = "UNSTABLE_PROJECTION"
+WARNING_INVALID_VERTS_SHAPE = "INVALID_VERTS_SHAPE"
+WARNING_INSUFFICIENT_VERTICES = "INSUFFICIENT_VERTICES"
+WARNING_BODY_AXIS_TOO_SHORT = "BODY_AXIS_TOO_SHORT"
+WARNING_CROSS_SECTION_NOT_FOUND = "CROSS_SECTION_NOT_FOUND"
+
+# Single source for dedupe/quantization (determinism)
+EPSILON_DEDUPE = 1e-6  # meters (1 micron)
+
+
+def make_slice_debug_schema(
+    *,
+    method: str = "slice_hull",
+    plane: str = "xz",
+    axis_up: str = "y",
+    y_range: Optional[List[float]] = None,
+    band_width_m: Optional[float] = None,
+    n_points_raw: int = 0,
+    n_points_deduped: int = 0,
+    component_mode: str = "all",
+    selected_component_rank: Optional[int] = None,
+    hull_ok: bool = False,
+    perimeter_m: Optional[float] = None,
+    width_m: Optional[float] = None,
+    depth_m: Optional[float] = None,
+    bbox_xz: Optional[List[List[float]]] = None,
+    time_ms: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Minimal, stable debug schema for cross-section based measurements (JSON-serializable).
+    Used by K_fit=10 keys for observability standardization.
+    """
+    out: Dict[str, Any] = {
+        "method": method,
+        "plane": plane,
+        "axis_up": axis_up,
+        "y_range": list(y_range) if y_range is not None else None,
+        "band_width_m": band_width_m,
+        "n_points_raw": n_points_raw,
+        "n_points_deduped": n_points_deduped,
+        "component_mode": component_mode,
+        "selected_component_rank": selected_component_rank,
+        "hull_ok": hull_ok,
+        "perimeter_m": perimeter_m,
+        "width_m": width_m,
+        "depth_m": depth_m,
+        "bbox_xz": bbox_xz,
+        "time_ms": time_ms,
+    }
+    return out
+
+
+def _slice_debug_from_circ_debug(
+    standard_key: str,
+    selected_debug_full: Optional[Dict[str, Any]],
+    circ_debug: Dict[str, Any],
+    value_m: Optional[float],
+    y_start: float,
+    y_end: float,
+    tolerance: float,
+    component_mode: str = "all",
+    selected_component_rank: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Build minimal slice debug schema from circumference debug for K_fit=10."""
+    if selected_debug_full is None:
+        return make_slice_debug_schema(
+            method="slice_hull",
+            y_range=[y_start, y_end],
+            band_width_m=tolerance,
+            n_points_raw=0,
+            n_points_deduped=0,
+            component_mode=component_mode,
+            selected_component_rank=selected_component_rank,
+            hull_ok=False,
+            perimeter_m=value_m,
+        )
+    fallback = selected_debug_full.get("fallback_used", False)
+    method = "slice_boundary_fallback" if fallback else "slice_hull"
+    bbox_after = selected_debug_full.get("bbox_after") or {}
+    bbox_xz = None
+    if bbox_after and "min" in bbox_after and "max" in bbox_after:
+        bbox_xz = [bbox_after["min"], bbox_after["max"]]
+    return make_slice_debug_schema(
+        method=method,
+        y_range=[y_start, y_end],
+        band_width_m=tolerance,
+        n_points_raw=int(selected_debug_full.get("n_points_raw", selected_debug_full.get("n_points", 0))),
+        n_points_deduped=int(selected_debug_full.get("n_points_deduped", selected_debug_full.get("n_points_dedup", 0))),
+        component_mode=component_mode,
+        selected_component_rank=selected_component_rank,
+        hull_ok=not fallback,
+        perimeter_m=value_m,
+        bbox_xz=bbox_xz,
+    )
+
 
 @dataclass
 class MeasurementResult:
@@ -60,15 +171,15 @@ def _as_np_f32(x: np.ndarray) -> np.ndarray:
 
 
 def _validate_verts(verts: np.ndarray) -> Tuple[bool, List[str]]:
-    """Basic input validation for vertices."""
+    """Basic input validation for vertices. Uses canonical warning codes (deterministic)."""
     warnings: List[str] = []
     
     if verts.ndim != 2 or verts.shape[1] != 3:
-        warnings.append(f"INVALID_VERTS_SHAPE: expected (N,3), got {verts.shape}")
+        warnings.append(WARNING_INVALID_VERTS_SHAPE)
         return False, warnings
     
     if verts.shape[0] < 3:
-        warnings.append(f"INSUFFICIENT_VERTICES: need at least 3, got {verts.shape[0]}")
+        warnings.append(WARNING_INSUFFICIENT_VERTICES)
         return False, warnings
     
     return True, warnings
@@ -409,10 +520,8 @@ def _compute_perimeter(vertices_2d: np.ndarray, return_debug: bool = False) -> O
         "max_abs": float(np.max(np.abs(vertices_2d)))
     }
     
-    # Round37 Hotfix: O(N log N) deduplication using quantization
-    epsilon = 1e-6  # 1 micron tolerance
-    if epsilon <= 0 or epsilon < 1e-10:
-        epsilon = 1e-6  # Safety clamp (not value clamp)
+    # Round37 Hotfix: O(N log N) deduplication using quantization (single constant for determinism)
+    epsilon = EPSILON_DEDUPE
     
     # Quantization-based deduplication (O(N log N))
     q = np.round(vertices_2d / epsilon).astype(np.int64)
@@ -651,7 +760,7 @@ def _find_cross_section(
             debug_info["fallback_used"] = True
             debug_info["fallback_distance_mm"] = float(fallback_distance_mm)
             if fallback_distance_mm > 10.0:
-                warnings.append(f"FALLBACK_DISTANCE_LARGE: {fallback_distance_mm:.2f}mm")
+                warnings.append(WARNING_FALLBACK_USED)
         else:
             debug_info["reason_not_found"] = "out_of_bounds_target"
             return None, debug_info
@@ -668,8 +777,10 @@ def _find_cross_section(
     if candidate_count < 3:
         if candidate_count == 0:
             debug_info["reason_not_found"] = "mesh_empty_at_height"
+            warnings.append(WARNING_EMPTY_SLICE_POINTS)
         else:
             debug_info["reason_not_found"] = "empty_slice"
+            warnings.append(WARNING_DEGENERATE_SLICE)
         return None, debug_info
     
     slice_verts = verts[mask]
@@ -984,7 +1095,7 @@ def _compute_circumference_at_height(
     original_tolerance = tolerance
     tolerance = _compute_tolerance_from_mesh_scale(verts, tolerance)
     if tolerance != original_tolerance and warnings is not None:
-        warnings.append(f"SLICE_THICKNESS_ADJUSTED: {original_tolerance:.6f} -> {tolerance:.6f} m")
+        warnings.append("SLICE_THICKNESS_ADJUSTED")
     
     vertices_2d, debug_info = _find_cross_section(verts, y_value, tolerance, warnings, y_min, y_max)
     if vertices_2d is None:
@@ -995,7 +1106,7 @@ def _compute_circumference_at_height(
     if vertices_2d.shape[0] > max_points:
         stride = max(1, vertices_2d.shape[0] // max_points)
         vertices_2d = vertices_2d[::stride]
-        warnings.append(f"DOWNSAMPLED: {vertices_2d.shape[0]} points (stride={stride})")
+        warnings.append("DOWNSAMPLED")
     
     # Round41: Compute body center (2D projection of body center)
     body_center_3d = np.mean(verts, axis=0)
@@ -1060,7 +1171,7 @@ def _compute_circumference_at_height(
             
             torso_component, torso_stats, torso_warning = _select_torso_component(components, body_center_2d, warnings)
             if torso_warning:
-                warnings.append(f"TORSO_COMPONENT_SELECTION_FAILED: {torso_warning}")
+                warnings.append(WARNING_COMPONENT_SELECT_FAILED)
                 diagnostics["failure_reason"] = f"SELECTION_FAILED: {torso_warning}"
             # Round42/43: Compute torso_perimeter if component selected successfully
             # Round48-A: Initialize method tracking (only for SINGLE_COMPONENT_ONLY cases per requirements)
@@ -1947,6 +2058,12 @@ def measure_circumference_v0_with_metadata(
     is_valid, warnings = _validate_verts(verts)
     
     if not is_valid:
+        debug_info_invalid = None
+        if standard_key in K_FIT_10_KEYS:
+            debug_info_invalid = {"slice_debug": make_slice_debug_schema(
+                method="slice_hull", n_points_raw=0, n_points_deduped=0, hull_ok=False,
+                perimeter_m=None, width_m=None, depth_m=None,
+            )}
         metadata = create_metadata_v0(
             standard_key=standard_key,
             value_m=float('nan'),
@@ -1957,6 +2074,7 @@ def measure_circumference_v0_with_metadata(
             search_band_scan_used=False,
             search_band_scan_limit_mm=10,
             provenance_evidence_ref=get_evidence_ref(standard_key),
+            debug_info=debug_info_invalid,
         )
         return MeasurementResult(
             standard_key=standard_key,
@@ -1981,7 +2099,7 @@ def measure_circumference_v0_with_metadata(
     y_range = y_max - y_min
     
     if y_range < 1e-6:
-        warnings.append("BODY_AXIS_TOO_SHORT")
+        warnings.append(WARNING_BODY_AXIS_TOO_SHORT)
         debug_info = {
             "body_axis": {
                 "length_m": float(y_range),
@@ -2111,7 +2229,7 @@ def measure_circumference_v0_with_metadata(
         }
     }
     if len(candidates) == 0:
-        warnings.append("EMPTY_CANDIDATES")
+        warnings.append(WARNING_EMPTY_SLICE_POINTS)
         # Aggregate cross-section debug info
         if cross_section_debug_list:
             reasons = [d.get("reason_not_found") for d in cross_section_debug_list if d.get("reason_not_found")]
@@ -2128,6 +2246,16 @@ def measure_circumference_v0_with_metadata(
                 "candidates_count": 0,
                 "reason_not_found": "no_debug_info"
             }
+        if standard_key in K_FIT_10_KEYS:
+            debug_info["slice_debug"] = make_slice_debug_schema(
+                method="slice_hull",
+                y_range=[y_start, y_end],
+                band_width_m=tolerance,
+                n_points_raw=0,
+                n_points_deduped=0,
+                hull_ok=False,
+                perimeter_m=None,
+            )
         metadata = create_metadata_v0(
             standard_key=standard_key,
             value_m=float('nan'),
@@ -2193,9 +2321,9 @@ def measure_circumference_v0_with_metadata(
     
     # Range sanity check (warnings only)
     if value_m < 0.1:
-        warnings.append(f"PERIMETER_SMALL: {value_m:.4f}m")
+        warnings.append("PERIMETER_SMALL")
     if value_m > 3.0:
-        warnings.append(f"PERIMETER_LARGE: {value_m:.4f}m")
+        warnings.append("PERIMETER_LARGE")
     
     # Round36/37: Build circ_debug info for facts_summary.json
     circ_debug = {
@@ -2283,6 +2411,17 @@ def measure_circumference_v0_with_metadata(
         debug_info["torso_components"] = dict(tc) if isinstance(tc, dict) else {}
     elif torso_info:
         debug_info["torso_components"] = torso_info
+    # K_fit=10: attach minimal slice debug schema for observability
+    if standard_key in K_FIT_10_KEYS:
+        comp_mode = "torso_only" if (is_torso_key and torso_info) else "all"
+        rank = None
+        if is_torso_key and selected_debug_full:
+            tc = selected_debug_full.get("torso_components") or {}
+            rank = tc.get("selected_component_rank")
+        debug_info["slice_debug"] = _slice_debug_from_circ_debug(
+            standard_key, selected_debug_full, circ_debug, value_m,
+            y_start, y_end, tolerance, component_mode=comp_mode, selected_component_rank=rank
+        )
     metadata = create_metadata_v0(
         standard_key=standard_key,
         value_m=value_m,
@@ -2336,6 +2475,12 @@ def measure_width_depth_v0_with_metadata(
     
     if not is_valid:
         metric_type = "width" if "WIDTH" in standard_key else "depth"
+        debug_info_invalid = None
+        if standard_key in K_FIT_10_KEYS:
+            debug_info_invalid = {"slice_debug": make_slice_debug_schema(
+                method="slice_hull", n_points_raw=0, n_points_deduped=0, hull_ok=False,
+                perimeter_m=None, width_m=None, depth_m=None,
+            )}
         metadata = create_metadata_v0(
             standard_key=standard_key,
             value_m=float('nan'),
@@ -2347,6 +2492,7 @@ def measure_width_depth_v0_with_metadata(
             proxy_proxy_type="plane_clamp" if proxy_used else None,
             proxy_proxy_tool=proxy_tool,
             provenance_evidence_ref=get_evidence_ref(standard_key),
+            debug_info=debug_info_invalid,
         )
         return MeasurementResult(
             standard_key=standard_key,
@@ -2371,7 +2517,7 @@ def measure_width_depth_v0_with_metadata(
     y_range = y_max - y_min
     
     if y_range < 1e-6:
-        warnings.append("BODY_AXIS_TOO_SHORT")
+        warnings.append(WARNING_BODY_AXIS_TOO_SHORT)
         metric_type = "width" if "WIDTH" in standard_key else "depth"
         debug_info = {
             "body_axis": {
@@ -2380,6 +2526,12 @@ def measure_width_depth_v0_with_metadata(
                 "reason_invalid": "too_short"
             }
         }
+        if standard_key in K_FIT_10_KEYS:
+            debug_info["slice_debug"] = make_slice_debug_schema(
+                method="slice_hull", y_range=[y_min, y_max], band_width_m=None,
+                n_points_raw=0, n_points_deduped=0, hull_ok=False,
+                perimeter_m=None, width_m=None, depth_m=None,
+            )
         metadata = create_metadata_v0(
             standard_key=standard_key,
             value_m=float('nan'),
@@ -2483,7 +2635,7 @@ def measure_width_depth_v0_with_metadata(
                     nearest_fallback_debug = fallback_debug
                     if fallback_debug:
                         fallback_candidates_count = fallback_debug.get("nearest_valid_plane_candidates_count", 0)
-                    warnings.append("NEAREST_VALID_PLANE_FALLBACK")
+                    warnings.append(WARNING_FALLBACK_USED)
                 else:
                     # Shift exceeds policy limit - do not use
                     if cross_section_debug:
@@ -2509,7 +2661,7 @@ def measure_width_depth_v0_with_metadata(
                         cross_section_debug["slice_thickness_adjusted"] = True
     
     if vertices_2d is None:
-        warnings.append("CROSS_SECTION_NOT_FOUND")
+        warnings.append(WARNING_CROSS_SECTION_NOT_FOUND)
         metric_type = "width" if "WIDTH" in standard_key else "depth"
         debug_info = {
             "body_axis": {
@@ -2522,6 +2674,17 @@ def measure_width_depth_v0_with_metadata(
             debug_info["cross_section"] = cross_section_debug
         if nearest_fallback_debug:
             debug_info["nearest_valid_plane"] = nearest_fallback_debug
+        if standard_key in K_FIT_10_KEYS:
+            debug_info["slice_debug"] = make_slice_debug_schema(
+                method="slice_hull",
+                y_range=[y_min, y_max],
+                band_width_m=tolerance,
+                n_points_raw=initial_candidates_count,
+                n_points_deduped=0,
+                hull_ok=False,
+                width_m=None,
+                depth_m=None,
+            )
         # Record landmark_resolution if fallback was used
         landmark_resolution = None
         if nearest_fallback_used:
@@ -2570,9 +2733,9 @@ def measure_width_depth_v0_with_metadata(
     
     # Range sanity check
     if value_m < 0.05:
-        warnings.append(f"WIDTH_DEPTH_SMALL: {value_m:.4f}m")
+        warnings.append("WIDTH_DEPTH_SMALL")
     if value_m > 1.0:
-        warnings.append(f"WIDTH_DEPTH_LARGE: {value_m:.4f}m")
+        warnings.append("WIDTH_DEPTH_LARGE")
     
     metric_type = "width" if "WIDTH" in standard_key else "depth"
     
@@ -2625,6 +2788,26 @@ def measure_width_depth_v0_with_metadata(
     
     if nearest_fallback_debug:
         debug_info["nearest_valid_plane"] = nearest_fallback_debug
+    
+    if standard_key in K_FIT_10_KEYS:
+        n_pts = vertices_2d.shape[0] if vertices_2d is not None else 0
+        x_min_2d = float(np.min(vertices_2d[:, 0])) if vertices_2d is not None and vertices_2d.size > 0 else None
+        x_max_2d = float(np.max(vertices_2d[:, 0])) if vertices_2d is not None and vertices_2d.size > 0 else None
+        z_min_2d = float(np.min(vertices_2d[:, 1])) if vertices_2d is not None and vertices_2d.size > 0 else None
+        z_max_2d = float(np.max(vertices_2d[:, 1])) if vertices_2d is not None and vertices_2d.size > 0 else None
+        bbox_xz_wd = [[x_min_2d, z_min_2d], [x_max_2d, z_max_2d]] if x_min_2d is not None else None
+        debug_info["slice_debug"] = make_slice_debug_schema(
+            method="slice_hull",
+            y_range=[y_min, y_max],
+            band_width_m=tolerance,
+            n_points_raw=n_pts,
+            n_points_deduped=n_pts,
+            hull_ok=True,
+            perimeter_m=None,
+            width_m=value_m if "WIDTH" in standard_key else None,
+            depth_m=value_m if "DEPTH" in standard_key else None,
+            bbox_xz=bbox_xz_wd,
+        )
     
     # Record landmark_resolution if fallback was used
     landmark_resolution = None
@@ -2687,6 +2870,12 @@ def measure_height_v0_with_metadata(
     is_valid, warnings = _validate_verts(verts)
     
     if not is_valid:
+        debug_info_invalid = None
+        if standard_key in K_FIT_10_KEYS:
+            debug_info_invalid = {"slice_debug": make_slice_debug_schema(
+                method="bbox_height", n_points_raw=0, n_points_deduped=0, hull_ok=False,
+                perimeter_m=None, width_m=None, depth_m=None,
+            )}
         metadata = create_metadata_v0(
             standard_key=standard_key,
             value_m=float('nan'),
@@ -2696,6 +2885,7 @@ def measure_height_v0_with_metadata(
             pose_strict_standing=True,
             pose_knee_flexion_forbidden=True,
             provenance_evidence_ref=get_evidence_ref(standard_key),
+            debug_info=debug_info_invalid,
         )
         return MeasurementResult(
             standard_key=standard_key,
@@ -2763,6 +2953,18 @@ def measure_height_v0_with_metadata(
                 "notes": "v0: direct bbox span, no transform/scale applied"
             }
         }
+        if standard_key in K_FIT_10_KEYS:
+            debug_info["slice_debug"] = make_slice_debug_schema(
+                method="bbox_height",
+                y_range=[y_min, y_max],
+                n_points_raw=verts.shape[0],
+                n_points_deduped=verts.shape[0],
+                hull_ok=True,
+                perimeter_m=None,
+                width_m=None,
+                depth_m=None,
+                bbox_xz=[[x_min, z_min], [x_max, z_max]],
+            )
     elif standard_key == "CROTCH_HEIGHT_M":
         # Crotch height: crotch point to floor
         # For v0, estimate crotch as lower torso region
@@ -2800,9 +3002,9 @@ def measure_height_v0_with_metadata(
     
     # Range sanity check
     if value_m < 0.1:
-        warnings.append(f"HEIGHT_SMALL: {value_m:.4f}m")
+        warnings.append("HEIGHT_SMALL")
     if value_m > 3.0:
-        warnings.append(f"HEIGHT_LARGE: {value_m:.4f}m")
+        warnings.append("HEIGHT_LARGE")
     
     # Create metadata
     metadata = create_metadata_v0(

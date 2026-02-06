@@ -35,6 +35,7 @@ from modules.body.src.measurements.vtm.core_measurements_v0 import (
     measure_waist_group_with_shared_slice,
     measure_hip_group_with_shared_slice,
     MeasurementResult,
+    K_FIT_10_KEYS,
 )
 from modules.body.src.utils.path_shim import rewrite_legacy_path
 
@@ -65,6 +66,11 @@ WIDTH_DEPTH_KEYS = [
 HEIGHT_KEYS = ["HEIGHT_M", "CROTCH_HEIGHT_M", "KNEE_HEIGHT_M"]
 
 ALL_KEYS = CIRCUMFERENCE_KEYS + WIDTH_DEPTH_KEYS + HEIGHT_KEYS + ["ARM_LEN_M", "WEIGHT_KG"]
+
+# SMOKE NOTES (minimal sample run):
+#   python -m modules.body.src.runners.run_geo_v0_s1_facts --manifest <path_to_s1_manifest_v0.json> --out_dir <out_dir>
+#   Expect: <out_dir>/facts_summary.json, <out_dir>/body_measurements_subset.json, <out_dir>/geometry_manifest.json
+#   K_fit=10 keys: HEIGHT_M, BUST_CIRC_M, WAIST_CIRC_M, HIP_CIRC_M, CHEST_WIDTH_M, CHEST_DEPTH_M, WAIST_WIDTH_M, WAIST_DEPTH_M, HIP_WIDTH_M, HIP_DEPTH_M
 
 
 def get_git_sha() -> Optional[str]:
@@ -1688,6 +1694,9 @@ def main():
     key_exec_fail_breakdown: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
     key_exception_type: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
     key_exception_fingerprint: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    # K_fit=10: per-key present/null/warning counts and top warning codes
+    k_fit_10_per_key: Dict[str, Dict[str, int]] = {k: {"present_count": 0, "null_count": 0, "warning_count": 0} for k in K_FIT_10_KEYS}
+    k_fit_10_warning_codes: Dict[str, int] = defaultdict(int)
     # Round40: Round41 대비 관측가능성 지표 (best-effort)
     per_case_debug: Dict[str, Dict[str, Any]] = {}
     debug_collection_failed_reasons: List[str] = []
@@ -1799,6 +1808,17 @@ def main():
             if result.metadata and "warnings" in result.metadata:
                 for warning in result.metadata["warnings"]:
                     s["warnings"][warning] += 1
+            
+            # K_fit=10: per-key present/null/warning and warning code counts
+            if key in K_FIT_10_KEYS:
+                k_fit_10_per_key[key]["present_count"] += 1
+                if np.isnan(value) or not np.isfinite(value):
+                    k_fit_10_per_key[key]["null_count"] += 1
+                if result.metadata and result.metadata.get("warnings"):
+                    k_fit_10_per_key[key]["warning_count"] += 1
+                    for w in result.metadata["warnings"]:
+                        if isinstance(w, str):
+                            k_fit_10_warning_codes[w] += 1
             
             # Round36: Extract circ_debug from metadata for circumference keys
             if key in CIRCUMFERENCE_KEYS and result.metadata:
@@ -1953,6 +1973,12 @@ def main():
                 facts_summary["circ_debug"][key] = debug_list[0]  # First processed case
                 # Also store count for reference
                 facts_summary["circ_debug"][key]["sample_count"] = len(debug_list)
+    
+    # K_fit=10: per-key present/null/warning counts and top warning codes (Step1 observability)
+    facts_summary["k_fit_10_per_key"] = dict(k_fit_10_per_key)
+    facts_summary["k_fit_10_warning_codes_top"] = dict(
+        sorted(k_fit_10_warning_codes.items(), key=lambda x: -x[1])[:30]
+    )
     
     # Round40: Round41 대비 관측가능성 지표 추가 (best-effort)
     if per_case_debug:
