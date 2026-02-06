@@ -18,6 +18,7 @@ from typing import Dict, List, Any, Optional
 from collections import defaultdict
 import subprocess
 import traceback
+from datetime import datetime, timezone
 
 # Add project root to path (4 levels up: runners -> src -> body -> modules -> repo)
 _project_dir = Path(__file__).resolve().parent
@@ -2723,10 +2724,28 @@ def main():
             print(f"[STUB] {name} created (minimal)")
     geom_path = out_dir / "geometry_manifest.json"
     if not geom_path.exists():
-        stub_geom = {"schema_version": "geometry_manifest_v0", "run_id": out_dir.name}
+        artifacts_list = ["facts_summary.json", "body_measurements_subset.json"]
+        if npz_path:
+            # npz_path is already run_dir-relative from caller
+            artifacts_list.append(npz_path)
+        stub_geom = {
+            "schema_version": "geometry_manifest.v1",
+            "module_name": "body",
+            "contract_version": "v0",
+            "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "inputs_fingerprint": "sha256:stub",
+            "version_keys": {
+                "snapshot_version": "unknown",
+                "semantic_version": "unknown",
+                "geometry_impl_version": "unknown",
+                "dataset_version": "unknown",
+            },
+            "artifacts": artifacts_list,
+            "warnings": ["GEOMETRY_MANIFEST_STUB"],
+        }
         with open(geom_path, 'w', encoding='utf-8') as f:
             json.dump(stub_geom, f, indent=2)
-        print(f"[STUB] geometry_manifest.json created (minimal)")
+        print(f"[STUB] geometry_manifest.json created (v1 stub)")
 
     print(f"[DONE] Facts summary saved: {facts_summary_path}")
     print(f"[DONE] Processed: {len(all_results)}, Skipped: {len(skipped_entries)}")
