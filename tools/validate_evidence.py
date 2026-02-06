@@ -176,6 +176,7 @@ def validate_run_exports(run_dir):
     """
     Lightweight validation for exports/runs/** (canonical).
     Checks facts_summary.json (warn if missing); KPI.md / KPI_DIFF.md optional (warn if missing).
+    If body_measurements_subset.json exists, runs U1 schema validator (WARN on fail; FAIL only for exports/runs/**).
     Non-fatal: missing files only produce warnings.
     """
     run_dir_path = Path(run_dir)
@@ -184,12 +185,29 @@ def validate_run_exports(run_dir):
     facts = run_dir_path / 'facts_summary.json'
     kpi = run_dir_path / 'KPI.md'
     kpi_diff = run_dir_path / 'KPI_DIFF.md'
+    subset = run_dir_path / 'body_measurements_subset.json'
     if not facts.exists():
         warnings.append(f"facts_summary.json missing (non-fatal)")
     if not kpi.exists():
         warnings.append(f"KPI.md missing (non-fatal)")
     if not kpi_diff.exists():
         warnings.append(f"KPI_DIFF.md missing (non-fatal)")
+    if subset.exists() and str(run_dir_path).replace("\\", "/").startswith("exports/runs/"):
+        try:
+            import subprocess
+            repo = Path(__file__).resolve().parent.parent
+            r = subprocess.run(
+                [sys.executable, str(repo / "tools" / "validate_body_measurements_subset_u1.py"), "--run_dir", str(run_dir_path)],
+                capture_output=True,
+                text=True,
+                cwd=str(repo),
+                timeout=10,
+            )
+            if r.returncode != 0:
+                msg = (r.stderr or r.stdout or "").strip().split("\n")[0][:120]
+                warnings.append(f"body_measurements_subset U1 validation failed: {msg}")
+        except Exception as e:
+            warnings.append(f"body_measurements_subset U1 check error: {e}")
     return True, run_id, warnings
 
 
