@@ -2723,29 +2723,27 @@ def main():
             p.write_text(header, encoding="utf-8")
             print(f"[STUB] {name} created (minimal)")
     geom_path = out_dir / "geometry_manifest.json"
-    if not geom_path.exists():
-        artifacts_list = ["facts_summary.json", "body_measurements_subset.json"]
-        if npz_path:
-            # npz_path is already run_dir-relative from caller
-            artifacts_list.append(npz_path)
-        stub_geom = {
-            "schema_version": "geometry_manifest.v1",
-            "module_name": "body",
-            "contract_version": "v0",
-            "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "inputs_fingerprint": "sha256:stub",
-            "version_keys": {
-                "snapshot_version": "unknown",
-                "semantic_version": "unknown",
-                "geometry_impl_version": "unknown",
-                "dataset_version": "unknown",
-            },
-            "artifacts": artifacts_list,
-            "warnings": ["GEOMETRY_MANIFEST_STUB"],
-        }
-        with open(geom_path, 'w', encoding='utf-8') as f:
-            json.dump(stub_geom, f, indent=2)
-        print(f"[STUB] geometry_manifest.json created (v1 stub)")
+    artifacts_list = ["facts_summary.json", "body_measurements_subset.json"]
+    if npz_path:
+        artifacts_list.append(npz_path)
+    stub_geom = {
+        "schema_version": "geometry_manifest.v1",
+        "module_name": "body",
+        "contract_version": "v0",
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "inputs_fingerprint": "sha256:stub",
+        "version_keys": {
+            "snapshot_version": "unknown",
+            "semantic_version": "unknown",
+            "geometry_impl_version": "unknown",
+            "dataset_version": "unknown",
+        },
+        "artifacts": artifacts_list,
+        "warnings": ["GEOMETRY_MANIFEST_STUB"],
+    }
+    with open(geom_path, 'w', encoding='utf-8') as f:
+        json.dump(stub_geom, f, indent=2)
+    print(f"[manifest] wrote {geom_path.resolve()} schema_version={stub_geom['schema_version']}")
 
     print(f"[DONE] Facts summary saved: {facts_summary_path}")
     print(f"[DONE] Processed: {len(all_results)}, Skipped: {len(skipped_entries)}")
