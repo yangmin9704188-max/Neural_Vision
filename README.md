@@ -18,3 +18,4 @@ py -m modules.body.src.pipeline.ingest.build_curated_v0 --mapping data/column_ma
 
 ## References
 - ops/HUB.md, ssot/, contracts/
+- 폴더/파일 배치 규칙 정본: ssot/repo_layout_policy_v1.md
