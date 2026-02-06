@@ -1,0 +1,400 @@
+폴더 PATH의 목록입니다.
+볼륨 일련 번호는 86B4-44C1입니다.
+C:.
+|   .cursorrules
+|   .gitignore
+|   folder_tree.txt
+|   README.md
+|   
++---contracts
+|   |   .gitkeep
+|   |   README.md
+|   |   
+|   +---datasets
+|   |       .gitkeep
+|   |       npz_contract_v0.md
+|   |       
+|   +---fitting
+|   |       .gitkeep
+|   |       fitting_interface_v0.md
+|   |       
+|   \---measurement
+|       |   .gitkeep
+|       |   standard_keys_v0.md
+|       |   unit_standard_v0.md
+|       |   
+|       \---coverage
+|               .gitkeep
+|               measurement_coverage_v0.csv
+|               measurement_coverage_v0_source.md
+|               sizekorea_v2.json
+|               
++---data
+|   |   README.md
+|   |   
+|   +---column_map
+|   |       sizekorea_v2.json
+|   |       
+|   +---derived
+|   |   |   .gitkeep
+|   |   |   
+|   |   \---curated_v0
+|   |       +---20260204_224052
+|   |       |       curated_v0.parquet
+|   |       |       RUN_LOG.txt
+|   |       |       
+|   |       \---_smoke
+|   |           +---round10_2_20260204_231426
+|   |           |       curated_v0.parquet
+|   |           |       
+|   |           +---round10_3_20260204_232023
+|   |           |       curated_v0.parquet
+|   |           |       
+|   |           \---round8_20260204_223626
+|   |                   curated_v0.parquet
+|   |                   RUN_LOG.txt
+|   |                   
+|   +---external
+|   |   \---sizekorea_raw
+|   |           (1~2차년도) 2021년 8차 인체치수조사_최종보고서.pdf
+|   |           7th_data.csv
+|   |           7th_data.xlsx
+|   |           8th_data.xlsx
+|   |           8th_data_3d.csv
+|   |           8th_data_direct.csv
+|   |           
+|   +---golden
+|   |   \---s1_mesh_v0
+|   |       |   s1_manifest_v0.json
+|   |       |   s1_manifest_v0_round71.json
+|   |       |   
+|   |       \---meshes
+|   |               6th_20M.obj
+|   |               6th_30M.obj
+|   |               6th_40M.obj
+|   |               
+|   \---raw
+|           .gitkeep
+|           
++---docs
+|   \---ops
+|       \---dashboard_legacy
+|               DOD_CLAIM_PROTOCOL_v1.md
+|               EXPORT_CONTRACT_v0.md
+|               LAB_SOURCES_v0.yaml
+|               OPS_PLANE.md
+|               PLAN_v0.yaml
+|               PROJECT_DASHBOARD.md
+|               UI_STRINGS_ko.yaml
+|               
++---exports
+|   |   README.md
+|   |   
+|   +---brief
+|   |       BODY_WORK_BRIEF.md
+|   |       
+|   +---briefs
+|   |       .gitkeep
+|   |       
+|   +---dashboards
+|   |       .gitkeep
+|   |       
+|   +---progress
+|   |       .gitkeep
+|   |       PROGRESS_LOG.jsonl
+|   |       
+|   \---runs
+|       |   .gitkeep
+|       |   
+|       \---_smoke
+|           +---round6_3_20260204_204941
+|           |   |   smoke_runner_cmd.txt
+|           |   |   smoke_runner_error.txt
+|           |   |   smoke_runner_output.txt
+|           |   |   SMOKE_SUMMARY.md
+|           |   |   
+|           |   +---geo_v0_s1
+|           |   |   \---artifacts
+|           |   |       \---visual
+|           |   \---ingest
+|           |           column_observation.json
+|           |           smoke_sample_5rows_columns.txt
+|           |           
+|           +---round6_4_20260204_212459
+|           |   |   smoke_runner_cmd.txt
+|           |   |   smoke_runner_error.txt
+|           |   |   smoke_runner_output.txt
+|           |   |   SMOKE_SUMMARY.md
+|           |   |   
+|           |   \---geo_v0_s1
+|           |       |   facts_summary.json
+|           |       |   
+|           |       \---artifacts
+|           |           |   exec_failures.jsonl
+|           |           |   processed_sink.jsonl
+|           |           |   skip_reasons.jsonl
+|           |           |   success_not_processed.jsonl
+|           |           |   
+|           |           \---visual
+|           |                   SKIPPED.txt
+|           |                   
+|           +---round6_5_20260204_212858
+|           |   |   smoke_runner_cmd.txt
+|           |   |   smoke_runner_error.txt
+|           |   |   smoke_runner_output.txt
+|           |   |   SMOKE_SUMMARY.md
+|           |   |   
+|           |   \---geo_v0_s1
+|           |       |   facts_summary.json
+|           |       |   
+|           |       \---artifacts
+|           |           |   exec_failures.jsonl
+|           |           |   processed_sink.jsonl
+|           |           |   skip_reasons.jsonl
+|           |           |   success_not_processed.jsonl
+|           |           |   
+|           |           \---visual
+|           |                   SKIPPED.txt
+|           |                   verts_proxy.npz
+|           |                   
+|           +---round6_6_20260204_213919
+|           |   \---geo_v0_s1
+|           |       |   facts_summary.json
+|           |       |   
+|           |       \---artifacts
+|           |           |   exec_failures.jsonl
+|           |           |   processed_sink.jsonl
+|           |           |   skip_reasons.jsonl
+|           |           |   success_not_processed.jsonl
+|           |           |   
+|           |           \---visual
+|           |                   verts_proxy.npz
+|           |                   
+|           +---round6_6_20260204_214500
+|           |   |   run_output.txt
+|           |   |   
+|           |   \---geo_v0_s1
+|           |       |   facts_summary.json
+|           |       |   
+|           |       \---artifacts
+|           |           |   exec_failures.jsonl
+|           |           |   processed_sink.jsonl
+|           |           |   skip_reasons.jsonl
+|           |           |   success_not_processed.jsonl
+|           |           |   
+|           |           \---visual
+|           |                   verts_proxy.npz
+|           |                   
+|           \---round6_6_final
+|               \---geo_v0_s1
+|                   |   facts_summary.json
+|                   |   KPI.md
+|                   |   KPI_DIFF.md
+|                   |   
+|                   \---artifacts
+|                       |   exec_failures.jsonl
+|                       |   processed_sink.jsonl
+|                       |   skip_reasons.jsonl
+|                       |   success_not_processed.jsonl
+|                       |   
+|                       \---visual
+|                               verts_proxy.npz
+|                               
++---legacy
+|   |   README.md
+|   |   
+|   \---ops_legacy
+|           20206Q1_CURRENT_STATE.md
+|           2026Q1_PROJECT_DASHBOARD.md
+|           2026Q1_SYNC_HUB.md
+|           
++---modules
+|   +---body
+|   |   |   README.md
+|   |   |   README.txt
+|   |   |   
+|   |   +---assets
+|   |   |       .gitkeep
+|   |   |       
+|   |   +---configs
+|   |   |       .gitkeep
+|   |   |       
+|   |   +---docs
+|   |   |   |   curated_v0_pipeline_guide.md
+|   |   |   |   README.md
+|   |   |   |   README.txt
+|   |   |   |   
+|   |   |   +---adr
+|   |   |   +---plans
+|   |   |   |       Body_Module_Plan_v1.md
+|   |   |   |       
+|   |   |   +---policies
+|   |   |   +---reports
+|   |   |   +---runbooks
+|   |   |   \---specs
+|   |   |           geo_v0_s1_contract_v0.md
+|   |   |           Golden Dataset & Facts Runner Engine ? S1 Mesh Proxy & geo_v0_s1 확장 (v0.1).md
+|   |   |           
+|   |   +---notebooks
+|   |   +---src
+|   |   |   |   README.md
+|   |   |   |   README.txt
+|   |   |   |   __init__.py
+|   |   |   |   
+|   |   |   +---io
+|   |   |   +---measurements
+|   |   |   |   |   README.md
+|   |   |   |   |   __init__.py
+|   |   |   |   |   
+|   |   |   |   +---vtm
+|   |   |   |   |   |   bust_underbust_v0.py
+|   |   |   |   |   |   CATALOG.md
+|   |   |   |   |   |   circumference_v0.py
+|   |   |   |   |   |   core_measurements_v0.py
+|   |   |   |   |   |   metadata_v0.py
+|   |   |   |   |   |   README.md
+|   |   |   |   |   |   read_me.txt
+|   |   |   |   |   |   shoulder_width_v112.py
+|   |   |   |   |   |   shoulder_width_v12.py
+|   |   |   |   |   |   __init__.py
+|   |   |   |   |   |   
+|   |   |   |   |   \---__pycache__
+|   |   |   |   |           core_measurements_v0.cpython-310.pyc
+|   |   |   |   |           metadata_v0.cpython-310.pyc
+|   |   |   |   |           __init__.cpython-310.pyc
+|   |   |   |   |           
+|   |   |   |   \---__pycache__
+|   |   |   |           __init__.cpython-310.pyc
+|   |   |   |           
+|   |   |   +---pipeline
+|   |   |   |   |   README.md
+|   |   |   |   |   __init__.py
+|   |   |   |   |   
+|   |   |   |   +---ingest
+|   |   |   |   |   |   build_curated_v0.py
+|   |   |   |   |   |   build_glossary_and_mapping.py
+|   |   |   |   |   |   CATALOG.md
+|   |   |   |   |   |   convert_7th_xlsx_to_csv.py
+|   |   |   |   |   |   convert_scan_xlsx_to_csv.py
+|   |   |   |   |   |   extract_context_sample_20cols.py
+|   |   |   |   |   |   ingestion_units.py
+|   |   |   |   |   |   inspect_raw_columns.py
+|   |   |   |   |   |   observe_normalized_columns.py
+|   |   |   |   |   |   observe_sizekorea_columns.py
+|   |   |   |   |   |   paths.py
+|   |   |   |   |   |   README.md
+|   |   |   |   |   |   reextract_raw_headers.py
+|   |   |   |   |   |   sample_raw_data_units.py
+|   |   |   |   |   |   __init__.py
+|   |   |   |   |   |   
+|   |   |   |   |   \---__pycache__
+|   |   |   |   |           build_curated_v0.cpython-310.pyc
+|   |   |   |   |           ingestion_units.cpython-310.pyc
+|   |   |   |   |           paths.cpython-310.pyc
+|   |   |   |   |           __init__.cpython-310.pyc
+|   |   |   |   |           
+|   |   |   |   \---__pycache__
+|   |   |   |           __init__.cpython-310.pyc
+|   |   |   |           
+|   |   |   +---quality
+|   |   |   +---runners
+|   |   |   |   |   CATALOG.md
+|   |   |   |   |   README.md
+|   |   |   |   |   run_curated_v0_facts_round1.py
+|   |   |   |   |   run_geo_v0_facts_round1.py
+|   |   |   |   |   run_geo_v0_s1_facts.py
+|   |   |   |   |   __init__.py
+|   |   |   |   |   
+|   |   |   |   \---__pycache__
+|   |   |   |           run_curated_v0_facts_round1.cpython-310.pyc
+|   |   |   |           run_geo_v0_facts_round1.cpython-310.pyc
+|   |   |   |           run_geo_v0_s1_facts.cpython-310.pyc
+|   |   |   |           __init__.cpython-310.pyc
+|   |   |   |           
+|   |   |   +---utils
+|   |   |   |       CATALOG.md
+|   |   |   |       pose_policy.py
+|   |   |   |       README.md
+|   |   |   |       smart_mapper_v001.py
+|   |   |   |       __init__.py
+|   |   |   |       
+|   |   |   \---__pycache__
+|   |   |           __init__.cpython-310.pyc
+|   |   |           
+|   |   \---tests
+|   |       |   .gitkeep
+|   |       |   README.md
+|   |       |   
+|   |       +---fixtures
+|   |       +---integration
+|   |       +---smoke
+|   |       \---unit
+|   +---fitting
+|   |   \---src
+|   |       +---inputs
+|   |       +---io
+|   |       +---runners
+|   |       +---sdf
+|   |       +---sensors
+|   |       \---signals
+|   \---garment
+|       \---src
+|           +---intake
+|           +---io
+|           +---meterial_tokens
+|           +---preprocessing
+|           +---proxy_mesh
+|           +---runners
+|           \---texture_dna
++---ops
+|   |   HUB.md
+|   |   lab_roots.local.json
+|   |   lab_roots.local.json.example
+|   |   README.md
+|   |   STATUS.md
+|   |   
+|   \---specs
+|           Ops Automation Pack(v1.0).md
+|           README.md
+|           
++---reports
+|   \---validation
+|           .gitkeep
+|           round_registry.json
+|           
++---ssot
+|       evidence_metrics_map_v0.md
+|       interface_ledger_v0.md
+|       pipeline_ledger_v0.md
+|       README.md
+|       u1_u2_dod_checklist_v0.md
+|       
++---tests
+|   \---fixtures
+|       \---sizekorea
+|               7th_sample_200.csv
+|               8th_3d_sample_200.csv
+|               8th_direct_sample_200.csv
+|               smoke_sample_5rows.csv
+|               
+\---tools
+    |   .gitkeep
+    |   kpi_diff.py
+    |   postprocess_round.py
+    |   README.md
+    |   render_status.py
+    |   render_work_briefs.py
+    |   smoke_append_progress.ps1
+    |   smoke_status.ps1
+    |   summarize_facts_kpi.py
+    |   update_contract_from_table.py
+    |   
+    +---ops
+    |       append_progress_event.py
+    |       run_end_ops_hook.py
+    |       
+    \---__pycache__
+            kpi_diff.cpython-310.pyc
+            render_status.cpython-310.pyc
+            summarize_facts_kpi.cpython-310.pyc
+            

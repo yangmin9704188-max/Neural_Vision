@@ -30,7 +30,9 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-05 00:24:53*
+*Updated: 2026-02-05 00:51:01*
+
+- health: OK (warnings=0)
 
 ### Curated ingest
 - run_dir: data/derived/curated_v0/_smoke/round10_3_20260204_232023
@@ -68,10 +70,22 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:FITTING -->
-- brief_path: N/A
-- brief_mtime: N/A
-- warnings:
-  - [LAB_ROOT_MISSING] FITTING_LAB_ROOT not set | path=N/A
+- health: OK (warnings=0)
+- brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
+- brief_mtime: 2026-02-05 00:51:01
+- brief_head:
+  # FITTING Work Brief
+  
+  <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
+  
+  module: fitting
+  updated_at: 2026-02-05 00:51:01 +0900
+  run_id: N/A
+  phase: N/A
+  status: OK
+  summary: last_step=F01 dod_done=0 | run end hook
+  artifacts: N/A
+  warnings: 0
 <!-- GENERATED:END:FITTING -->
 
 ---
@@ -97,8 +111,20 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:GARMENT -->
-- brief_path: N/A
-- brief_mtime: N/A
-- warnings:
-  - [LAB_ROOT_MISSING] GARMENT_LAB_ROOT not set | path=N/A
+- health: OK (warnings=0)
+- brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
+- brief_mtime: 2026-02-05 00:51:01
+- brief_head:
+  # GARMENT Work Brief
+  
+  <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
+  
+  module: garment
+  updated_at: 2026-02-05 00:51:01 +0900
+  run_id: N/A
+  phase: N/A
+  status: OK
+  summary: last_step=G01 dod_done=0 | run end hook
+  artifacts: N/A
+  warnings: 0
 <!-- GENERATED:END:GARMENT -->

@@ -1,22 +1,14 @@
-# Exports
+generated-only (do not edit by hand)
 
-## Purpose
-- generated-only. 산출물(런 결과, progress, briefs, dashboards) 저장.
 
-## Do / Don't
-- Do: 도구/스크립트가 생성.
-- Don't: 수동 편집 금지.
 
-## Key files
-- runs/: geo_v0_s1, curated_v0 등 런 산출물
-- progress/PROGRESS_LOG.jsonl: append-only 진행 로그
+exports/
 
-## How to run
-- N/A (생성 전용)
+  progress/        # (로그) 이벤트 스트림: PROGRESS\_LOG.jsonl
 
-## Outputs
-- exports/runs/<lane>/<run_id>/
-- exports/progress/PROGRESS_LOG.jsonl
+  dashboards/      # (렌더) CURRENT\_STATE의 generated 섹션 원천, 스냅샷들
 
-## References
-- ops/HUB.md
+  briefs/          # (렌더) WORK\_BRIEF 산출물들(모듈별)
+
+  runs/            # (원본) runner 실행 산출물(라운드/run\_id 단위)
+
