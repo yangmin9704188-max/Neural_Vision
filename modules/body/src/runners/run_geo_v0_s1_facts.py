@@ -1052,6 +1052,49 @@ def process_case(
             )
 
 
+U1_KEYS = ["BUST_CIRC_M", "WAIST_CIRC_M", "HIP_CIRC_M"]
+
+
+def _write_body_subset_atomic(out_dir: Path, body_subset: dict) -> bool:
+    """Write body_measurements_subset.json atomically. On serialization failure, write valid stub. Returns True on success."""
+    subset_path = out_dir / "body_measurements_subset.json"
+    tmp_path = out_dir / "body_measurements_subset.json.tmp"
+    try:
+        content = json.dumps(body_subset, indent=2, ensure_ascii=False, allow_nan=False)
+        with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, subset_path)
+        return True
+    except Exception as e:
+        stub = {
+            "schema_version": "body_measurements_subset.u1.v0",
+            "unit": "m",
+            "pose_id": "PZ1",
+            "keys": U1_KEYS,
+            "cases": [],
+            "warnings": ["U1_SUBSET_WRITE_FAILED"],
+            "error": {"type": type(e).__name__, "message": str(e)[:200]},
+        }
+        try:
+            content = json.dumps(stub, indent=2, ensure_ascii=False, allow_nan=False)
+            with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(content)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, subset_path)
+        except Exception:
+            pass
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+        print(f"[WARN] U1 subset write failed: {e}; wrote stub to {subset_path}", file=sys.stderr)
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Geometric v0 S1 Facts-Only Runner (Round 23)"
@@ -2669,7 +2712,6 @@ def main():
             json.dump(stub, f, indent=2, ensure_ascii=False)
 
     # U1 subset (Body→Fitting): BUST_CIRC_M, WAIST_CIRC_M, HIP_CIRC_M; NaN/Inf -> null
-    U1_KEYS = ["BUST_CIRC_M", "WAIST_CIRC_M", "HIP_CIRC_M"]
     def _json_value(v):
         if v is None:
             return None
@@ -2707,12 +2749,8 @@ def main():
         "warnings": warnings_list,
     }
     subset_path = out_dir / "body_measurements_subset.json"
-    try:
-        with open(subset_path, 'w', encoding='utf-8') as f:
-            json.dump(body_subset, f, indent=2, ensure_ascii=False)
+    if _write_body_subset_atomic(out_dir, body_subset):
         print(f"[DONE] U1 subset saved: {subset_path}")
-    except (TypeError, ValueError) as e:
-        print(f"[WARN] U1 subset write failed: {e}; manifest will record ARTIFACT_MISSING", file=sys.stderr)
 
     # Minimal stubs so validator does not hard-fail (run_dir-only artifacts)
     for name, header in (
