@@ -54,10 +54,34 @@ def _check_relative_path(s: str) -> bool:
     return bool(RELATIVE_PATH_PATTERN.match(s))
 
 
+def _path_escapes_run_dir(run_dir: Path, relpath: str) -> bool:
+    """True if (run_dir / relpath).resolve() is outside run_dir.resolve()."""
+    try:
+        candidate = (run_dir / relpath).resolve()
+        run_resolved = run_dir.resolve()
+        candidate.relative_to(run_resolved)
+        return False
+    except (OSError, ValueError):
+        return True
+
+
+def _format_jsonschema_error(e: "jsonschema.ValidationError", verbose: bool) -> list[str]:
+    """Return list of readable error strings (path, message, validator)."""
+    out: list[str] = []
+    errors = list(e.iter_errors()) if hasattr(e, "iter_errors") else [e]
+    for i, err in enumerate(errors[: 10 if verbose else 3]):
+        path = ".".join(str(p) for p in err.absolute_path) if err.absolute_path else "(root)"
+        out.append(f"  {path}: {err.message} (validator={err.validator})")
+    return out
+
+
 def audit_one(
     run_dir: Path,
     schema: dict[str, Any],
     module_label: str,
+    *,
+    check_files: bool = False,
+    strict_files: bool = False,
 ) -> dict[str, Any]:
     """
     Audit a single run_dir's geometry_manifest.json.
@@ -107,28 +131,33 @@ def audit_one(
 
     # Path violations: artifacts, warnings_path, provenance_path
     for rel in data.get("artifacts") or []:
-        if isinstance(rel, str) and not _check_relative_path(rel):
-            out["path_violations"].append(("artifacts", rel))
+        if isinstance(rel, str):
+            if not _check_relative_path(rel):
+                out["path_violations"].append(("path_format", rel))
+            if _path_escapes_run_dir(run_dir, rel):
+                out["path_violations"].append(("ESCAPES_RUN_DIR", rel))
     for key in ("warnings_path", "provenance_path"):
         val = data.get(key)
-        if isinstance(val, str) and val and not _check_relative_path(val):
-            out["path_violations"].append((key, val))
+        if isinstance(val, str) and val:
+            if not _check_relative_path(val):
+                out["path_violations"].append((key, val))
+            if _path_escapes_run_dir(run_dir, val):
+                out["path_violations"].append(("ESCAPES_RUN_DIR", val))
 
-    # Artifact paths missing on disk (WARN only)
-    for rel in data.get("artifacts") or []:
-        if isinstance(rel, str):
-            full = (run_dir / rel).resolve()
-            run_resolved = run_dir.resolve()
-            if not full.exists():
-                out["artifact_paths_missing_on_disk"].append(rel)
-            elif not str(full).startswith(str(run_resolved)):
-                out["path_violations"].append(("artifacts_escape", rel))
+    # Artifact paths missing on disk (only when --check_files / --strict_files)
+    if check_files or strict_files:
+        for rel in data.get("artifacts") or []:
+            if isinstance(rel, str) and not _path_escapes_run_dir(run_dir, rel):
+                full = (run_dir / rel).resolve()
+                if not full.exists():
+                    out["artifact_paths_missing_on_disk"].append(rel)
 
-    # jsonschema validation
+    # jsonschema validation (errors formatted in print_report via verbose flag)
     if jsonschema:
         try:
             jsonschema.validate(data, schema)
         except jsonschema.ValidationError as e:
+            out["_jsonschema_exception"] = e
             out["jsonschema_errors"].append(str(e))
             if not out["missing_required_fields"]:
                 out["missing_required_fields"] = ["schema_validation_failed"]
@@ -146,6 +175,7 @@ def audit_one(
         not out["missing_required_fields"]
         and not out["path_violations"]
         and not out["jsonschema_errors"]
+        and not (strict_files and out["artifact_paths_missing_on_disk"])
     )
 
     # Top issue types
@@ -190,6 +220,7 @@ def check_schema_drift(canonical: dict[str, Any], local_path: Path) -> tuple[boo
 def print_report(
     results: list[dict[str, Any]],
     drift_warnings: list[str],
+    verbose: bool = False,
 ) -> None:
     """Print concise facts-only report."""
     print("=== geometry_manifest conformance audit ===\n")
@@ -208,7 +239,15 @@ def print_report(
             if r.get("missing_required_fields"):
                 print(f"  missing_required_fields: {r['missing_required_fields'][:5]}")
             if r.get("path_violations"):
-                print(f"  path_violations: {r['path_violations'][:3]}")
+                for pv in r["path_violations"][: 5 if verbose else 3]:
+                    print(f"  path_violation: {pv[0]} -> {pv[1]}")
+            exc = r.get("_jsonschema_exception")
+            if exc and jsonschema:
+                for line in _format_jsonschema_error(exc, verbose):
+                    print(line)
+            elif r.get("jsonschema_errors") and not exc:
+                for e in (r["jsonschema_errors"][: 3 if not verbose else 20]):
+                    print(f"  schema_error: {e}")
             if r.get("artifact_paths_missing_on_disk"):
                 print(f"  artifact_paths_missing_on_disk (WARN): {r['artifact_paths_missing_on_disk'][:5]}")
         print()
@@ -219,17 +258,38 @@ def print_report(
             print(f"  {w}")
         print()
 
-    # Combined: common mismatches across modules
+    # Grouped: schema_version per module
+    print("--- schema_version per module ---")
+    for r in results:
+        sv = r.get("schema_version") or "(none)"
+        print(f"  {r['module']}: {sv}")
+    print()
+
+    # Grouped: common mismatches (intersection + per-module extras)
     invalid_results = [r for r in results if not r["valid"]]
     if invalid_results:
         all_missing: Counter[str] = Counter()
+        all_extra: Counter[str] = Counter()
+        path_patterns: Counter[tuple[str, str]] = Counter()
         for r in invalid_results:
             for m in r.get("missing_required_fields", []):
                 all_missing[m] += 1
+            for e in r.get("extra_fields_not_in_schema", []):
+                all_extra[e] += 1
+            for pv in r.get("path_violations", []):
+                path_patterns[(pv[0], str(pv[1])[:60])] += 1
         if all_missing:
-            print("--- common mismatches (invalid modules) ---")
+            print("--- missing_required_fields (invalid modules) ---")
             for k, c in all_missing.most_common(5):
                 print(f"  {k}: {c} modules")
+        if all_extra:
+            print("--- extra_fields_not_in_schema ---")
+            for k, c in all_extra.most_common(5):
+                print(f"  {k}: {c} modules")
+        if path_patterns:
+            print("--- path_violations (common patterns) ---")
+            for (kind, val), c in path_patterns.most_common(5):
+                print(f"  {kind} -> {val}: {c} modules")
 
 
 def main() -> int:
@@ -250,7 +310,23 @@ def main() -> int:
         action="store_true",
         help="Exit 1 if schema drift detected (default: WARN only)",
     )
+    parser.add_argument(
+        "--check_files",
+        action="store_true",
+        help="Check artifact file existence; report missing as WARN",
+    )
+    parser.add_argument(
+        "--strict_files",
+        action="store_true",
+        help="Imply --check_files; exit 1 if any artifact missing on disk",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print full jsonschema error list and more path violations",
+    )
     args = parser.parse_args()
+    check_files = args.check_files or args.strict_files
 
     repo_root = Path(__file__).resolve().parent.parent
     schema_path = args.schema or repo_root / "contracts" / "geometry_manifest_v1.schema.json"
@@ -272,7 +348,13 @@ def main() -> int:
     for label, run_dir in run_dirs:
         if run_dir is None:
             continue
-        r = audit_one(run_dir, schema, label)
+        r = audit_one(
+            run_dir,
+            schema,
+            label,
+            check_files=check_files,
+            strict_files=args.strict_files,
+        )
         results.append(r)
 
     if not results:
@@ -286,7 +368,7 @@ def main() -> int:
         if not equal and diff_msg:
             drift_warnings.append(f"{local_path}: {diff_msg}")
 
-    print_report(results, drift_warnings)
+    print_report(results, drift_warnings, verbose=args.verbose)
 
     # Exit: 0 if all valid, 1 if any invalid
     any_invalid = any(not r["valid"] for r in results)
