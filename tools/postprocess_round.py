@@ -26,6 +26,22 @@ project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
 
 
+def canonicalize_run_dir(s: str | Path) -> Path:
+    """
+    Normalize run_dir: apply legacy path rewrite (verification/runs -> exports/runs),
+    then resolve relative to project_root. Return resolved Path.
+    """
+    from modules.body.src.utils.path_shim import rewrite_legacy_path
+    normalized = Path(s).as_posix() if s else ""
+    rewritten = rewrite_legacy_path(normalized)
+    if not rewritten:
+        return (project_root / ".").resolve()
+    p = Path(rewritten)
+    if p.is_absolute():
+        return p.resolve()
+    return (project_root / rewritten).resolve()
+
+
 def find_facts_summary(run_dir: Path, required: bool = True) -> Optional[Path]:
     """Find facts_summary.json in run_dir with priority."""
     # Priority 1: direct path
@@ -65,17 +81,19 @@ def infer_lane_from_path(run_dir: Path) -> str:
 
 
 def load_baselines() -> Dict[str, Any]:
-    """Load baselines.json."""
-    baselines_path = project_root / "docs" / "ops" / "baselines.json"
-    if not baselines_path.exists():
-        return {}
-    
-    try:
-        with open(baselines_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Warning: Failed to load baselines.json: {e}", file=sys.stderr)
-        return {}
+    """Load baselines.json. Prefer ops/baselines.json, fallback docs/ops/baselines.json."""
+    for baselines_path in (
+        project_root / "ops" / "baselines.json",
+        project_root / "docs" / "ops" / "baselines.json",
+    ):
+        if baselines_path.exists():
+            try:
+                with open(baselines_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Warning: Failed to load baselines.json: {e}", file=sys.stderr)
+                return {}
+    return {}
 
 
 def get_baseline_run_dir(lane: str, baselines: Dict[str, Any], explicit_baseline: Optional[str] = None) -> Optional[Path]:
@@ -1487,16 +1505,23 @@ def main():
         default="reports/validation/round_registry.json",
         help="Round registry path (default: reports/validation/round_registry.json)"
     )
+    parser.add_argument(
+        "--run_dir_only",
+        action="store_true",
+        default=False,
+        help="Only run_dir outputs (KPI, KPI_DIFF, LINEAGE); skip ROUND_CHARTER, registries, candidate stubs"
+    )
     
     args = parser.parse_args()
     
-    # Resolve paths
-    current_run_dir = (project_root / args.current_run_dir).resolve()
+    # Canonicalize run dirs (verification/runs -> exports/runs etc.)
+    current_run_dir = canonicalize_run_dir(args.current_run_dir)
     if not current_run_dir.exists():
         print(f"Error: Current run directory not found: {current_run_dir}", file=sys.stderr)
         sys.exit(1)
     
     registry_path = project_root / args.registry_path
+    run_dir_only: bool = getattr(args, "run_dir_only", False)
     
     # Infer lane if not provided
     lane = args.lane or infer_lane_from_path(current_run_dir)
@@ -1505,9 +1530,10 @@ def main():
     # Load baselines
     baselines = load_baselines()
     
-    # Get baseline run directory
+    # Get baseline run directory (canonicalize if present)
     baseline_run_dir = get_baseline_run_dir(lane, baselines, args.baseline_run_dir)
     if baseline_run_dir:
+        baseline_run_dir = canonicalize_run_dir(baseline_run_dir)
         print(f"Baseline: {baseline_run_dir.relative_to(project_root)}")
     else:
         print("Baseline: None")
@@ -1515,13 +1541,15 @@ def main():
     # Load new registry path
     new_registry_path = project_root / "docs" / "verification" / "round_registry.json"
     
-    # Auto-infer prev_run_dir
+    # Auto-infer prev_run_dir (canonicalize if present)
     prev_run_dir, prev_status = get_prev_run_dir_auto(
         lane=lane,
         current_run_dir=current_run_dir,
         old_registry_path=registry_path,
         new_registry_path=new_registry_path
     )
+    if prev_run_dir:
+        prev_run_dir = canonicalize_run_dir(prev_run_dir)
     
     # Warn if prev == current (fallback case)
     if prev_run_dir == current_run_dir and prev_status.startswith("fallback"):
@@ -1573,40 +1601,38 @@ def main():
         baseline_run_dir=baseline_run_dir
     )
     
-    # Update old registry (for backward compatibility, keep existing logic)
-    update_round_registry(
-        registry_path=registry_path,
-        current_run_dir=current_run_dir,
-        facts_summary_path=facts_summary_path,
-        kpi_path=kpi_path,
-        lane=lane,
-        baseline_run_dir=baseline_run_dir,
-        prev_run_dir=prev_run_dir,
-        baselines=baselines,
-        baseline_alias=baseline_alias
-    )
-    
-    # Update coverage backlog
+    # Update old registry (skip when run_dir_only)
     coverage_backlog_touched = False
-    try:
-        update_coverage_backlog(
+    round_num, round_id, round_md_rel = None, current_run_dir.name, None
+    if not run_dir_only:
+        update_round_registry(
+            registry_path=registry_path,
+            current_run_dir=current_run_dir,
             facts_summary_path=facts_summary_path,
-            run_dir=current_run_dir,
-            registry_path=registry_path
+            kpi_path=kpi_path,
+            lane=lane,
+            baseline_run_dir=baseline_run_dir,
+            prev_run_dir=prev_run_dir,
+            baselines=baselines,
+            baseline_alias=baseline_alias
         )
-        coverage_backlog_touched = True
-    except Exception as e:
-        print(f"Warning: Failed to update coverage backlog: {e}", file=sys.stderr)
-    
-    # Update round registry (new schema) and get round info + round md path
-    round_num, round_id, round_md_rel = update_new_round_registry(
-        current_run_dir=current_run_dir,
-        facts_summary_path=facts_summary_path,
-        lane=lane,
-        baselines=baselines,
-        coverage_backlog_touched=coverage_backlog_touched,
-        baseline_alias=baseline_alias
-    )
+        try:
+            update_coverage_backlog(
+                facts_summary_path=facts_summary_path,
+                run_dir=current_run_dir,
+                registry_path=registry_path
+            )
+            coverage_backlog_touched = True
+        except Exception as e:
+            print(f"Warning: Failed to update coverage backlog: {e}", file=sys.stderr)
+        round_num, round_id, round_md_rel = update_new_round_registry(
+            current_run_dir=current_run_dir,
+            facts_summary_path=facts_summary_path,
+            lane=lane,
+            baselines=baselines,
+            coverage_backlog_touched=coverage_backlog_touched,
+            baseline_alias=baseline_alias
+        )
     
     # Generate lineage manifest
     generate_lineage_manifest(
@@ -1641,12 +1667,15 @@ def main():
         visual_metadata=visual_metadata
     )
     
-    # Ensure ROUND_CHARTER.md (idempotent: do not overwrite if exists)
-    charter_template_path = project_root / "docs" / "verification" / "round_charter_template.md"
-    charter_path = ensure_round_charter(
-        current_run_dir=current_run_dir,
-        charter_template_path=charter_template_path
-    )
+    # Ensure ROUND_CHARTER.md (skip when run_dir_only; use path-only for snapshot)
+    if run_dir_only:
+        charter_path = current_run_dir / "ROUND_CHARTER.md"
+    else:
+        charter_template_path = project_root / "docs" / "verification" / "round_charter_template.md"
+        charter_path = ensure_round_charter(
+            current_run_dir=current_run_dir,
+            charter_template_path=charter_template_path
+        )
     
     # Get baseline_report from baselines or new registry
     baseline_report = None
@@ -1684,56 +1713,52 @@ def main():
         lane=lane
     )
     
-    # Generate candidate stubs (always overwrite)
+    # Generate candidate stubs / golden patch / baseline proposal (skip when run_dir_only)
     lineage_path_obj = current_run_dir / "LINEAGE.md"
     kpi_diff_path_obj = current_run_dir / "KPI_DIFF.md"
     snapshot_path_obj = current_run_dir / "PROMPT_SNAPSHOT.md"
     
-    generate_candidate_stubs(
-        current_run_dir=current_run_dir,
-        lane=lane,
-        round_id=round_id,
-        facts_summary_path=facts_summary_path,
-        kpi_path=kpi_path,
-        kpi_diff_path=kpi_diff_path_obj if kpi_diff_path_obj.exists() else None,
-        lineage_path=lineage_path_obj if lineage_path_obj.exists() else None,
-        charter_path=charter_path,
-        snapshot_path=snapshot_path_obj if snapshot_path_obj.exists() else None
-    )
-    
-    # Generate golden registry patch (always overwrite)
-    generate_golden_registry_patch(
-        current_run_dir=current_run_dir,
-        lane=lane,
-        baseline_alias=baseline_alias,
-        facts_summary_path=facts_summary_path,
-        kpi_path=kpi_path,
-        kpi_diff_path=kpi_diff_path_obj if kpi_diff_path_obj.exists() else None,
-        lineage_path=lineage_path_obj if lineage_path_obj.exists() else None,
-        charter_path=charter_path,
-        snapshot_path=snapshot_path_obj if snapshot_path_obj.exists() else None
-    )
-    
-    # Generate baseline update proposal (always overwrite)
-    generate_baseline_update_proposal(
-        current_run_dir=current_run_dir,
-        lane=lane,
-        baseline_alias=baseline_alias,
-        baseline_run_dir=baseline_run_dir,
-        kpi_diff_path=kpi_diff_path_obj if kpi_diff_path_obj.exists() else None,
-        kpi_path=kpi_path,
-        lineage_path=lineage_path_obj if lineage_path_obj.exists() else None,
-        charter_path=charter_path,
-        snapshot_path=snapshot_path_obj if snapshot_path_obj.exists() else None
-    )
-    
-    if round_md_rel:
-        subprocess.run([sys.executable, str(project_root / "tools" / "ingest_round_progress_events_v0.py"), "--round-path", str(project_root / round_md_rel), "--hub-root", str(project_root)], check=False)
-    else:
-        print("Warning: round_md_rel not available (round_num not detected from run_dir name). Ingest skipped.", file=sys.stderr)
-    subprocess.run([sys.executable, str(project_root / "tools" / "render_dashboard_v0.py"), "--hub-root", str(project_root)], check=False)
-    subprocess.run([sys.executable, str(project_root / "tools" / "publish_work_briefs_v0.py"), "--hub-root", str(project_root)], check=False)
-    subprocess.run([sys.executable, str(project_root / "tools" / "ops" / "run_end_ops_hook.py")], check=False)
+    if not run_dir_only:
+        generate_candidate_stubs(
+            current_run_dir=current_run_dir,
+            lane=lane,
+            round_id=round_id,
+            facts_summary_path=facts_summary_path,
+            kpi_path=kpi_path,
+            kpi_diff_path=kpi_diff_path_obj if kpi_diff_path_obj.exists() else None,
+            lineage_path=lineage_path_obj if lineage_path_obj.exists() else None,
+            charter_path=charter_path,
+            snapshot_path=snapshot_path_obj if snapshot_path_obj.exists() else None
+        )
+        generate_golden_registry_patch(
+            current_run_dir=current_run_dir,
+            lane=lane,
+            baseline_alias=baseline_alias,
+            facts_summary_path=facts_summary_path,
+            kpi_path=kpi_path,
+            kpi_diff_path=kpi_diff_path_obj if kpi_diff_path_obj.exists() else None,
+            lineage_path=lineage_path_obj if lineage_path_obj.exists() else None,
+            charter_path=charter_path,
+            snapshot_path=snapshot_path_obj if snapshot_path_obj.exists() else None
+        )
+        generate_baseline_update_proposal(
+            current_run_dir=current_run_dir,
+            lane=lane,
+            baseline_alias=baseline_alias,
+            baseline_run_dir=baseline_run_dir,
+            kpi_diff_path=kpi_diff_path_obj if kpi_diff_path_obj.exists() else None,
+            kpi_path=kpi_path,
+            lineage_path=lineage_path_obj if lineage_path_obj.exists() else None,
+            charter_path=charter_path,
+            snapshot_path=snapshot_path_obj if snapshot_path_obj.exists() else None
+        )
+        if round_md_rel:
+            subprocess.run([sys.executable, str(project_root / "tools" / "ingest_round_progress_events_v0.py"), "--round-path", str(project_root / round_md_rel), "--hub-root", str(project_root)], check=False)
+        else:
+            print("Warning: round_md_rel not available (round_num not detected from run_dir name). Ingest skipped.", file=sys.stderr)
+        subprocess.run([sys.executable, str(project_root / "tools" / "render_dashboard_v0.py"), "--hub-root", str(project_root)], check=False)
+        subprocess.run([sys.executable, str(project_root / "tools" / "publish_work_briefs_v0.py"), "--hub-root", str(project_root)], check=False)
+        subprocess.run([sys.executable, str(project_root / "tools" / "ops" / "run_end_ops_hook.py")], check=False)
 
     print("\nPostprocessing complete!")
 

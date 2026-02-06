@@ -2726,6 +2726,7 @@ def main():
     if not geom_path.exists():
         artifacts_list = ["facts_summary.json", "body_measurements_subset.json"]
         if npz_path:
+            # npz_path is already run_dir-relative from caller
             artifacts_list.append(npz_path)
         stub_geom = {
             "schema_version": "geometry_manifest.v1",
