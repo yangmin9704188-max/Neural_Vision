@@ -94,7 +94,55 @@ def test_audit_fails_when_one_invalid() -> None:
         assert result.returncode == 1, f"Expected exit 1, got {result.returncode}. stdout: {result.stdout}"
 
 
+def test_audit_fails_on_path_traversal() -> None:
+    """Manifest with '../escape.txt' must exit 1 and report ESCAPES_RUN_DIR."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        body_dir = root / "body"
+        body_dir.mkdir()
+        manifest = _valid_manifest("body")
+        manifest["artifacts"] = ["out.json", "../escape.txt"]
+        _write_manifest(body_dir, manifest)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_repo_root() / "tools" / "audit_manifest_conformance.py"),
+                "--run_dir_body", str(body_dir),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1, f"Expected exit 1, got {result.returncode}. stdout: {result.stdout}"
+        assert "ESCAPES_RUN_DIR" in result.stdout, f"Expected ESCAPES_RUN_DIR in output. stdout: {result.stdout}"
+
+
+def test_strict_files_fails_when_artifact_missing() -> None:
+    """--strict_files must exit 1 when artifact file does not exist."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        body_dir = root / "body"
+        body_dir.mkdir()
+        manifest = _valid_manifest("body")
+        manifest["artifacts"] = ["nonexistent.json"]
+        (body_dir / "geometry_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(_repo_root() / "tools" / "audit_manifest_conformance.py"),
+                "--run_dir_body", str(body_dir),
+                "--strict_files",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1, f"Expected exit 1, got {result.returncode}. stdout: {result.stdout}"
+
+
 if __name__ == "__main__":
     test_audit_passes_when_all_valid()
     test_audit_fails_when_one_invalid()
+    test_audit_fails_on_path_traversal()
+    test_strict_files_fails_when_artifact_missing()
     print("All tests passed.")
