@@ -1071,7 +1071,6 @@ def main():
     args = parser.parse_args()
     
     if args.out_dir is None:
-        from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_dir = Path(project_root) / "exports" / "runs" / "geo_v0_s1" / f"run_{timestamp}"
     else:
@@ -2708,9 +2707,12 @@ def main():
         "warnings": warnings_list,
     }
     subset_path = out_dir / "body_measurements_subset.json"
-    with open(subset_path, 'w', encoding='utf-8') as f:
-        json.dump(body_subset, f, indent=2, ensure_ascii=False)
-    print(f"[DONE] U1 subset saved: {subset_path}")
+    try:
+        with open(subset_path, 'w', encoding='utf-8') as f:
+            json.dump(body_subset, f, indent=2, ensure_ascii=False)
+        print(f"[DONE] U1 subset saved: {subset_path}")
+    except (TypeError, ValueError) as e:
+        print(f"[WARN] U1 subset write failed: {e}; manifest will record ARTIFACT_MISSING", file=sys.stderr)
 
     # Minimal stubs so validator does not hard-fail (run_dir-only artifacts)
     for name, header in (
@@ -2723,9 +2725,19 @@ def main():
             p.write_text(header, encoding="utf-8")
             print(f"[STUB] {name} created (minimal)")
     geom_path = out_dir / "geometry_manifest.json"
-    artifacts_list = ["facts_summary.json", "body_measurements_subset.json"]
+    # Artifacts candidates: only include paths that actually exist on disk
+    artifacts_candidates = ["facts_summary.json", "body_measurements_subset.json"]
     if npz_path:
-        artifacts_list.append(npz_path)
+        artifacts_candidates.append(npz_path)
+    artifacts_list = []
+    manifest_warnings = ["GEOMETRY_MANIFEST_STUB"]
+    for cand in artifacts_candidates:
+        rel = str(Path(cand).as_posix())
+        full = (out_dir / cand).resolve()
+        if full.exists():
+            artifacts_list.append(rel)
+        else:
+            manifest_warnings.append(f"ARTIFACT_MISSING:{rel}")
     stub_geom = {
         "schema_version": "geometry_manifest.v1",
         "module_name": "body",
@@ -2739,7 +2751,7 @@ def main():
             "dataset_version": "unknown",
         },
         "artifacts": artifacts_list,
-        "warnings": ["GEOMETRY_MANIFEST_STUB"],
+        "warnings": manifest_warnings,
     }
     with open(geom_path, 'w', encoding='utf-8') as f:
         json.dump(stub_geom, f, indent=2)
