@@ -3,11 +3,13 @@ data/**
 
 # Ops local config (use .example as template)
 ops/lab_roots.local.json
+ops/local/
 
 # Exports run outputs and generated briefs (generated-only)
 exports/runs/
 exports/brief/
 exports/progress/PROGRESS_LOG.jsonl
+exports/logs/
 
 # Python
 __pycache__/
