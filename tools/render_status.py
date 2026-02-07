@@ -13,6 +13,7 @@ from datetime import datetime
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPS_STATUS = REPO_ROOT / "ops" / "STATUS.md"
+LAB_ROOTS_PATH = REPO_ROOT / "ops" / "lab_roots.local.json"
 
 # Warning format: [CODE] message | path=<path or N/A>
 def _warn(code: str, message: str, path: str = "N/A") -> str:
@@ -170,7 +171,32 @@ def _latest_geo() -> tuple[dict, list[str]]:
     return out, warnings
 
 
-def _render_body(curated: dict, geo: dict, warnings: list[str]) -> str:
+def _latest_body_progress(max_items: int = 3) -> list[dict]:
+    """Read PROGRESS_LOG.jsonl, filter module=body, return last max_items events (facts-only)."""
+    log_path = REPO_ROOT / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+    if not log_path.exists():
+        return []
+    events = []
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                    if ev.get("module") == "body":
+                        events.append(ev)
+                except json.JSONDecodeError:
+                    continue
+        return events[-max_items:] if events else []
+    except Exception:
+        return []
+
+
+def _render_body(
+    curated: dict, geo: dict, warnings: list[str], *, body_progress: list[dict] | None = None
+) -> str:
     try:
         from zoneinfo import ZoneInfo
         ts = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S")
@@ -223,6 +249,16 @@ def _render_body(curated: dict, geo: dict, warnings: list[str]) -> str:
         lines.append("  - N/A")
     lines.append("")
 
+    if body_progress:
+        lines.append("### Latest progress")
+        for ev in body_progress:
+            note = ev.get("note", "")
+            step_id = ev.get("step_id", "N/A")
+            ts = ev.get("ts", "N/A")
+            if note:
+                lines.append(f"- [{step_id}] {ts}: {note}")
+        lines.append("")
+
     if warnings:
         lines.append("### Warnings")
         for w in _sort_warnings(warnings):
@@ -232,12 +268,28 @@ def _render_body(curated: dict, geo: dict, warnings: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _get_lab_root(module: str) -> str:
+    """Lab root: (1) ENV, (2) lab_roots.local.json, (3) empty. Returns resolved path or ''."""
+    env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
+    lab_root = os.environ.get(env_key, "").strip()
+    if not lab_root and LAB_ROOTS_PATH.exists():
+        try:
+            with open(LAB_ROOTS_PATH, encoding="utf-8") as f:
+                cfg = json.load(f)
+            val = (cfg.get(env_key) or "").strip()
+            if val:
+                lab_root = str((REPO_ROOT / val).resolve())
+        except Exception:
+            pass
+    return lab_root
+
+
 def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
-    """Read brief from FITTING_LAB_ROOT or GARMENT_LAB_ROOT env. Returns brief_path, mtime, head_12."""
+    """Read brief from FITTING_LAB_ROOT or GARMENT_LAB_ROOT (ENV or lab_roots.local.json). Returns brief_path, mtime, head_12."""
     out = {"brief_path": "N/A", "brief_mtime": "N/A", "brief_head": []}
     warnings = []
     env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
-    lab_root = os.environ.get(env_key, "").strip()
+    lab_root = _get_lab_root(module)
     if not lab_root:
         warnings.append(_warn("LAB_ROOT_MISSING", f"{env_key} not set", "N/A"))
         return out, warnings
@@ -318,7 +370,8 @@ def main() -> int:
     all_warnings.extend(w3)
     all_warnings.extend(w4)
 
-    body_content = _render_body(curated, geo, w1 + w2)
+    body_progress = _latest_body_progress(max_items=3)
+    body_content = _render_body(curated, geo, w1 + w2, body_progress=body_progress)
     fitting_content = _render_module_brief("FITTING", fitting_brief, w3)
     garment_content = _render_module_brief("GARMENT", garment_brief, w4)
 
