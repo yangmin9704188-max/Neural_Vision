@@ -142,5 +142,37 @@ class TestDashboardRenderEmpty(unittest.TestCase):
         self.assertIn("(없음)" if not newly_unlocked else "✅", out)
 
 
+class TestDashboardP02UX(unittest.TestCase):
+    """P0.2: brief paths only in unlock sections; next_actions has no brief_path."""
+
+    def test_dashboard_next_actions_has_no_brief_path(self):
+        """Next_actions section must not contain '복붙 파일:'."""
+        if not MASTER_PLAN_PATH.exists():
+            self.skipTest("contracts/master_plan_v1.json not present")
+        plan, _ = _load_master_plan()
+        artifacts_observed = {k: False for k in (plan.get("artifacts") or {})}
+        unlocks = {u["unlock_id"]: False for u in (plan.get("unlocks") or []) if u.get("unlock_id")}
+        newly_unlocked = []
+        out = _render_dashboard(plan, artifacts_observed, unlocks, newly_unlocked, [])
+        if "## 👉 지금 할 일" in out:
+            start = out.index("## 👉 지금 할 일")
+            rest = out[start:]
+            end = rest.find("\n## ", 1)
+            next_actions_block = rest[: end if end != -1 else len(rest)]
+            self.assertNotIn("복붙 파일:", next_actions_block, "👉 지금 할 일 섹션에 복붙 파일이 있으면 안 됨")
+
+    def test_dashboard_unlocked_shows_brief_path(self):
+        """Unlocked section must show brief_path when on_unlocked has brief_path."""
+        if not MASTER_PLAN_PATH.exists():
+            self.skipTest("contracts/master_plan_v1.json not present")
+        plan, _ = _load_master_plan()
+        artifacts_observed = {k: True for k in (plan.get("artifacts") or {})}
+        unlocks = {u["unlock_id"]: True for u in (plan.get("unlocks") or []) if u.get("unlock_id")}
+        newly_unlocked = []
+        out = _render_dashboard(plan, artifacts_observed, unlocks, newly_unlocked, [])
+        self.assertIn("현재 해금됨", out)
+        self.assertIn("복붙 파일:", out, "해금된 unlock에 brief_path가 있으면 복붙 파일이 표기되어야 함")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -289,6 +289,25 @@ def _blocker_warnings(plan: dict, artifacts_observed: dict[str, bool], unlocks: 
     return lines
 
 
+def _collect_satisfied_artifact_ids_from_logic(logic: dict, observed_set: set[str], max_items: int = 2) -> list[str]:
+    """Collect artifact_ids from logic that are in observed_set (for unlock 근거)."""
+    out = []
+
+    def collect(lg):
+        if not lg or len(out) >= max_items:
+            return
+        if lg.get("type") == "artifact_observed":
+            aid = lg.get("artifact_id")
+            if aid and aid in observed_set:
+                out.append(aid)
+        for it in lg.get("items") or []:
+            collect(it)
+        collect(lg.get("item"))
+
+    collect(logic)
+    return out[:max_items]
+
+
 def _module_status_summary(plan: dict, artifacts_observed: dict[str, bool], blockers: list[str]) -> dict[str, str]:
     """Per-module status: OK or WARN (simplified)."""
     by_mod = {m: "OK" for m in MODULES}
@@ -327,6 +346,8 @@ def _render_dashboard(plan: dict, artifacts_observed: dict[str, bool], unlocks: 
     ]
     unlocks_list = plan.get("unlocks") or []
     by_uid = {u["unlock_id"]: u for u in unlocks_list if u.get("unlock_id")}
+    observed_set = set(k for k, v in artifacts_observed.items() if v)
+    artifacts = plan.get("artifacts") or {}
     newly_display = [uid for uid in newly_unlocked if uid in by_uid][:n_new]
     if not newly_display:
         lines.append("- (없음)")
@@ -334,12 +355,21 @@ def _render_dashboard(plan: dict, artifacts_observed: dict[str, bool], unlocks: 
         for uid in newly_display:
             u = by_uid[uid]
             on_u = u.get("on_unlocked") or {}
-            brief_path = on_u.get("brief_path") or "N/A"
-            target = on_u.get("target_agent") or "N/A"
+            brief_path = on_u.get("brief_path") if on_u else None
+            target = (on_u.get("target_agent") or "").strip() or "N/A"
             lines.append(f"- {u.get('title', uid)}")
-            lines.append(f"  - 복붙 파일: {brief_path}")
             lines.append(f"  - 대상: {target}")
-            lines.append(f"  - 근거: (master_plan logic)")
+            if brief_path:
+                lines.append(f"  - 복붙 파일: {brief_path}")
+            else:
+                lines.append("  - 복붙 파일: (브리핑 없음)")
+            logic = u.get("logic") or {}
+            satisfied_ids = _collect_satisfied_artifact_ids_from_logic(logic, observed_set, 2)
+            if satisfied_ids:
+                labels = [artifacts.get(aid, {}).get("label", aid) for aid in satisfied_ids]
+                lines.append(f"  - 근거: {', '.join(labels)} 관측")
+            else:
+                lines.append("  - 근거: (master_plan logic)")
     n_locked = limits.get("locked", 10)
     lines.extend(["", "---", "", "## ✅ 현재 해금됨(이미 언락)"])
     current_unlocked = [uid for uid in by_uid if unlocks.get(uid)]
@@ -348,7 +378,22 @@ def _render_dashboard(plan: dict, artifacts_observed: dict[str, bool], unlocks: 
     else:
         for uid in current_unlocked:
             u = by_uid[uid]
+            on_u = u.get("on_unlocked") or {}
+            brief_path = on_u.get("brief_path") if on_u else None
+            target = (on_u.get("target_agent") or "").strip() or "N/A"
             lines.append(f"- {u.get('title', uid)}")
+            lines.append(f"  - 대상: {target}")
+            if brief_path:
+                lines.append(f"  - 복붙 파일: {brief_path}")
+            else:
+                lines.append("  - 복붙 파일: (브리핑 없음)")
+            logic = u.get("logic") or {}
+            satisfied_ids = _collect_satisfied_artifact_ids_from_logic(logic, observed_set, 2)
+            if satisfied_ids:
+                labels = [artifacts.get(aid, {}).get("label", aid) for aid in satisfied_ids]
+                lines.append(f"  - 근거: {', '.join(labels)} 관측")
+            else:
+                lines.append("  - 근거: (master_plan logic)")
     lines.extend(["", "---", "", "## 🔒 아직 잠김"])
     locked = [uid for uid in by_uid if not unlocks.get(uid)][:n_locked]
     if not locked:
@@ -372,21 +417,24 @@ def _render_dashboard(plan: dict, artifacts_observed: dict[str, bool], unlocks: 
     for it in not_done:
         mod = (it.get("module") or "other").lower()
         by_module.setdefault(mod, []).append(it)
+    max_per_mod = limits.get("next_actions_per_module") or 3
     for mod in MODULES:
         items = by_module.get(mod, [])
         if not items:
             continue
+        # Sort: priority ascending (missing = 999), then plan_id
+        def sort_key(it):
+            p = it.get("priority")
+            if p is None:
+                p = 999
+            return (p, it.get("plan_id") or "")
+        items = sorted(items, key=sort_key)[:max_per_mod]
         lines.append(f"### {mod.capitalize()}")
-        for i, it in enumerate(items[: (limits.get("next_actions_per_module") or 3)], 1):
+        for i, it in enumerate(items, 1):
             display_text = it.get("action_ko") or it.get("title") or it.get("plan_id") or "?"
-            lines.append(f"- ({i}) {display_text}")
-            ut = it.get("unlock_target") or ""
-            u_match = next((u for u in unlocks_list if u.get("unlock_id") == ut or (ut and str(u.get("unlock_id", "")).startswith(ut + "."))), None)
-            if u_match:
-                on_u = (u_match.get("on_unlocked") or {})
-                brief_path = on_u.get("brief_path")
-                if brief_path:
-                    lines.append(f"  - 복붙 파일: {brief_path}")
+            plan_id = it.get("plan_id") or "?"
+            module_val = (it.get("module") or "?").lower()
+            lines.append(f"- ({i}) {display_text}  (plan_id={plan_id}, module={module_val})")
     lines.extend(["", "---", "", "## 모듈 상태 요약"])
     mod_status = _module_status_summary(plan, artifacts_observed, blockers)
     for mod in MODULES:
