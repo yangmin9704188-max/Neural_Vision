@@ -86,6 +86,16 @@ Run이 존재한다면 아래 파일 중 최소 1개 이상이 관측되어야 �
 - 메인 렌더가 Lab의 최근 `ROUND_END` 이벤트에서 lane/run_id를 추출할 수 있으면 registry에 append한다.
 - 추출이 불가능하면 등록하지 않는다(경고-only로 STATUS에 표면화 가능).
 
+### 4.4 manifest_path selection rule v1 (SSoT)
+1) `manifest_path`는 evidence_paths 중에서 `exports/runs/<lane>/<run_id>/` prefix와 일치하는 `geometry_manifest.json`을 최우선 선택한다.
+2) 해당 prefix와 일치하는 항목이 없으면 가장 최근 ts의 geometry_manifest를 선택하되, `gate_codes`에 `REGISTRY_MANIFEST_MISMATCH`를 부여한다.
+3) `exports/runs/<lane>/<run_id>/geometry_manifest.json` (루트)이 존재하면 항상 그것을 우선한다.
+
+### 4.5 geometry_manifest fingerprint (canonical field, SSoT)
+- **canonical field**: `fingerprint` — geometry_manifest의 단일 진실원(SoT) 필드명.
+- **legacy alias**: `inputs_fingerprint` — 단기 호환을 위한 읽기 전용 alias. m1_checks 평가 시 `fingerprint`가 없으면 `inputs_fingerprint`가 있으면 pass(compat)로 처리.
+- **U2 이후**: `inputs_fingerprint` deprecate 계획(문서화만, 시점은 별도 결정).
+
 ---
 
 ## 5) KPI/KPI_DIFF v1 (가능한 lane부터)

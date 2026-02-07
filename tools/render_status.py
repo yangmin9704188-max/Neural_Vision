@@ -31,12 +31,20 @@ def _warn_dep(code: str, message: str, hint_path: str | None = None) -> str:
     return f"[{code}] {message} | path=N/A"
 
 
+def _warn_m1(dep_id: str, hint_path: str, detail: str) -> str:
+    """Format M1 check failure: [M1_CHECK_FAILED] dependency | id=...; expected=...; detail=..."""
+    return f"[M1_CHECK_FAILED] dependency | id={dep_id}; expected={hint_path}; detail={detail}"
+
+
 def _sort_warnings(warnings: list[str]) -> list[str]:
-    """Sort by CODE then path/expected for stable diff."""
+    """Sort by CODE then path/expected/id for stable diff."""
     def key(w: str) -> tuple:
-        m = re.match(r"\[([^\]]+)\].*\| (?:path|expected)=([^\s]*)", w)
+        m = re.match(r"\[([^\]]+)\].*\| (?:path|expected|id)=([^;]*)(?:;|$)", w)
         if m:
-            return (m.group(1), m.group(2))
+            return (m.group(1), (m.group(2) or "").strip())
+        m2 = re.match(r"\[([^\]]+)\].*", w)
+        if m2:
+            return (m2.group(1), w)
         return (w, "")
 
     return sorted(warnings, key=key)
@@ -676,6 +684,134 @@ def _collect_global_observed_paths(lab_roots: list[tuple[Path, str]]) -> set[str
     return out
 
 
+def _resolve_path_to_file(rel_path: str, roots: list[Path]) -> Path | None:
+    """Resolve relative path against roots; return first existing file path."""
+    norm = rel_path.replace("\\", "/").strip()
+    for root in roots:
+        cand = root / norm
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _evaluate_m1_checks(checks: dict, data: dict) -> list[str]:
+    """
+    Evaluate m1_checks against loaded JSON data. Returns list of failure detail strings.
+    Checks: require_fields, require_any_fields, schema_version_exact, require_keys_any, unit_exact, no_nan.
+    require_any_fields: list of field groups; each group must have at least one field present.
+    """
+    details = []
+    if not isinstance(data, dict):
+        return ["not a dict"]
+
+    for field in checks.get("require_fields") or []:
+        if field not in data:
+            details.append(f"missing_field:{field}")
+
+    for group in checks.get("require_any_fields") or []:
+        if not isinstance(group, (list, tuple)):
+            continue
+        if not any(f in data for f in group):
+            details.append(f"require_any_fields:{group}")
+
+    exact = checks.get("schema_version_exact")
+    if exact:
+        got = data.get("schema_version")
+        if got != exact:
+            details.append(f"schema_version:{got!r}!={exact!r}")
+
+    keys_any = checks.get("require_keys_any")
+    if keys_any:
+        found = any(k in data for k in keys_any)
+        if not found:
+            details.append(f"require_keys_any:{keys_any}")
+
+    unit_exact = checks.get("unit_exact")
+    if unit_exact is not None:
+        unit_val = data.get("unit") or data.get("unit_of_measure") or data.get("units")
+        if unit_val != unit_exact:
+            details.append(f"unit:{unit_val!r}!={unit_exact!r}")
+
+    if checks.get("no_nan"):
+        def has_nan(obj, depth=0):
+            if depth > 10:
+                return False
+            if obj is None:
+                return False
+            if isinstance(obj, dict):
+                return any(has_nan(v, depth + 1) for v in obj.values())
+            if isinstance(obj, list):
+                return any(has_nan(v, depth + 1) for v in obj)
+            if isinstance(obj, float):
+                return obj != obj  # NaN check
+            return False
+        if has_nan(data):
+            details.append("has_nan")
+
+    return details
+
+
+def _check_m1_ledger(
+    ledger: dict,
+    observed_paths: set[str],
+    lab_roots: list[tuple[Path, str]],
+) -> dict[str, list[str]]:
+    """
+    Evaluate m1_checks on observed files. Warn-only. Returns {module: [warn_str, ...]}.
+    Only runs when observed target file exists.
+    """
+    result: dict[str, list[str]] = {"BODY": [], "FITTING": [], "GARMENT": []}
+    roots = [r for r, _ in lab_roots] + [REPO_ROOT]
+    rows = ledger.get("rows") or []
+
+    for row in rows:
+        m1 = row.get("m1_checks") or {}
+        if not m1:
+            continue
+        required = row.get("required_paths_any") or []
+        if not required:
+            continue
+        consumer = (row.get("consumer_module") or "").lower()
+        producer = (row.get("producer_module") or "").lower()
+        dep_id = (row.get("id") or "").strip()
+        hint = (row.get("hint_path") or "").strip() or "N/A"
+
+        mod_upper = "FITTING" if consumer == "fitting" else ("GARMENT" if consumer == "garment" else ("BODY" if producer == "body" else None))
+        if not mod_upper:
+            continue
+
+        matched_path = None
+        for pattern in required:
+            for op in observed_paths:
+                if _path_matches_glob(op, pattern):
+                    matched_path = op
+                    break
+            if matched_path:
+                break
+        if not matched_path:
+            continue
+
+        fpath = _resolve_path_to_file(matched_path, roots)
+        if not fpath or not fpath.exists():
+            continue
+
+        try:
+            with open(fpath, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            result[mod_upper].append(_warn_m1(dep_id, hint, f"load_fail:{str(e)[:40]}"))
+            continue
+
+        failures = _evaluate_m1_checks(m1, data)
+        if failures:
+            detail = ";".join(failures[:3])
+            if len(failures) > 3:
+                detail += f"...+{len(failures)-3}"
+            result[mod_upper].append(_warn_m1(dep_id, hint, detail))
+
+    return result
+
+
 def _check_dependency_ledger(
     ledger: dict,
     observed_paths: set[str],
@@ -714,6 +850,180 @@ def _check_dependency_ledger(
             result["GARMENT"].append((gate, hint))
         elif consumer == "ops" and producer == "body":
             result["BODY"].append((gate, hint))
+    return result
+
+
+RUN_MINSET_FILES = (
+    "geometry_manifest.json",
+    "facts_summary.json",
+)
+RUN_MINSET_GLOBS = ("*facts_summary*.json",)
+RUN_MINSET_README = "RUN_README.md"
+RUN_MINSET_MIN_COUNT = 2
+
+
+def _check_run_minset(lab_roots: list[tuple[Path, str]], max_records: int = 50) -> dict[str, list[str]]:
+    """
+    Check run_registry records for minset (>=2 of geometry_manifest, facts_summary, RUN_README).
+    Returns {module_upper: [expected_str, ...]} for runs that fail. Warn-only.
+    """
+    result: dict[str, list[str]] = {"BODY": [], "FITTING": [], "GARMENT": []}
+    root_result: dict[str, list[str]] = {"BODY": [], "FITTING": [], "GARMENT": []}
+    registry_path = REPO_ROOT / "ops" / "run_registry.jsonl"
+    if not registry_path.exists():
+        return result, root_result
+
+    lab_map = {m: r for r, m in lab_roots}
+    lab_map["body"] = REPO_ROOT
+
+    records = []
+    try:
+        with open(registry_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        records.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+    except Exception:
+        return result, root_result
+
+    seen_run_keys = set()
+    for rec in records[-max_records:]:
+        module = (rec.get("module") or "").strip().lower()
+        lane = (rec.get("lane") or "").strip()
+        run_id = (rec.get("run_id") or "").strip()
+        if not module or not lane or not run_id:
+            continue
+        mod_upper = module.upper() if module in ("fitting", "garment") else "BODY"
+        root = lab_map.get(module)
+        if not root:
+            continue
+        run_key = (module, lane, run_id)
+        if run_key in seen_run_keys:
+            continue
+        seen_run_keys.add(run_key)
+
+        run_dir = root / "exports" / "runs" / lane / run_id
+        if not run_dir.exists():
+            expected = f"exports/runs/{lane}/{run_id}/{{facts_summary.json,RUN_README.md}}"
+            result[mod_upper].append(expected)
+            continue
+
+        count = 0
+        missing = []
+        has_geo = bool(list(run_dir.rglob("geometry_manifest.json")))
+        has_facts = bool(list(run_dir.rglob("facts_summary.json")) or list(run_dir.rglob("*facts_summary*.json")))
+        has_readme = bool(list(run_dir.rglob("RUN_README.md")) or list(run_dir.rglob("README.txt")))
+        if has_geo:
+            count += 1
+        else:
+            missing.append("geometry_manifest.json")
+        if has_facts:
+            count += 1
+        else:
+            missing.append("facts_summary.json")
+        if has_readme:
+            count += 1
+        else:
+            missing.append("RUN_README.md")
+
+        if count < RUN_MINSET_MIN_COUNT and missing:
+            expected = f"exports/runs/{lane}/{run_id}/{{{','.join(missing)}}}"
+            result[mod_upper].append(expected)
+
+        has_root_geo = (run_dir / "geometry_manifest.json").is_file()
+        if not has_root_geo and has_geo:
+            root_expected = f"exports/runs/{lane}/{run_id}/geometry_manifest.json"
+            root_result[mod_upper].append(root_expected)
+
+    return result, root_result
+
+
+def _check_round_end_missing(lab_roots: list[tuple[Path, str]], hours: int = 24) -> dict[str, list[str]]:
+    """
+    Count-based: if ROUND_START > ROUND_END in last 24h, add ROUND_END_MISSING. Warn-only.
+    Returns {module_upper: ["expected=...", ...]}.
+    """
+    result: dict[str, list[str]] = {"BODY": [], "FITTING": [], "GARMENT": []}
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+    for lab_root, module in lab_roots:
+        mod_upper = module.upper() if module in ("fitting", "garment") else "BODY"
+        log_path = lab_root / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+        if not log_path.exists():
+            continue
+        start_count = 0
+        end_count = 0
+        try:
+            with open(log_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        ev = json.loads(line)
+                        if ev.get("module", "").lower() != module.lower():
+                            continue
+                        ts = ev.get("ts", "")
+                        if ts:
+                            try:
+                                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                                if dt.tzinfo is None:
+                                    dt = dt.replace(tzinfo=timezone.utc)
+                                if dt < cutoff:
+                                    continue
+                            except Exception:
+                                pass
+                        et = str(ev.get("event_type") or ev.get("event") or "").lower()
+                        if et == "round_start":
+                            start_count += 1
+                        elif et == "round_end":
+                            end_count += 1
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            continue
+        if start_count > end_count:
+            result[mod_upper].append("expected=roundwrap end required")
+
+    body_log = REPO_ROOT / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+    if body_log.exists():
+        start_count = 0
+        end_count = 0
+        try:
+            with open(body_log, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        ev = json.loads(line)
+                        if ev.get("module", "").lower() != "body":
+                            continue
+                        ts = ev.get("ts", "")
+                        if ts:
+                            try:
+                                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                                if dt.tzinfo is None:
+                                    dt = dt.replace(tzinfo=timezone.utc)
+                                if dt < cutoff:
+                                    continue
+                            except Exception:
+                                pass
+                        et = str(ev.get("event_type") or ev.get("event") or "").lower()
+                        if et == "round_start":
+                            start_count += 1
+                        elif et == "round_end":
+                            end_count += 1
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            pass
+        if start_count > end_count:
+            result["BODY"].append("expected=roundwrap end required")
+
     return result
 
 
@@ -765,6 +1075,38 @@ def main() -> int:
         w3.append(_warn_dep(gate, "dependency", hint))
     for gate, hint in dep_warnings.get("GARMENT", []):
         w4.append(_warn_dep(gate, "dependency", hint))
+
+    if ledger:
+        m1_warnings = _check_m1_ledger(ledger, observed, lab_roots)
+        for warn in m1_warnings.get("BODY", []):
+            w1.append(warn)
+        for warn in m1_warnings.get("FITTING", []):
+            w3.append(warn)
+        for warn in m1_warnings.get("GARMENT", []):
+            w4.append(warn)
+
+    minset_warnings, root_warns = _check_run_minset(lab_roots)
+    for expected in minset_warnings.get("BODY", []):
+        w1.append(_warn_dep("RUN_MINSET_MISSING", "observed", expected))
+    for expected in minset_warnings.get("FITTING", []):
+        w3.append(_warn_dep("RUN_MINSET_MISSING", "observed", expected))
+    for expected in minset_warnings.get("GARMENT", []):
+        w4.append(_warn_dep("RUN_MINSET_MISSING", "observed", expected))
+
+    for expected in root_warns.get("BODY", []):
+        w1.append(_warn_dep("RUN_MANIFEST_ROOT_MISSING", "observed", expected))
+    for expected in root_warns.get("FITTING", []):
+        w3.append(_warn_dep("RUN_MANIFEST_ROOT_MISSING", "observed", expected))
+    for expected in root_warns.get("GARMENT", []):
+        w4.append(_warn_dep("RUN_MANIFEST_ROOT_MISSING", "observed", expected))
+
+    round_end_warnings = _check_round_end_missing(lab_roots)
+    for expected in round_end_warnings.get("BODY", []):
+        w1.append(_warn_dep("ROUND_END_MISSING", "hygiene", expected))
+    for expected in round_end_warnings.get("FITTING", []):
+        w3.append(_warn_dep("ROUND_END_MISSING", "hygiene", expected))
+    for expected in round_end_warnings.get("GARMENT", []):
+        w4.append(_warn_dep("ROUND_END_MISSING", "hygiene", expected))
 
     body_progress = _latest_body_progress(max_items=3)
     body_content = _render_body(curated, geo, w1 + w2, body_progress=body_progress)
