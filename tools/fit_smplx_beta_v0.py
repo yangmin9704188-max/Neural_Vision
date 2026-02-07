@@ -254,6 +254,9 @@ def main() -> int:
     parser.add_argument("--pose_id", type=str, default="PZ1")
     parser.add_argument("--keys", type=str, default=",".join(U1_KEYS), help="Comma-separated keys")
     parser.add_argument("--mesh_provider", type=str, default="dummy", choices=("dummy",), help="dummy when SMPL-X unavailable")
+    parser.add_argument("--resume", action="store_true", help="Skip prototype if fit_result.json already exists")
+    parser.add_argument("--time_budget_sec", type=int, default=0, help="Stop gracefully after N seconds (0=no limit)")
+    parser.add_argument("--batch_size", type=int, default=1, help="Batch size for future parallelization (default 1)")
     parser.add_argument("--log-progress", action="store_true", help="Append progress event to repo exports/progress (ops)")
     args = parser.parse_args()
 
@@ -295,14 +298,36 @@ def main() -> int:
     t0 = time.perf_counter()
     results = []
     failures = []
+    skipped_resume = []
     for i, target_m in enumerate(targets_list):
+        if args.time_budget_sec and (time.perf_counter() - t0) >= args.time_budget_sec:
+            break
         p_id = f"p{i:04d}"
         fit_path = prototypes_dir / p_id / "fit_result.json"
         fit_path.parent.mkdir(parents=True, exist_ok=True)
-        r = _fit_one(p_id, target_m, mesh_provider, keys, args.seed, args.max_iter, args.pose_id, fit_path, diag_dir)
-        results.append(r)
-        if not r.get("success"):
-            failures.append({"p_id": p_id, "error_type": r.get("error_type")})
+        if getattr(args, "resume", False) and fit_path.exists():
+            try:
+                r = json.loads(fit_path.read_text(encoding="utf-8"))
+                results.append(r)
+                skipped_resume.append({"prototype_id": p_id, "reason": "resume_skip"})
+                if not r.get("success"):
+                    failures.append({"p_id": p_id, "error_type": r.get("error_type")})
+            except Exception:
+                r = _fit_one(p_id, target_m, mesh_provider, keys, args.seed, args.max_iter, args.pose_id, fit_path, diag_dir)
+                results.append(r)
+                if not r.get("success"):
+                    failures.append({"p_id": p_id, "error_type": r.get("error_type")})
+        else:
+            r = _fit_one(p_id, target_m, mesh_provider, keys, args.seed, args.max_iter, args.pose_id, fit_path, diag_dir)
+            results.append(r)
+            if not r.get("success"):
+                failures.append({"p_id": p_id, "error_type": r.get("error_type")})
+
+    if skipped_resume:
+        skip_path = out_dir / "SKIPPED_RESUME.jsonl"
+        with open(skip_path, "w", encoding="utf-8") as f:
+            for rec in skipped_resume:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
     # Summary
     successful = [x for x in results if x.get("success")]
@@ -326,10 +351,11 @@ def main() -> int:
     def p50(x): return float(np.percentile(x, 50)) if x else 0.0
     def p90(x): return float(np.percentile(x, 90)) if x else 0.0
 
+    def p95(x): return float(np.percentile(x, 95)) if x else 0.0
     residual_cm_stats = {}
     for k in keys:
         arr = residuals_cm_all.get(k, [])
-        residual_cm_stats[k] = {"p50": p50(arr), "p90": p90(arr), "max": float(np.max(arr)) if arr else 0.0}
+        residual_cm_stats[k] = {"p50": p50(arr), "p90": p90(arr), "p95": p95(arr), "max": float(np.max(arr)) if arr else 0.0}
     quality_score_stats = {"p50": p50(quality_scores), "p90": p90(quality_scores), "min": float(np.min(quality_scores)) if quality_scores else 0.0}
     frac_above = (bucket_counts.get("OK", 0) / len(results)) if results else 0.0
     summary = {
@@ -383,6 +409,76 @@ def main() -> int:
     kpi_diff_path = out_dir / "KPI_DIFF.md"
     kpi_diff_path.write_text("# KPI_DIFF\n\nNO_BASELINE\n", encoding="utf-8")
 
+    # residual_report.json (atomic)
+    top_worst_k = 20
+    top_best_k = 20
+    worst_list = sorted(successful, key=lambda x: x.get("quality_score") or 0)[:top_worst_k]
+    best_list = sorted(successful, key=lambda x: -(x.get("quality_score") or 0))[:top_best_k]
+    sign_pattern_hist = {}
+    for r in successful:
+        res_cm = r.get("residuals_cm") or {}
+        signs = []
+        for k in keys:
+            v = res_cm.get(k, 0)
+            if v > 0:
+                signs.append("+")
+            elif v < 0:
+                signs.append("-")
+            else:
+                signs.append("0")
+        key = ",".join(signs)
+        sign_pattern_hist[key] = sign_pattern_hist.get(key, 0) + 1
+    residual_report = {
+        "schema_version": "beta_fit_residual_report_v0",
+        "top_worst": [{"prototype_id": r.get("prototype_id"), "quality_score": r.get("quality_score"), "residuals_cm": r.get("residuals_cm"), "dominant_residual_key": r.get("dominant_residual_key"), "warnings": r.get("warnings", [])} for r in worst_list],
+        "top_best": [{"prototype_id": r.get("prototype_id"), "quality_score": r.get("quality_score"), "residuals_cm": r.get("residuals_cm"), "dominant_residual_key": r.get("dominant_residual_key")} for r in best_list],
+        "residual_distribution": {k: residual_cm_stats.get(k, {}) for k in keys},
+        "quality_score_distribution": quality_score_stats,
+        "pattern_counts": dominant_counts,
+        "sign_pattern_histogram": sign_pattern_hist,
+        "failure_summary": {"count": len(failures), "top_error_types": list(set(f.get("error_type") for f in failures if f.get("error_type")))},
+    }
+    atomic_save_json(out_dir / "residual_report.json", residual_report)
+
+    # RESIDUAL_REPORT.md (human-readable, facts-only)
+    md_lines = [
+        "# RESIDUAL REPORT",
+        "",
+        "## Top-20 worst (by quality_score)",
+        "| prototype_id | quality_score | residuals_cm | dominant_residual_key |",
+        "|--------------|---------------|--------------|------------------------|",
+    ]
+    for r in worst_list:
+        rc = r.get("residuals_cm") or {}
+        md_lines.append(f"| {r.get('prototype_id')} | {r.get('quality_score')} | {rc} | {r.get('dominant_residual_key')} |")
+    md_lines.append("")
+    md_lines.append("## Top-20 best")
+    md_lines.append("| prototype_id | quality_score | dominant_residual_key |")
+    for r in best_list:
+        md_lines.append(f"| {r.get('prototype_id')} | {r.get('quality_score')} | {r.get('dominant_residual_key')} |")
+    md_lines.append("")
+    md_lines.append("## Residual distribution (cm)")
+    for k in keys:
+        s = residual_cm_stats.get(k, {})
+        md_lines.append(f"- {k}: p50={s.get('p50', 0):.4f} p90={s.get('p90', 0):.4f} p95={s.get('p95', 0):.4f} max={s.get('max', 0):.4f}")
+    md_lines.append("")
+    md_lines.append("## Pattern counts (dominant_residual_key)")
+    for k, v in dominant_counts.items():
+        md_lines.append(f"- {k}: {v}")
+    md_lines.append("")
+    md_lines.append("## Sign pattern histogram (BUST,WAIST,HIP)")
+    for k, v in sorted(sign_pattern_hist.items(), key=lambda x: -x[1]):
+        md_lines.append(f"- {k}: {v}")
+    md_lines.append("")
+    md_lines.append("## Failure summary")
+    md_lines.append(f"- count: {len(failures)}")
+    md_lines.append(f"- top_error_types: {residual_report['failure_summary']['top_error_types']}")
+    md_lines.append("")
+    report_md_path = out_dir / "RESIDUAL_REPORT.md"
+    report_md_tmp = out_dir / "RESIDUAL_REPORT.md.tmp"
+    report_md_tmp.write_text("\n".join(md_lines), encoding="utf-8")
+    report_md_tmp.replace(report_md_path)
+
     elapsed = round(time.perf_counter() - t0, 3)
     sha = hashlib.sha256(summary_path.read_bytes()).hexdigest()
     print(f"[DONE] out_dir: {out_dir}")
@@ -405,7 +501,7 @@ def main() -> int:
                     "--module", "body",
                     "--step-id", "B03",
                     "--event", "note",
-                    "--note", f"Step3 beta_fit_v0 dev(k={len(results)}): determinism ok, summary sha256={sha[:16]}..., quality p50={quality_score_stats['p50']:.2f} p90={quality_score_stats['p90']:.2f}",
+                    "--note", f"Step3 beta_fit_v0 k={len(results)}: summary sha256={sha[:16]}..., quality p50={quality_score_stats['p50']:.2f} p90={quality_score_stats['p90']:.2f} min={quality_score_stats['min']:.2f}, failures={len(failures)}",
                     "--evidence", str(rel_out),
                 ],
                 cwd=str(_REPO),
