@@ -116,15 +116,18 @@ def _run_b2_unlock_readiness() -> None:
 def main() -> int:
     warnings = 0
     roots = _get_lab_roots()
-    fitting_step = os.environ.get("FITTING_STEP_ID", "F01")
-    garment_step = os.environ.get("GARMENT_STEP_ID", "G01")
+    fitting_step_raw = os.environ.get("FITTING_STEP_ID", "").strip()
+    garment_step_raw = os.environ.get("GARMENT_STEP_ID", "").strip()
+    fitting_step = fitting_step_raw if fitting_step_raw else "UNSPECIFIED"
+    garment_step = garment_step_raw if garment_step_raw else "UNSPECIFIED"
 
-    for module, lab_root, step_id in (
-        ("fitting", roots["fitting"], fitting_step),
-        ("garment", roots["garment"], garment_step),
+    for module, lab_root, step_id, step_missing in (
+        ("fitting", roots["fitting"], fitting_step, not fitting_step_raw),
+        ("garment", roots["garment"], garment_step, not garment_step_raw),
     ):
         if lab_root is None or not lab_root.exists():
             continue
+        note = "[WARN] STEP_ID_MISSING run end hook" if step_missing else "run end hook"
         cmd = [
             sys.executable,
             str(REPO_ROOT / "tools" / "ops" / "append_progress_event.py"),
@@ -132,10 +135,12 @@ def main() -> int:
             "--module", module,
             "--step-id", step_id,
             "--event", "run_finished",
-            "--status", "OK",
-            "--note", "run end hook",
+            "--status", "WARN" if step_missing else "OK",
+            "--note", note,
             "--dod-done-delta", "0",
         ]
+        if step_missing:
+            cmd.extend(["--gate-code", "STEP_ID_MISSING"])
         r = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO_ROOT))
         if r.returncode != 0:
             warnings += 1

@@ -268,6 +268,47 @@ def _render_body(
     return "\n".join(lines)
 
 
+def _extract_observed_paths(lab_root: Path, module: str, max_items: int = 3) -> list[str]:
+    """Extract up to max_items evidence path candidates from PROGRESS_LOG (last 30 events)."""
+    log_path = lab_root / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+    if not log_path.exists():
+        return []
+    mod_lower = module.lower()
+    candidates = []
+    seen = set()
+    events = []
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                    if ev.get("module", "").lower() == mod_lower:
+                        events.append(ev)
+                except json.JSONDecodeError:
+                    continue
+    except Exception:
+        return []
+    for ev in events[-30:]:
+        for key in ("evidence", "artifacts_touched", "evidence_paths"):
+            val = ev.get(key)
+            if isinstance(val, list):
+                for item in val:
+                    if isinstance(item, str):
+                        path = item.split(":")[0].strip() if ":" in item else item
+                        path = path.replace("\\", "/")
+                        if not path or path in seen:
+                            continue
+                        if path.startswith("/") or re.match(r"^[A-Za-z]:", path):
+                            path = Path(path).name
+                        if path and path not in seen and len(candidates) < max_items:
+                            seen.add(path)
+                            candidates.append(path)
+    return candidates
+
+
 def _get_lab_root(module: str) -> str:
     """Lab root: (1) ENV, (2) lab_roots.local.json, (3) empty. Returns resolved path or ''."""
     env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
@@ -285,8 +326,8 @@ def _get_lab_root(module: str) -> str:
 
 
 def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
-    """Read brief from FITTING_LAB_ROOT or GARMENT_LAB_ROOT (ENV or lab_roots.local.json). Returns brief_path, mtime, head_12."""
-    out = {"brief_path": "N/A", "brief_mtime": "N/A", "brief_head": []}
+    """Read brief from FITTING_LAB_ROOT or GARMENT_LAB_ROOT (ENV or lab_roots.local.json). Returns brief_path, mtime, head_12, observed_paths."""
+    out = {"brief_path": "N/A", "brief_mtime": "N/A", "brief_head": [], "observed_paths": []}
     warnings = []
     env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
     lab_root = _get_lab_root(module)
@@ -305,6 +346,7 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
         warnings.append(_warn("BRIEF_NOT_FOUND", "brief not found", str(brief_path)))
         return out, warnings
 
+    out["observed_paths"] = _extract_observed_paths(root, module, max_items=3)
     try:
         out["brief_path"] = str(brief_path)
         mtime = brief_path.stat().st_mtime
@@ -332,6 +374,13 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
         lines.append(f"- health_summary: {'; '.join(top3)}")
     lines.append(f"- brief_path: {brief['brief_path']}")
     lines.append(f"- brief_mtime: {brief['brief_mtime']}")
+    paths = brief.get("observed_paths") or []
+    if paths:
+        lines.append("- observed_paths:")
+        for p in paths[:3]:
+            lines.append(f"  - {p}")
+    else:
+        lines.append("- observed_paths: N/A (no evidence paths observed in progress events yet)")
     if brief["brief_head"]:
         lines.append("- brief_head:")
         for ln in brief["brief_head"]:

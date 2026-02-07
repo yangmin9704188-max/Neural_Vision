@@ -125,6 +125,8 @@ def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
             exp_total = _plan_dod_total(plan, mod, step_id)
             if exp_total is not None and cur["done"] > exp_total:
                 by_mod[mod]["warnings"].append(f"dod_over:{step_id}:done={cur['done']}>total={exp_total}")
+        if step_id == "UNSPECIFIED":
+            by_mod[mod]["warnings"].append("STEP_ID_MISSING")
 
     return by_mod
 
