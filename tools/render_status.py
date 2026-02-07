@@ -18,16 +18,23 @@ PATH_PRIORITY = {"RUN_EVIDENCE": 0, "MANIFEST": 1, "OTHER": 2, "SAMPLE": 3}
 OPS_STATUS = REPO_ROOT / "ops" / "STATUS.md"
 LAB_ROOTS_PATH = REPO_ROOT / "ops" / "lab_roots.local.json"
 
-# Warning format: [CODE] message | path=<path or N/A>
+# Warning format: [CODE] message | path=<path or N/A> OR expected=<hint_path>
 def _warn(code: str, message: str, path: str = "N/A") -> str:
     """Format warning: [CODE] message | path=<path>"""
     return f"[{code}] {message} | path={path}"
 
 
+def _warn_dep(code: str, message: str, hint_path: str | None = None) -> str:
+    """Format dependency warning: use expected=hint_path when hint_path given, else path=N/A."""
+    if hint_path and hint_path.strip():
+        return f"[{code}] {message} | expected={hint_path.strip()}"
+    return f"[{code}] {message} | path=N/A"
+
+
 def _sort_warnings(warnings: list[str]) -> list[str]:
-    """Sort by CODE then path for stable diff."""
+    """Sort by CODE then path/expected for stable diff."""
     def key(w: str) -> tuple:
-        m = re.match(r"\[([^\]]+)\].*\| path=(.*)", w)
+        m = re.match(r"\[([^\]]+)\].*\| (?:path|expected)=([^\s]*)", w)
         if m:
             return (m.group(1), m.group(2))
         return (w, "")
@@ -672,12 +679,12 @@ def _collect_global_observed_paths(lab_roots: list[tuple[Path, str]]) -> set[str
 def _check_dependency_ledger(
     ledger: dict,
     observed_paths: set[str],
-) -> dict[str, list[str]]:
+) -> dict[str, list[tuple[str, str | None]]]:
     """
     Check dependency ledger against observed paths. enforcement_u1=warn only (no FAIL).
-    Returns {module_upper: [gate_code, ...]} for modules with missing deps.
+    Returns {module_upper: [(gate_code, hint_path), ...]} for modules with missing deps.
     """
-    result = {"BODY": [], "FITTING": [], "GARMENT": []}
+    result: dict[str, list[tuple[str, str | None]]] = {"BODY": [], "FITTING": [], "GARMENT": []}
     rows = ledger.get("rows") or []
     for row in rows:
         if (row.get("enforcement_u1") or "").lower() != "warn":
@@ -698,14 +705,15 @@ def _check_dependency_ledger(
         gate = (row.get("gate_code") or "").strip()
         if not gate:
             continue
+        hint = (row.get("hint_path") or "").strip() or None
         consumer = (row.get("consumer_module") or "").lower()
         producer = (row.get("producer_module") or "").lower()
         if consumer == "fitting":
-            result["FITTING"].append(gate)
+            result["FITTING"].append((gate, hint))
         elif consumer == "garment":
-            result["GARMENT"].append(gate)
+            result["GARMENT"].append((gate, hint))
         elif consumer == "ops" and producer == "body":
-            result["BODY"].append(gate)
+            result["BODY"].append((gate, hint))
     return result
 
 
@@ -751,12 +759,12 @@ def main() -> int:
     if ledger:
         observed = _collect_global_observed_paths(lab_roots)
         dep_warnings = _check_dependency_ledger(ledger, observed)
-    for gate in dep_warnings.get("BODY", []):
-        w1.append(_warn(gate, "dependency", "N/A"))
-    for gate in dep_warnings.get("FITTING", []):
-        w3.append(_warn(gate, "dependency", "N/A"))
-    for gate in dep_warnings.get("GARMENT", []):
-        w4.append(_warn(gate, "dependency", "N/A"))
+    for gate, hint in dep_warnings.get("BODY", []):
+        w1.append(_warn_dep(gate, "dependency", hint))
+    for gate, hint in dep_warnings.get("FITTING", []):
+        w3.append(_warn_dep(gate, "dependency", hint))
+    for gate, hint in dep_warnings.get("GARMENT", []):
+        w4.append(_warn_dep(gate, "dependency", hint))
 
     body_progress = _latest_body_progress(max_items=3)
     body_content = _render_body(curated, geo, w1 + w2, body_progress=body_progress)
