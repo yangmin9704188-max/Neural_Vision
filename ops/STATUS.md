@@ -14,7 +14,8 @@
 ## BLOCKERS (generated)
 <!-- GENERATED:BEGIN:BLOCKERS -->
 - BLOCKERS Top 5:
-  - STEP_ID_MISSING: 2
+  - STEP_ID_MISSING: 3
+  - EVIDENCE_ONLY_SAMPLES: 1
 <!-- GENERATED:END:BLOCKERS -->
 
 ---
@@ -42,7 +43,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-07 20:32:47*
+*Updated: 2026-02-07 21:28:46*
 
 - health: OK (warnings=0)
 
@@ -87,29 +88,31 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:FITTING -->
-- health: WARN (warnings=1)
-- health_summary: [EVIDENCE_ONLY_SAMPLES] observed | path=N/A
+- health: WARN (warnings=3)
+- health_summary: [BODY_SUBSET_MISSING_OR_INVALID] dependency | path=N/A; [GARMENT_PROXY_META_MISSING_OR_INVALID] dependency | path=N/A; [STEP_ID_MISSING] observed | path=N/A
 - brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 20:32:17
+- brief_mtime: 2026-02-07 21:28:40
 - observed_paths:
-  - runs/smoke_test/manifest_nan_test.json
-  - runs/smoke_test/manifest_sample.json
-  - labs/samples/manifest.json
+  - exports/runs/_smoke/20260206_164438/fitting_smoke_v1/geometry_manifest.json
+  - exports/runs/_smoke/20260206_171040/fitting_smoke_v1/geometry_manifest.json
+  - exports/runs/_smoke/20260207_091832/fitting_smoke_v1/geometry_manifest.json
 - brief_head:
   # FITTING Work Brief
   
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: fitting
-  updated_at: 2026-02-07 20:32:17 +0900
+  updated_at: 2026-02-07 21:28:40 +0900
   run_id: N/A
   phase: N/A
   status: WARN
-  summary: last_step=UNSPECIFIED dod_done=1 | [WARN] STEP_ID_MISSING run end hook
+  summary: last_step=F09 dod_done=1 | roundwrap validation test done
   artifacts: N/A
   warnings: STEP_ID_MISSING
 - warnings:
-  - [EVIDENCE_ONLY_SAMPLES] observed | path=N/A
+  - [BODY_SUBSET_MISSING_OR_INVALID] dependency | path=N/A
+  - [GARMENT_PROXY_META_MISSING_OR_INVALID] dependency | path=N/A
+  - [STEP_ID_MISSING] observed | path=N/A
 <!-- GENERATED:END:FITTING -->
 
 ---
@@ -135,21 +138,28 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:GARMENT -->
-- health: OK (warnings=0)
+- health: WARN (warnings=2)
+- health_summary: [STEP_ID_MISSING] observed | path=N/A; [STEP_ID_MISSING] observed | path=N/A
 - brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 20:32:17
-- observed_paths: N/A (no evidence paths observed in progress events yet)
+- brief_mtime: 2026-02-07 21:28:40
+- observed_paths:
+  - runs/smoke/smoke2/20260207_124019/geometry_manifest.json
+  - runs/smoke/smoke2/20260207_124241/geometry_manifest.json
+  - runs/smoke/smoke2/20260207_134039/geometry_manifest.json
 - brief_head:
   # GARMENT Work Brief
   
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: garment
-  updated_at: 2026-02-07 20:32:17 +0900
+  updated_at: 2026-02-07 21:28:40 +0900
   run_id: N/A
   phase: N/A
   status: WARN
-  summary: last_step=UNSPECIFIED dod_done=2 | [WARN] STEP_ID_MISSING run end hook
+  summary: last_step=G07 dod_done=2 | roundwrap_end_verified
   artifacts: N/A
-  warnings: STEP_ID_MISSING
+  warnings: STEP_ID_MISSING,STEP_ID_MISSING
+- warnings:
+  - [STEP_ID_MISSING] observed | path=N/A
+  - [STEP_ID_MISSING] observed | path=N/A
 <!-- GENERATED:END:GARMENT -->
