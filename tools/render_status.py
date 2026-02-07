@@ -726,17 +726,6 @@ RUN_MINSET_README = "RUN_README.md"
 RUN_MINSET_MIN_COUNT = 2
 
 
-def _get_run_root_for_module(module: str) -> Path | None:
-    """Resolve root for run paths: lab root for fitting/garment, REPO_ROOT for body."""
-    if module.lower() == "body":
-        return REPO_ROOT
-    lab = _get_lab_root("FITTING" if module.lower() == "fitting" else "GARMENT")
-    if not lab:
-        return None
-    p = Path(lab).resolve()
-    return p if p.exists() else None
-
-
 def _check_run_minset(lab_roots: list[tuple[Path, str]], max_records: int = 50) -> dict[str, list[str]]:
     """
     Check run_registry records for minset (>=2 of geometry_manifest, facts_summary, RUN_README).
