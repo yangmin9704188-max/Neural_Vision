@@ -1052,6 +1052,80 @@ def process_case(
             )
 
 
+U1_KEYS = ["BUST_CIRC_M", "WAIST_CIRC_M", "HIP_CIRC_M"]
+
+U1_SUBSET_STUB = {
+    "schema_version": "body_measurements_subset.u1.v0",
+    "unit": "m",
+    "pose_id": "PZ1",
+    "keys": U1_KEYS,
+    "cases": [],
+    "warnings": ["U1_SUBSET_WRITE_FAILED"],
+}
+
+
+def _write_diagnostics_on_subset_failure(out_dir: Path, exc: BaseException, cases_count: int | None) -> None:
+    """Write u1_subset_write_error.json to artifacts/diagnostics/ on subset write failure."""
+    diag_dir = out_dir / "artifacts" / "diagnostics"
+    diag_dir.mkdir(parents=True, exist_ok=True)
+    diag_path = diag_dir / "u1_subset_write_error.json"
+    diag = {
+        "error_type": type(exc).__name__,
+        "error_message": str(exc)[:500],
+        "traceback": traceback.format_exc(),
+        "run_dir": str(out_dir.resolve()),
+        "run_id": out_dir.name,
+        "cases_attempted": cases_count,
+    }
+    try:
+        from tools.utils.atomic_io import atomic_save_json
+        atomic_save_json(diag_path, diag)
+    except Exception:
+        pass
+
+
+def _write_body_subset_atomic(out_dir: Path, body_subset: dict) -> bool:
+    """Write body_measurements_subset.json atomically. On failure, write valid stub and diagnostics. Returns True on success."""
+    from tools.utils.atomic_io import atomic_save_json
+
+    subset_path = out_dir / "body_measurements_subset.json"
+    cases_count = len(body_subset.get("cases", [])) if isinstance(body_subset.get("cases"), list) else None
+
+    # Pre-write checks: ensure payload is valid (no NaN/Inf in floats)
+    def _sanitize_value(v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, float) and (not np.isfinite(v) or np.isnan(v) or np.isinf(v)):
+            return None
+        if isinstance(v, dict):
+            return {k: _sanitize_value(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [_sanitize_value(x) for x in v]
+        return v
+
+    payload = _sanitize_value(body_subset)
+    if payload.get("unit") != "m":
+        payload["unit"] = "m"
+    if payload.get("pose_id") != "PZ1":
+        payload["pose_id"] = "PZ1"
+    keys = payload.get("keys")
+    if not isinstance(keys, list) or not all(k in keys for k in U1_KEYS):
+        payload["keys"] = U1_KEYS
+    payload.setdefault("schema_version", "body_measurements_subset.u1.v0")
+
+    try:
+        atomic_save_json(subset_path, payload)
+        return True
+    except Exception as e:
+        _write_diagnostics_on_subset_failure(out_dir, e, cases_count)
+        try:
+            atomic_save_json(subset_path, dict(U1_SUBSET_STUB))
+        except Exception:
+            pass
+        print(f"[WARN] U1 subset write failed: {e}; wrote stub to {subset_path}", file=sys.stderr)
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Geometric v0 S1 Facts-Only Runner (Round 23)"
@@ -1071,7 +1145,6 @@ def main():
     args = parser.parse_args()
     
     if args.out_dir is None:
-        from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_dir = Path(project_root) / "exports" / "runs" / "geo_v0_s1" / f"run_{timestamp}"
     else:
@@ -2670,7 +2743,6 @@ def main():
             json.dump(stub, f, indent=2, ensure_ascii=False)
 
     # U1 subset (Body→Fitting): BUST_CIRC_M, WAIST_CIRC_M, HIP_CIRC_M; NaN/Inf -> null
-    U1_KEYS = ["BUST_CIRC_M", "WAIST_CIRC_M", "HIP_CIRC_M"]
     def _json_value(v):
         if v is None:
             return None
@@ -2683,23 +2755,29 @@ def main():
         return v
 
     cases_list = []
-    null_count = 0
+    cases_1_null = 0
+    cases_2plus_null = 0
     for case_id, results in all_results.items():
         if not isinstance(results, dict):
             continue
         row = {"case_id": case_id}
+        null_count_this_case = 0
         for k in U1_KEYS:
             val = results.get(k)
             out_val = _json_value(val)
             row[k] = out_val
             if out_val is None:
-                null_count += 1
+                null_count_this_case += 1
         cases_list.append(row)
+        if null_count_this_case == 1:
+            cases_1_null += 1
+        elif null_count_this_case >= 2:
+            cases_2plus_null += 1
     warnings_list = []
-    if null_count == 1:
-        warnings_list.append("U1_SUBSET_NULL_SOFT")
-    elif null_count >= 2:
+    if cases_2plus_null > 0:
         warnings_list.append("U1_SUBSET_NULL_DEGRADED_HIGH")
+    elif cases_1_null > 0:
+        warnings_list.append("U1_SUBSET_NULL_SOFT")
     body_subset = {
         "unit": "m",
         "pose_id": "PZ1",
@@ -2708,9 +2786,8 @@ def main():
         "warnings": warnings_list,
     }
     subset_path = out_dir / "body_measurements_subset.json"
-    with open(subset_path, 'w', encoding='utf-8') as f:
-        json.dump(body_subset, f, indent=2, ensure_ascii=False)
-    print(f"[DONE] U1 subset saved: {subset_path}")
+    if _write_body_subset_atomic(out_dir, body_subset):
+        print(f"[DONE] U1 subset saved: {subset_path}")
 
     # Minimal stubs so validator does not hard-fail (run_dir-only artifacts)
     for name, header in (
@@ -2723,9 +2800,19 @@ def main():
             p.write_text(header, encoding="utf-8")
             print(f"[STUB] {name} created (minimal)")
     geom_path = out_dir / "geometry_manifest.json"
-    artifacts_list = ["facts_summary.json", "body_measurements_subset.json"]
+    # Artifacts candidates: only include paths that actually exist on disk
+    artifacts_candidates = ["facts_summary.json", "body_measurements_subset.json"]
     if npz_path:
-        artifacts_list.append(npz_path)
+        artifacts_candidates.append(npz_path)
+    artifacts_list = []
+    manifest_warnings = ["GEOMETRY_MANIFEST_STUB"]
+    for cand in artifacts_candidates:
+        rel = str(Path(cand).as_posix())
+        full = (out_dir / cand).resolve()
+        if full.exists():
+            artifacts_list.append(rel)
+        else:
+            manifest_warnings.append(f"ARTIFACT_MISSING:{rel}")
     stub_geom = {
         "schema_version": "geometry_manifest.v1",
         "module_name": "body",
@@ -2739,7 +2826,7 @@ def main():
             "dataset_version": "unknown",
         },
         "artifacts": artifacts_list,
-        "warnings": ["GEOMETRY_MANIFEST_STUB"],
+        "warnings": manifest_warnings,
     }
     with open(geom_path, 'w', encoding='utf-8') as f:
         json.dump(stub_geom, f, indent=2)

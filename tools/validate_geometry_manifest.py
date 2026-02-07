@@ -64,7 +64,12 @@ def validate_manifest(run_dir: Path, strict_artifacts: bool = False) -> bool:
 
 def main() -> int:
     parser = ArgumentParser(description="Validate geometry_manifest.json against v1 schema")
-    parser.add_argument("--run_dir", type=Path, required=True, help="Run directory containing geometry_manifest.json")
+    parser.add_argument(
+        "--run_dir",
+        type=Path,
+        required=True,
+        help="Leaf dir where geometry_manifest.json exists",
+    )
     parser.add_argument("--strict_artifacts", action="store_true", help="Fail if artifact paths don't exist")
     args = parser.parse_args()
 
