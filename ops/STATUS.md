@@ -43,7 +43,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-07 21:57:40*
+*Updated: 2026-02-07 22:08:08*
 
 - health: OK (warnings=0)
 
@@ -88,10 +88,10 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:FITTING -->
-- health: WARN (warnings=3)
-- health_summary: [BODY_SUBSET_MISSING_OR_INVALID] dependency | expected=exports/runs/<lane>/<run_id>/body_measurements_subset.json; [GARMENT_PROXY_META_MISSING_OR_INVALID] dependency | expected=exports/runs/<lane>/<run_id>/garment_proxy_meta.json; [STEP_ID_MISSING] observed | path=N/A
+- health: WARN (warnings=7)
+- health_summary: [BODY_SUBSET_MISSING_OR_INVALID] dependency | expected=exports/runs/<lane>/<run_id>/body_measurements_subset.json; [GARMENT_PROXY_META_MISSING_OR_INVALID] dependency | expected=exports/runs/<lane>/<run_id>/garment_proxy_meta.json; [M1_CHECK_FAILED] dependency | id=dep-fitting-consumes-body-manifest; expected=exports/runs/<lane>/<run_id>/geometry_manifest.json; detail=missing_field:fingerprint
 - brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 21:57:40
+- brief_mtime: 2026-02-07 22:08:08
 - observed_paths:
   - exports/runs/_smoke/20260206_164438/fitting_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_170827/fitting_smoke_v1/geometry_manifest.json
@@ -102,16 +102,20 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: fitting
-  updated_at: 2026-02-07 21:57:40 +0900
+  updated_at: 2026-02-07 22:08:08 +0900
   run_id: N/A
   phase: N/A
   status: WARN
-  summary: last_step=F11 dod_done=1 | P5 verify end
+  summary: last_step=F12 dod_done=1 | P6 end
   artifacts: N/A
   warnings: STEP_ID_MISSING
 - warnings:
   - [BODY_SUBSET_MISSING_OR_INVALID] dependency | expected=exports/runs/<lane>/<run_id>/body_measurements_subset.json
   - [GARMENT_PROXY_META_MISSING_OR_INVALID] dependency | expected=exports/runs/<lane>/<run_id>/garment_proxy_meta.json
+  - [M1_CHECK_FAILED] dependency | id=dep-fitting-consumes-body-manifest; expected=exports/runs/<lane>/<run_id>/geometry_manifest.json; detail=missing_field:fingerprint
+  - [M1_CHECK_FAILED] dependency | id=dep-fitting-consumes-garment-manifest; expected=exports/runs/<lane>/<run_id>/geometry_manifest.json; detail=missing_field:fingerprint
+  - [RUN_MANIFEST_ROOT_MISSING] observed | expected=exports/runs/_smoke/20260206_170827/geometry_manifest.json
+  - [RUN_MANIFEST_ROOT_MISSING] observed | expected=exports/runs/_smoke/20260206_171040/geometry_manifest.json
   - [STEP_ID_MISSING] observed | path=N/A
 <!-- GENERATED:END:FITTING -->
 
@@ -138,10 +142,10 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:GARMENT -->
-- health: WARN (warnings=2)
-- health_summary: [STEP_ID_MISSING] observed | path=N/A; [STEP_ID_MISSING] observed | path=N/A
+- health: WARN (warnings=4)
+- health_summary: [RUN_MANIFEST_ROOT_MISSING] observed | expected=exports/runs/_smoke/20260206_171153/geometry_manifest.json; [RUN_MANIFEST_ROOT_MISSING] observed | expected=exports/runs/_smoke/20260206_171420/geometry_manifest.json; [STEP_ID_MISSING] observed | path=N/A
 - brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 21:57:40
+- brief_mtime: 2026-02-07 22:08:08
 - observed_paths:
   - exports/runs/_smoke/20260206_171153/garment_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_171420/garment_smoke_v1/geometry_manifest.json
@@ -152,14 +156,16 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: garment
-  updated_at: 2026-02-07 21:57:40 +0900
+  updated_at: 2026-02-07 22:08:08 +0900
   run_id: N/A
   phase: N/A
   status: WARN
-  summary: last_step=G09 dod_done=2 | P5: run minset verified
+  summary: last_step=G10 dod_done=2 | P6: root geometry_manifest verified
   artifacts: N/A
   warnings: STEP_ID_MISSING,STEP_ID_MISSING
 - warnings:
+  - [RUN_MANIFEST_ROOT_MISSING] observed | expected=exports/runs/_smoke/20260206_171153/geometry_manifest.json
+  - [RUN_MANIFEST_ROOT_MISSING] observed | expected=exports/runs/_smoke/20260206_171420/geometry_manifest.json
   - [STEP_ID_MISSING] observed | path=N/A
   - [STEP_ID_MISSING] observed | path=N/A
 <!-- GENERATED:END:GARMENT -->
