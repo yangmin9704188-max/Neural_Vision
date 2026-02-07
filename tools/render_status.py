@@ -681,6 +681,14 @@ def _collect_global_observed_paths(lab_roots: list[tuple[Path, str]]) -> set[str
                         continue
         except Exception:
             pass
+    runs_root = REPO_ROOT / "exports" / "runs"
+    if runs_root.exists():
+        for p in runs_root.rglob("body_measurements_subset.json"):
+            try:
+                rel = p.relative_to(REPO_ROOT).as_posix()
+                out.add(rel)
+            except ValueError:
+                pass
     return out
 
 
@@ -722,7 +730,16 @@ def _evaluate_m1_checks(checks: dict, data: dict) -> list[str]:
 
     keys_any = checks.get("require_keys_any")
     if keys_any:
-        found = any(k in data for k in keys_any)
+        targets = [data]
+        if checks.get("require_keys_any_in"):
+            sub = data.get(checks["require_keys_any_in"])
+            if isinstance(sub, dict):
+                targets.append(sub)
+        found = False
+        for t in targets:
+            if isinstance(t, dict) and any(k in t for k in keys_any):
+                found = True
+                break
         if not found:
             details.append(f"require_keys_any:{keys_any}")
 

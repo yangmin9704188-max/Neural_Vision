@@ -234,6 +234,12 @@ class TestDependencyLedger(unittest.TestCase):
             [],
         )
 
+    def test_evaluate_m1_checks_require_keys_any_in_measurements(self):
+        """body_measurements_subset M0: BUST/WAIST/HIP in measurements sub-object passes."""
+        m1 = {"require_keys_any": ["BUST", "WAIST", "HIP"], "require_keys_any_in": "measurements", "unit_exact": "m"}
+        data = {"schema_version": "body_measurements_subset.v1", "unit": "m", "measurements": {"BUST": 0.9, "WAIST": 0.8, "HIP": 1.0}}
+        self.assertEqual(_evaluate_m1_checks(m1, data), [])
+
     def test_evaluate_m1_checks_require_any_fields_alias_pass(self):
         """inputs_fingerprint (legacy alias) satisfies fingerprint requirement -> no M1_CHECK_FAILED."""
         m1 = {"require_fields": ["schema_version"], "require_any_fields": [["fingerprint", "inputs_fingerprint"]], "schema_version_exact": "geometry_manifest.v1"}

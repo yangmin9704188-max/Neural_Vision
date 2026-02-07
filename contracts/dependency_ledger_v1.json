@@ -69,6 +69,7 @@
           "WAIST",
           "HIP"
         ],
+        "require_keys_any_in": "measurements",
         "unit_exact": "m",
         "no_nan": true
       }
