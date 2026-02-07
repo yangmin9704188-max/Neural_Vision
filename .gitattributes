@@ -1,0 +1,3 @@
+ops/STATUS.md merge=ours
+ops/HUB.md merge=ours
+exports/brief/*_WORK_BRIEF.md merge=ours
