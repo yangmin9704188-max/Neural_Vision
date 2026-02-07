@@ -6,3 +6,4 @@
 | measurement coverage | [measurement_coverage_v0.csv](measurement/coverage/measurement_coverage_v0.csv), [sizekorea_v2](measurement/coverage/sizekorea_v2.json) |
 | dataset 계약 | [npz_contract_v0](datasets/npz_contract_v0.md) |
 | fitting 인터페이스 | [fitting_interface_v0](fitting/fitting_interface_v0.md) |
+| B2 unlock signal | [unlock_signal_b2_v0](unlock_signal_b2_v0.md) |
