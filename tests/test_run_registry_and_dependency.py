@@ -8,12 +8,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from tools.ops.update_run_registry import (
-    _extract_lane_run_id,
-    _get_paths_from_event,
-    _is_round_end,
-    _read_round_end_events,
-)
+from tools.ops.update_run_registry import _extract_lane_run_id, _get_paths_from_event, _is_round_end
 from tools.render_status import (
     _load_dependency_ledger,
     _path_matches_glob,
