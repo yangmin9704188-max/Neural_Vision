@@ -3,6 +3,8 @@ data/**
 
 # Ops local config (use .example as template)
 ops/lab_roots.local.json
+ops/notion.local.json
+ops/notion_sync_cursor.json
 ops/local/
 
 # Exports run outputs and generated briefs (generated-only)

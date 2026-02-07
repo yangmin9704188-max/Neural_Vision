@@ -1,0 +1,12 @@
+{
+  "token": "",
+  "database_id": "",
+  "properties": {
+    "plan_id": "Plan ID",
+    "status": "Status",
+    "target_agent": "Target Agent",
+    "brief_path": "LLM Briefing Path",
+    "last_sync": "Last Sync",
+    "last_event_id": "Last Event ID"
+  }
+}
