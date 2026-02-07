@@ -44,7 +44,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-08 00:06:58*
+*Updated: 2026-02-08 00:21:53*
 
 - health: OK (warnings=0)
 
@@ -92,7 +92,7 @@
 - health: WARN (warnings=1)
 - health_summary: [STEP_ID_MISSING] observed | path=N/A
 - brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-08 00:06:57
+- brief_mtime: 2026-02-08 00:21:52
 - observed_paths:
   - exports/runs/_smoke/20260206_164438/fitting_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_170827/fitting_smoke_v1/geometry_manifest.json
@@ -103,7 +103,7 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: fitting
-  updated_at: 2026-02-08 00:06:57 +0900
+  updated_at: 2026-02-08 00:21:52 +0900
   run_id: N/A
   phase: N/A
   status: WARN
@@ -140,7 +140,7 @@
 - health: WARN (warnings=2)
 - health_summary: [STEP_ID_MISSING] observed | path=N/A; [STEP_ID_MISSING] observed | path=N/A
 - brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-08 00:06:57
+- brief_mtime: 2026-02-08 00:21:52
 - observed_paths:
   - exports/runs/_smoke/20260206_171153/garment_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_171153/geometry_manifest.json
@@ -151,7 +151,7 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: garment
-  updated_at: 2026-02-08 00:06:57 +0900
+  updated_at: 2026-02-08 00:21:52 +0900
   run_id: N/A
   phase: N/A
   status: WARN
