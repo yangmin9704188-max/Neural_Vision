@@ -140,6 +140,145 @@ def _evaluate_candidate(
     return candidate, reasons, extra_warnings
 
 
+def _parse_float_list(s: str, default: list[float]) -> list[float]:
+    """Parse comma-separated floats; return default on empty/invalid. No NaN/Inf."""
+    s = (s or "").strip()
+    if not s:
+        return default
+    out = []
+    for part in s.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            v = float(part)
+            if math.isfinite(v):
+                out.append(v)
+        except ValueError:
+            continue
+    return out if out else default
+
+
+def _parse_int_list(s: str, default: list[int]) -> list[int]:
+    """Parse comma-separated ints; return default on empty/invalid."""
+    s = (s or "").strip()
+    if not s:
+        return default
+    out = []
+    for part in s.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.append(int(part))
+        except ValueError:
+            continue
+    return out if out else default
+
+
+def _compute_recommendations(
+    metrics: dict,
+    summary: dict,
+    residual_candidates: list[float],
+    score_candidates: list[int],
+    max_failures: int,
+    generated_at: str,
+) -> dict:
+    """Compute advisory recommendations from metrics only. Deterministic. No effect on unlock_candidate."""
+    based_on = ["residual_cm.p90_per_key", "quality_score.p90", "quality_score.min", "failures_count"]
+    rec_warnings: list[str] = []
+
+    # Per residual candidate: all_keys_meet_p90
+    residual_results: list[dict] = []
+    for thr in residual_candidates:
+        all_meet = True
+        per_key: dict[str, bool] = {}
+        for key, stats in metrics["residual_cm"].items():
+            p90 = stats.get("p90")
+            if p90 is None:
+                per_key[key] = False
+                all_meet = False
+            else:
+                ok = abs(p90) <= thr
+                per_key[key] = ok
+                if not ok:
+                    all_meet = False
+        residual_results.append({
+            "threshold_residual_p90_cm": thr,
+            "meets_p90_per_key": per_key,
+            "all_keys_meet_p90": all_meet,
+        })
+
+    # Per score candidate: quality_meets_p90, quality_meets_min
+    q90 = metrics["quality_score"].get("p90")
+    qmin = metrics["quality_score"].get("min")
+    score_results: list[dict] = []
+    for thr in score_candidates:
+        score_results.append({
+            "threshold_score": thr,
+            "quality_meets_p90": q90 is not None and q90 >= thr,
+            "quality_meets_min": qmin is not None and qmin >= thr,
+        })
+
+    # Cartesian product: combined_rows
+    combined_rows: list[dict] = []
+    for r in residual_results:
+        for s in score_results:
+            would_be = (
+                metrics["failures_count"] <= max_failures
+                and r["all_keys_meet_p90"]
+                and s["quality_meets_p90"]
+            )
+            combined_rows.append({
+                "residual_thr_p90_cm": r["threshold_residual_p90_cm"],
+                "score_thr_p90": s["threshold_score"],
+                "all_keys_meet_p90": r["all_keys_meet_p90"],
+                "quality_meets_p90": s["quality_meets_p90"],
+                "would_be_candidate_by_p90": would_be,
+                "notes": [] if would_be else ["residual_or_quality_threshold_not_met"],
+            })
+
+    # Implied fraction: only when summary has proposed_unlock_signal.fraction_above_threshold at a matching score
+    prop = summary.get("proposed_unlock_signal") or {}
+    frac_value = prop.get("fraction_above_threshold")
+    if frac_value is not None and math.isfinite(frac_value):
+        implied_ok_fraction = round(frac_value, 4)
+        summary_score = prop.get("threshold_score")
+        if summary_score is not None and int(summary_score) in score_candidates:
+            implied_rates = {
+                "implied_ok_fraction": implied_ok_fraction,
+                "at_threshold_score": int(summary_score),
+                "notes": [],
+            }
+        else:
+            implied_rates = {
+                "implied_ok_fraction": implied_ok_fraction,
+                "at_threshold_score": int(summary_score) if summary_score is not None else None,
+                "notes": ["fraction_from_summary_single_threshold_only"],
+            }
+    else:
+        implied_rates = {
+            "implied_ok_fraction": None,
+            "at_threshold_score": None,
+            "notes": ["FRACTION_NOT_AVAILABLE"],
+        }
+        rec_warnings.append("FRACTION_NOT_AVAILABLE")
+
+    return {
+        "generated_at": generated_at,
+        "based_on_metrics": based_on,
+        "suggested_thresholds": {
+            "threshold_residual_p90_cm_candidates": residual_candidates,
+            "threshold_score_candidates": score_candidates,
+        },
+        "residual_candidate_results": residual_results,
+        "score_candidate_results": score_results,
+        "combined_rows": combined_rows,
+        "implied_rates": implied_rates,
+        "warnings": rec_warnings,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate B2 unlock signal from beta_fit_v0 run_dir")
     parser.add_argument("--run_dir", required=True, help="beta_fit_v0 run directory (must contain summary.json)")
@@ -150,6 +289,10 @@ def main() -> int:
     parser.add_argument("--threshold_fraction_above_score", type=float, default=None, help="Optional min fraction above threshold_score")
     parser.add_argument("--log-progress", action="store_true", help="Append progress event and run ops render_status")
     parser.add_argument("--created_at", default=None, help="Override created_at (ISO UTC); for determinism tests")
+    parser.add_argument("--recommend_thresholds", action="store_true", help="Add advisory threshold recommendations to output")
+    parser.add_argument("--residual_threshold_candidates", default="0.8,1.0,1.2", help="Comma-separated residual p90 cm candidates (default 0.8,1.0,1.2)")
+    parser.add_argument("--score_threshold_candidates", default="65,70,75", help="Comma-separated score candidates (default 65,70,75)")
+    parser.add_argument("--emit_recommendations_only", action="store_true", help="When set, do not append progress event (recommendations output only)")
     args = parser.parse_args()
 
     run_dir = Path(args.run_dir).resolve()
@@ -200,6 +343,24 @@ def main() -> int:
         "warnings": warn_list,
     }
 
+    if getattr(args, "recommend_thresholds", False):
+        residual_cands = _parse_float_list(
+            getattr(args, "residual_threshold_candidates", "0.8,1.0,1.2"),
+            [0.8, 1.0, 1.2],
+        )
+        score_cands = _parse_int_list(
+            getattr(args, "score_threshold_candidates", "65,70,75"),
+            [65, 70, 75],
+        )
+        payload["recommendations"] = _compute_recommendations(
+            metrics,
+            summary,
+            residual_cands,
+            score_cands,
+            args.max_failures,
+            created_at,
+        )
+
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / "unlock_signal.json"
     tmp_json = out_dir / f"unlock_signal.json.tmp.{os.getpid()}"
@@ -240,6 +401,31 @@ def main() -> int:
         md_lines.append("## Warnings")
         for w in warn_list:
             md_lines.append(f"- {w}")
+
+    if getattr(args, "recommend_thresholds", False) and "recommendations" in payload:
+        rec = payload["recommendations"]
+        md_lines.append("")
+        md_lines.append("## Recommended thresholds (advisory)")
+        md_lines.append("| residual_thr_p90_cm | score_thr_p90 | all_keys_meet_p90 | quality_meets_p90 | would_be_candidate_by_p90 | notes |")
+        md_lines.append("|--------------------|--------------|-------------------|-------------------|---------------------------|-------|")
+        for row in rec.get("combined_rows", []):
+            res_thr = row.get("residual_thr_p90_cm")
+            score_thr = row.get("score_thr_p90")
+            all_meet = row.get("all_keys_meet_p90", False)
+            q_meet = row.get("quality_meets_p90", False)
+            would_be = row.get("would_be_candidate_by_p90", False)
+            notes_str = "; ".join(row.get("notes", [])) or "-"
+            md_lines.append(f"| {res_thr} | {score_thr} | {all_meet} | {q_meet} | {would_be} | {notes_str} |")
+        impl = rec.get("implied_rates", {})
+        frac = impl.get("implied_ok_fraction")
+        at_thr = impl.get("at_threshold_score")
+        if frac is not None or impl.get("notes"):
+            md_lines.append("")
+            md_lines.append(f"- implied_ok_fraction: {frac}")
+            md_lines.append(f"- at_threshold_score: {at_thr}")
+            for n in impl.get("notes", []):
+                md_lines.append(f"- {n}")
+
     md_path = out_dir / "KPI_UNLOCK.md"
     tmp_md = out_dir / f"KPI_UNLOCK.md.tmp.{os.getpid()}"
     tmp_md.write_text("\n".join(md_lines), encoding="utf-8")
@@ -247,7 +433,7 @@ def main() -> int:
 
     print(f"[DONE] unlock_candidate={candidate} -> {json_path}")
 
-    if args.log_progress:
+    if args.log_progress and not getattr(args, "emit_recommendations_only", False):
         try:
             rel_out = out_dir.relative_to(_REPO)
         except ValueError:
