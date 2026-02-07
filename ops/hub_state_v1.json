@@ -1,0 +1,14 @@
+{
+  "schema_version": "hub_state.v1",
+  "updated_at": "2026-02-08T01:44:33+0900",
+  "artifacts_observed": {
+    "body_subset_m0": true,
+    "garment_proxy_meta_m0": true,
+    "geometry_manifest_root": true,
+    "facts_summary_root": true
+  },
+  "unlocks": {
+    "U1.FITTING_READY": true
+  },
+  "newly_unlocked": []
+}
