@@ -340,6 +340,23 @@ def _render_dashboard(plan: dict, artifacts_observed: dict[str, bool], unlocks: 
             lines.append(f"  - 복붙 파일: {brief_path}")
             lines.append(f"  - 대상: {target}")
             lines.append(f"  - 근거: (master_plan logic)")
+    n_locked = limits.get("locked", 10)
+    lines.extend(["", "---", "", "## ✅ 현재 해금됨(이미 언락)"])
+    current_unlocked = [uid for uid in by_uid if unlocks.get(uid)]
+    if not current_unlocked:
+        lines.append("- (없음)")
+    else:
+        for uid in current_unlocked:
+            u = by_uid[uid]
+            lines.append(f"- {u.get('title', uid)}")
+    lines.extend(["", "---", "", "## 🔒 아직 잠김"])
+    locked = [uid for uid in by_uid if not unlocks.get(uid)][:n_locked]
+    if not locked:
+        lines.append("- (없음)")
+    else:
+        for uid in locked:
+            u = by_uid[uid]
+            lines.append(f"- {u.get('title', uid)}")
     lines.extend(["", "---", "", "## 🚧 현재 막힌 것 / 경고 Top"])
     blockers = _blocker_warnings(plan, artifacts_observed, unlocks)[:n_blockers]
     if not blockers:
@@ -361,8 +378,8 @@ def _render_dashboard(plan: dict, artifacts_observed: dict[str, bool], unlocks: 
             continue
         lines.append(f"### {mod.capitalize()}")
         for i, it in enumerate(items[: (limits.get("next_actions_per_module") or 3)], 1):
-            title_item = it.get("title") or it.get("plan_id") or "?"
-            lines.append(f"- ({i}) {title_item}")
+            display_text = it.get("action_ko") or it.get("title") or it.get("plan_id") or "?"
+            lines.append(f"- ({i}) {display_text}")
             ut = it.get("unlock_target") or ""
             u_match = next((u for u in unlocks_list if u.get("unlock_id") == ut or (ut and str(u.get("unlock_id", "")).startswith(ut + "."))), None)
             if u_match:
