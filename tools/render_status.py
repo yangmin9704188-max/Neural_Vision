@@ -9,9 +9,12 @@ import json
 import os
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Path classification for observed_paths (priority order: lower = higher priority)
+PATH_PRIORITY = {"RUN_EVIDENCE": 0, "MANIFEST": 1, "OTHER": 2, "SAMPLE": 3}
 OPS_STATUS = REPO_ROOT / "ops" / "STATUS.md"
 LAB_ROOTS_PATH = REPO_ROOT / "ops" / "lab_roots.local.json"
 
@@ -43,6 +46,7 @@ def _normalize_lines(lines: list[str]) -> list[str]:
 
 
 MARKERS = {
+    "BLOCKERS": ("<!-- GENERATED:BEGIN:BLOCKERS -->", "<!-- GENERATED:END:BLOCKERS -->"),
     "BODY": ("<!-- GENERATED:BEGIN:BODY -->", "<!-- GENERATED:END:BODY -->"),
     "FITTING": ("<!-- GENERATED:BEGIN:FITTING -->", "<!-- GENERATED:END:FITTING -->"),
     "GARMENT": ("<!-- GENERATED:BEGIN:GARMENT -->", "<!-- GENERATED:END:GARMENT -->"),
@@ -268,14 +272,12 @@ def _render_body(
     return "\n".join(lines)
 
 
-def _extract_observed_paths(lab_root: Path, module: str, max_items: int = 3) -> list[str]:
-    """Extract up to max_items evidence path candidates from PROGRESS_LOG (last 30 events)."""
+def _read_lab_progress_events(lab_root: Path, module: str, max_events: int = 50) -> list[dict]:
+    """Read last max_events from lab PROGRESS_LOG for module."""
     log_path = lab_root / "exports" / "progress" / "PROGRESS_LOG.jsonl"
     if not log_path.exists():
         return []
     mod_lower = module.lower()
-    candidates = []
-    seen = set()
     events = []
     try:
         with open(log_path, encoding="utf-8") as f:
@@ -291,22 +293,152 @@ def _extract_observed_paths(lab_root: Path, module: str, max_items: int = 3) -> 
                     continue
     except Exception:
         return []
+    return events[-max_events:]
+
+
+def _compute_progress_hygiene(lab_root: Path, module: str) -> list[str]:
+    """Compute STALE_PROGRESS, STEP_STUCK, EVENT_THIN from last 10 events."""
+    events = _read_lab_progress_events(lab_root, module, max_events=10)
+    codes = []
+    if not events:
+        return codes
+    # STALE_PROGRESS: last event ts older than 24h
+    try:
+        last_ts = events[-1].get("ts")
+        if last_ts:
+            try:
+                dt = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
+            except Exception:
+                dt = None
+            if dt:
+                now = datetime.now(timezone.utc)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if (now - dt) > timedelta(hours=24):
+                    codes.append("STALE_PROGRESS")
+    except Exception:
+        pass
+    # STEP_STUCK: all 10 have same step_id
+    if len(events) >= 5:
+        step_ids = [ev.get("step_id", "") for ev in events]
+        if len(set(step_ids)) == 1 and step_ids[0]:
+            codes.append("STEP_STUCK")
+    # EVENT_THIN: 7+ of 10 have note len < 12
+    if len(events) >= 7:
+        thin = sum(1 for ev in events if len((ev.get("note") or "")) < 12)
+        if thin >= 7:
+            codes.append("EVENT_THIN")
+    return codes
+
+
+def _extract_gate_codes_from_events(events: list[dict]) -> list[str]:
+    """Extract gate codes from gate_code, gate_codes, or [CODE] in warnings."""
+    codes = []
+    for ev in events:
+        for key in ("gate_code", "gate_codes"):
+            val = ev.get(key)
+            if isinstance(val, str) and val:
+                codes.append(val)
+            elif isinstance(val, list):
+                for item in val:
+                    if isinstance(item, str) and item:
+                        codes.append(item)
+        for w in ev.get("warnings") or []:
+            if isinstance(w, str) and w.startswith("[") and "]" in w:
+                m = re.match(r"\[([^\]]+)\]", w)
+                if m:
+                    codes.append(m.group(1))
+    return codes
+
+
+def _aggregate_blockers_top_n(lab_roots: list[tuple[Path, str]], n: int = 5) -> list[tuple[str, int]]:
+    """Aggregate gate codes from labs, return top n by count."""
+    from collections import Counter
+    all_codes = []
+    for lab_root, module in lab_roots:
+        if lab_root and lab_root.exists():
+            events = _read_lab_progress_events(lab_root, module, max_events=50)
+            all_codes.extend(_extract_gate_codes_from_events(events))
+    cnt = Counter(all_codes)
+    return cnt.most_common(n)
+
+
+def _classify_path(path: str) -> str:
+    """Classify path: RUN_EVIDENCE, SAMPLE, MANIFEST, OTHER."""
+    p = path.replace("\\", "/")
+    if "exports/runs" in p or "exports\\runs" in path:
+        return "RUN_EVIDENCE"
+    if "/samples/" in p or "\\samples\\" in path or "/labs/samples/" in p:
+        return "SAMPLE"
+    if "manifest" in Path(path).name.lower():
+        return "MANIFEST"
+    return "OTHER"
+
+
+def _format_path_for_display(raw: str) -> str:
+    """Display path; use basename + suffix if absolute."""
+    path = raw.replace("\\", "/")
+    if path.startswith("/") or re.match(r"^[A-Za-z]:", path):
+        return f"{Path(path).name} (absolute path suppressed)"
+    return path
+
+
+def _extract_observed_paths(lab_root: Path, module: str, max_items: int = 3) -> tuple[list[str], list[str]]:
+    """
+    Extract up to max_items evidence path candidates from PROGRESS_LOG (last 30 events).
+    Returns (display_paths_sorted_by_priority, hygiene_warnings e.g. EVIDENCE_ONLY_SAMPLES).
+    """
+    log_path = lab_root / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+    if not log_path.exists():
+        return [], []
+    mod_lower = module.lower()
+    classified: list[tuple[str, str, str]] = []  # (raw, display, category)
+    seen_raw = set()
+    events = []
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                    if ev.get("module", "").lower() == mod_lower:
+                        events.append(ev)
+                except json.JSONDecodeError:
+                    continue
+    except Exception:
+        return [], []
     for ev in events[-30:]:
         for key in ("evidence", "artifacts_touched", "evidence_paths"):
             val = ev.get(key)
             if isinstance(val, list):
                 for item in val:
                     if isinstance(item, str):
-                        path = item.split(":")[0].strip() if ":" in item else item
-                        path = path.replace("\\", "/")
-                        if not path or path in seen:
+                        raw = item.split(":")[0].strip() if ":" in item else item
+                        raw = raw.replace("\\", "/")
+                        if not raw or raw in seen_raw:
                             continue
-                        if path.startswith("/") or re.match(r"^[A-Za-z]:", path):
-                            path = Path(path).name
-                        if path and path not in seen and len(candidates) < max_items:
-                            seen.add(path)
-                            candidates.append(path)
-    return candidates
+                        seen_raw.add(raw)
+                        cat = _classify_path(raw)
+                        display = _format_path_for_display(raw)
+                        classified.append((raw, display, cat))
+    # Sort by priority, then dedupe by display, take max_items
+    classified.sort(key=lambda x: (PATH_PRIORITY.get(x[2], 99), x[0]))
+    result = []
+    seen_display = set()
+    for _, display, cat in classified:
+        if display not in seen_display and len(result) < max_items:
+            seen_display.add(display)
+            result.append(display)
+    # EVIDENCE_ONLY_SAMPLES: SAMPLE only or SAMPLE >= 2/3
+    hygiene = []
+    if classified:
+        cats = [c for _, _, c in classified]
+        sample_count = sum(1 for c in cats if c == "SAMPLE")
+        if sample_count == len(cats) or (len(cats) >= 3 and sample_count >= (2 * len(cats) + 2) // 3):
+            hygiene.append("EVIDENCE_ONLY_SAMPLES")
+    return result, hygiene
 
 
 def _get_lab_root(module: str) -> str:
@@ -327,7 +459,7 @@ def _get_lab_root(module: str) -> str:
 
 def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
     """Read brief from FITTING_LAB_ROOT or GARMENT_LAB_ROOT (ENV or lab_roots.local.json). Returns brief_path, mtime, head_12, observed_paths."""
-    out = {"brief_path": "N/A", "brief_mtime": "N/A", "brief_head": [], "observed_paths": []}
+    out = {"brief_path": "N/A", "brief_mtime": "N/A", "brief_head": [], "observed_paths": [], "path_hygiene": [], "progress_hygiene": []}
     warnings = []
     env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
     lab_root = _get_lab_root(module)
@@ -346,7 +478,10 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
         warnings.append(_warn("BRIEF_NOT_FOUND", "brief not found", str(brief_path)))
         return out, warnings
 
-    out["observed_paths"] = _extract_observed_paths(root, module, max_items=3)
+    observed_paths, path_hygiene = _extract_observed_paths(root, module, max_items=3)
+    out["observed_paths"] = observed_paths
+    out["path_hygiene"] = path_hygiene
+    out["progress_hygiene"] = _compute_progress_hygiene(root, module)
     try:
         out["brief_path"] = str(brief_path)
         mtime = brief_path.stat().st_mtime
@@ -366,11 +501,15 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
 
 
 def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
-    nw = len(warnings)
+    soft = list(brief.get("path_hygiene") or [])
+    soft.extend(brief.get("progress_hygiene") or [])
+    soft_warns = [_warn(c, "observed", "N/A") for c in soft]
+    all_w = warnings + soft_warns
+    nw = len(all_w)
     health = "OK (warnings=0)" if nw == 0 else f"WARN (warnings={nw})"
     lines = [f"- health: {health}"]
     if nw > 0:
-        top3 = _sort_warnings(warnings)[:3]
+        top3 = _sort_warnings(all_w)[:3]
         lines.append(f"- health_summary: {'; '.join(top3)}")
     lines.append(f"- brief_path: {brief['brief_path']}")
     lines.append(f"- brief_mtime: {brief['brief_mtime']}")
@@ -385,16 +524,25 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
         lines.append("- brief_head:")
         for ln in brief["brief_head"]:
             lines.append(f"  {ln}")
-    if warnings:
+    if all_w:
         lines.append("- warnings:")
-        for w in _sort_warnings(warnings):
+        for w in _sort_warnings(all_w):
             lines.append(f"  - {w}")
     return "\n".join(lines)
 
 
 def _ensure_markers(text: str) -> str:
-    """If any markers missing, insert placeholder under ## Dashboard (generated-only) per section."""
+    """If any markers missing, insert placeholder."""
+    if "<!-- GENERATED:BEGIN:BLOCKERS -->" not in text:
+        # Insert BLOCKERS block after Manual section, before ---
+        pattern = r"(## Manual \(ops auto-refresh checks\)[\s\S]*?open `ops/lab_roots\.local\.json`)\s*(\n---)"
+        match = re.search(pattern, text)
+        if match:
+            insert = f"\n\n## BLOCKERS (generated)\n<!-- GENERATED:BEGIN:BLOCKERS -->\n- BLOCKERS: none observed\n<!-- GENERATED:END:BLOCKERS -->"
+            text = text[: match.end(1)] + insert + text[match.start(2) :]
     for module, (mb, me) in MARKERS.items():
+        if module == "BLOCKERS":
+            continue
         if mb not in text or me not in text:
             section = module.lower().capitalize()
             pattern = rf"(## {section}[\s\S]*?### Dashboard \(generated-only\)\s*\n)"
@@ -404,6 +552,17 @@ def _ensure_markers(text: str) -> str:
                 insert = match.group(0) + f"{mb}\n{placeholder}{me}\n"
                 text = text[: match.start()] + insert + text[match.end() :]
     return text
+
+
+def _render_blockers(lab_roots: list[tuple[Path, str]]) -> str:
+    """Render BLOCKERS Top 5 content."""
+    top = _aggregate_blockers_top_n(lab_roots, n=5)
+    if not top:
+        return "- BLOCKERS: none observed"
+    lines = ["- BLOCKERS Top 5:"]
+    for code, count in top:
+        lines.append(f"  - {code}: {count}")
+    return "\n".join(lines)
 
 
 def main() -> int:
@@ -419,6 +578,19 @@ def main() -> int:
     all_warnings.extend(w3)
     all_warnings.extend(w4)
 
+    fit_r = _get_lab_root("FITTING")
+    gar_r = _get_lab_root("GARMENT")
+    lab_roots = []
+    if fit_r:
+        p = Path(fit_r).resolve()
+        if p.exists():
+            lab_roots.append((p, "fitting"))
+    if gar_r:
+        p = Path(gar_r).resolve()
+        if p.exists():
+            lab_roots.append((p, "garment"))
+    blockers_content = _render_blockers(lab_roots)
+
     body_progress = _latest_body_progress(max_items=3)
     body_content = _render_body(curated, geo, w1 + w2, body_progress=body_progress)
     fitting_content = _render_module_brief("FITTING", fitting_brief, w3)
@@ -432,16 +604,16 @@ def main() -> int:
 
     text = _ensure_markers(text)
 
+    content_map = {"BLOCKERS": blockers_content, "BODY": body_content, "FITTING": fitting_content, "GARMENT": garment_content}
     for module, (mb, me) in MARKERS.items():
-        if module == "BODY":
-            content = body_content
-        elif module == "FITTING":
-            content = fitting_content
-        else:
-            content = garment_content
+        content = content_map.get(module)
+        if content is None:
+            continue
         block = f"{mb}\n{content}\n{me}"
         if mb in text and me in text:
-            text = re.sub(rf"{re.escape(mb)}[\s\S]*?{re.escape(me)}", lambda m, b=block: b, text, count=1)
+            def replacer(m, b=block):
+                return b
+            text = re.sub(rf"{re.escape(mb)}[\s\S]*?{re.escape(me)}", replacer, text, count=1)
 
     try:
         tmp_path = OPS_STATUS.parent / f"STATUS.md.tmp.{os.getpid()}"

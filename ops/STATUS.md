@@ -11,6 +11,12 @@
 - Check log tail: `Get-Content exports/logs/ops_refresh.log -Tail 50`
 - Check lab roots: open `ops/lab_roots.local.json`
 
+## BLOCKERS (generated)
+<!-- GENERATED:BEGIN:BLOCKERS -->
+- BLOCKERS Top 5:
+  - STEP_ID_MISSING: 2
+<!-- GENERATED:END:BLOCKERS -->
+
 ---
 
 ## Body
@@ -36,7 +42,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-07 20:21:35*
+*Updated: 2026-02-07 20:32:47*
 
 - health: OK (warnings=0)
 
@@ -81,26 +87,29 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:FITTING -->
-- health: OK (warnings=0)
+- health: WARN (warnings=1)
+- health_summary: [EVIDENCE_ONLY_SAMPLES] observed | path=N/A
 - brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 20:21:35
+- brief_mtime: 2026-02-07 20:32:17
 - observed_paths:
+  - runs/smoke_test/manifest_nan_test.json
+  - runs/smoke_test/manifest_sample.json
   - labs/samples/manifest.json
-  - labs/samples/manifest_body_facts_summary.json
-  - labs/samples/manifest_geo_only.json
 - brief_head:
   # FITTING Work Brief
   
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: fitting
-  updated_at: 2026-02-07 20:21:35 +0900
+  updated_at: 2026-02-07 20:32:17 +0900
   run_id: N/A
   phase: N/A
   status: WARN
   summary: last_step=UNSPECIFIED dod_done=1 | [WARN] STEP_ID_MISSING run end hook
   artifacts: N/A
   warnings: STEP_ID_MISSING
+- warnings:
+  - [EVIDENCE_ONLY_SAMPLES] observed | path=N/A
 <!-- GENERATED:END:FITTING -->
 
 ---
@@ -128,7 +137,7 @@
 <!-- GENERATED:BEGIN:GARMENT -->
 - health: OK (warnings=0)
 - brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 20:21:35
+- brief_mtime: 2026-02-07 20:32:17
 - observed_paths: N/A (no evidence paths observed in progress events yet)
 - brief_head:
   # GARMENT Work Brief
@@ -136,7 +145,7 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: garment
-  updated_at: 2026-02-07 20:21:35 +0900
+  updated_at: 2026-02-07 20:32:17 +0900
   run_id: N/A
   phase: N/A
   status: WARN
