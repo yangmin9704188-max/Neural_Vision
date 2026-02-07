@@ -95,8 +95,9 @@ def _parse_progress_log(log_path: Path) -> tuple[list[dict], list[str]]:
 
 
 def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
-    """Per module: dod_done, last_event_ts, last_step_id (valid only), last_note, warnings. UNSPECIFIED excluded from last_step."""
-    by_mod: dict[str, dict] = {m: {"dod_done": 0, "last_ts": None, "last_step": None, "last_note": None, "by_step": {}, "warnings": []} for m in MODULES}
+    """Per module: dod_done, last_event_ts, last_step_id (valid only), last_note, warnings. UNSPECIFIED excluded from last_step.
+    STEP_ID_BACKFILLED in gate_codes resolves STEP_ID_MISSING (1:1) for that module."""
+    by_mod: dict[str, dict] = {m: {"dod_done": 0, "last_ts": None, "last_step": None, "last_note": None, "by_step": {}, "warnings": [], "_un_specified": 0, "_backfilled": 0} for m in MODULES}
 
     for ev in events:
         mod = ev.get("module", "").lower()
@@ -128,7 +129,21 @@ def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
             if exp_total is not None and cur["done"] > exp_total:
                 by_mod[mod]["warnings"].append(f"dod_over:{step_id}:done={cur['done']}>total={exp_total}")
         if step_id == "UNSPECIFIED":
-            by_mod[mod]["warnings"].append("STEP_ID_MISSING")
+            by_mod[mod]["_un_specified"] += 1
+
+        gc = ev.get("gate_codes") or ev.get("gate_code")
+        if isinstance(gc, str):
+            gc = [gc] if gc else []
+        if isinstance(gc, list) and "STEP_ID_BACKFILLED" in gc:
+            by_mod[mod]["_backfilled"] += 1
+
+    for mod in by_mod:
+        m = by_mod[mod]
+        net = max(0, m["_un_specified"] - m["_backfilled"])
+        for _ in range(net):
+            m["warnings"].append("STEP_ID_MISSING")
+        del m["_un_specified"]
+        del m["_backfilled"]
 
     return by_mod
 

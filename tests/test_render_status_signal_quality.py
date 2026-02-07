@@ -1,6 +1,7 @@
 """Unit tests for render_status signal quality: path classification, hygiene, gate-code aggregation."""
 import json
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -107,6 +108,22 @@ class TestAggregateBlockersTopN(unittest.TestCase):
         top = cnt.most_common(2)
         self.assertEqual(top, [("A", 3), ("B", 2)])
 
+    def test_step_id_backfilled_resolves_step_id_missing(self):
+        """STEP_ID_BACKFILLED in gate_codes resolves STEP_ID_MISSING 1:1 per module."""
+        with tempfile.TemporaryDirectory() as tmp:
+            lab = Path(tmp) / "fitting_lab"
+            log = lab / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+            log.parent.mkdir(parents=True)
+            now = "2026-02-07T12:00:00+00:00"
+            events = [
+                {"ts": now, "module": "fitting", "step_id": "UNSPECIFIED", "gate_codes": ["STEP_ID_MISSING"]},
+                {"ts": now, "module": "fitting", "step_id": "F_BACKFILL", "gate_codes": ["STEP_ID_BACKFILLED"]},
+            ]
+            log.write_text("\n".join(json.dumps(e) for e in events) + "\n")
+            top = _aggregate_blockers_top_n([(lab, "fitting")], n=5)
+            step_missing_counts = [c for code, c in top if code == "STEP_ID_MISSING"]
+            self.assertEqual(step_missing_counts, [], "STEP_ID_BACKFILLED should resolve 1 STEP_ID_MISSING")
+
 
 class TestParseBriefHeadWarnings(unittest.TestCase):
     def test_empty(self):
@@ -160,6 +177,16 @@ class TestRenderWorkBriefsUnspecified(unittest.TestCase):
         agg = _aggregate_by_module(events, {})
         self.assertIsNone(agg["fitting"]["last_step"])
         self.assertIn("STEP_ID_MISSING", agg["fitting"]["warnings"])
+
+    def test_step_id_backfilled_resolves_in_aggregate(self):
+        """STEP_ID_BACKFILLED in gate_codes resolves STEP_ID_MISSING 1:1 in _aggregate_by_module."""
+        from tools.render_work_briefs import _aggregate_by_module
+        events = [
+            {"module": "fitting", "step_id": "UNSPECIFIED", "ts": "2026-01-01T10:00:00", "note": "x", "dod_done_delta": 0},
+            {"module": "fitting", "step_id": "F_BACKFILL", "gate_codes": ["STEP_ID_BACKFILLED"], "ts": "2026-01-01T10:01:00"},
+        ]
+        agg = _aggregate_by_module(events, {})
+        self.assertNotIn("STEP_ID_MISSING", agg["fitting"]["warnings"], "1 UNSPECIFIED - 1 BACKFILLED = 0 STEP_ID_MISSING")
 
 
 if __name__ == "__main__":

@@ -367,13 +367,34 @@ def _extract_gate_codes_from_events(events: list[dict]) -> list[str]:
 
 
 def _aggregate_blockers_top_n(lab_roots: list[tuple[Path, str]], n: int = 5) -> list[tuple[str, int]]:
-    """Aggregate gate codes from labs, return top n by count."""
+    """Aggregate gate codes from labs, return top n by count.
+    STEP_ID_BACKFILLED resolves STEP_ID_MISSING 1:1 per module (net count only)."""
     from collections import Counter
     all_codes = []
+    step_missing_by_mod: dict[str, int] = {}
+    step_backfilled_by_mod: dict[str, int] = {}
+
     for lab_root, module in lab_roots:
-        if lab_root and lab_root.exists():
-            events = _read_lab_progress_events(lab_root, module, max_events=50)
-            all_codes.extend(_extract_gate_codes_from_events(events))
+        if not lab_root or not lab_root.exists():
+            continue
+        mod_key = module.lower()
+        events = _read_lab_progress_events(lab_root, module, max_events=50)
+        codes = _extract_gate_codes_from_events(events)
+        step_missing_by_mod[mod_key] = step_missing_by_mod.get(mod_key, 0) + codes.count("STEP_ID_MISSING")
+        for ev in events:
+            gc = ev.get("gate_codes") or ev.get("gate_code")
+            if isinstance(gc, str):
+                gc = [gc] if gc else []
+            if isinstance(gc, list) and "STEP_ID_BACKFILLED" in gc:
+                step_backfilled_by_mod[mod_key] = step_backfilled_by_mod.get(mod_key, 0) + 1
+        for c in codes:
+            if c != "STEP_ID_MISSING":
+                all_codes.append(c)
+
+    net_step_missing = sum(max(0, step_missing_by_mod.get(m, 0) - step_backfilled_by_mod.get(m, 0)) for m in step_missing_by_mod)
+    for _ in range(net_step_missing):
+        all_codes.append("STEP_ID_MISSING")
+
     cnt = Counter(all_codes)
     return cnt.most_common(n)
 
@@ -681,6 +702,25 @@ def _collect_global_observed_paths(lab_roots: list[tuple[Path, str]]) -> set[str
                         continue
         except Exception:
             pass
+    runs_root = REPO_ROOT / "exports" / "runs"
+    if runs_root.exists():
+        for name in ("body_measurements_subset.json", "garment_proxy_meta.json"):
+            for p in runs_root.rglob(name):
+                try:
+                    rel = p.relative_to(REPO_ROOT).as_posix()
+                    out.add(rel)
+                except ValueError:
+                    pass
+    for lab_root, _ in lab_roots:
+        if lab_root and lab_root.exists():
+            runs_in_lab = lab_root / "exports" / "runs"
+            if runs_in_lab.exists():
+                for p in runs_in_lab.rglob("garment_proxy_meta.json"):
+                    try:
+                        rel = p.relative_to(lab_root).as_posix()
+                        out.add(rel)
+                    except ValueError:
+                        pass
     return out
 
 
