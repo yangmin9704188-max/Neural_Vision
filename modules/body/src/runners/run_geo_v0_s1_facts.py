@@ -1063,6 +1063,9 @@ U1_SUBSET_STUB = {
     "warnings": ["U1_SUBSET_WRITE_FAILED"],
 }
 
+M0_KEYS = ["BUST", "WAIST", "HIP"]
+U1_TO_M0 = {"BUST_CIRC_M": "BUST", "WAIST_CIRC_M": "WAIST", "HIP_CIRC_M": "HIP"}
+
 
 def _write_diagnostics_on_subset_failure(out_dir: Path, exc: BaseException, cases_count: int | None) -> None:
     """Write u1_subset_write_error.json to artifacts/diagnostics/ on subset write failure."""
@@ -1124,6 +1127,79 @@ def _write_body_subset_atomic(out_dir: Path, body_subset: dict) -> bool:
             pass
         print(f"[WARN] U1 subset write failed: {e}; wrote stub to {subset_path}", file=sys.stderr)
         return False
+
+
+def _ensure_m0_subset_stub(out_dir: Path) -> None:
+    """Ensure body_measurements_subset.json satisfies M0 (dependency_ledger). schema_version v1, BUST/WAIST/HIP at root, no NaN."""
+    from tools.utils.atomic_io import atomic_save_json
+
+    subset_path = out_dir / "body_measurements_subset.json"
+    measurements: Dict[str, Any] = {}
+    missing_keys: List[str] = []
+
+    if subset_path.exists():
+        try:
+            with open(subset_path, encoding="utf-8") as f:
+                existing = json.load(f)
+        except Exception:
+            existing = {}
+        cases = existing.get("cases") or []
+        for m0_k in M0_KEYS:
+            u1_k = next((u for u, m in U1_TO_M0.items() if m == m0_k), None)
+            val = None
+            if cases and u1_k:
+                first = cases[0] if isinstance(cases[0], dict) else {}
+                v = first.get(u1_k)
+                if v is not None and isinstance(v, (int, float)) and not (isinstance(v, float) and (np.isnan(v) or np.isinf(v))):
+                    val = float(v)
+            measurements[m0_k] = val
+            if val is None:
+                missing_keys.append(m0_k)
+    else:
+        for k in M0_KEYS:
+            measurements[k] = None
+            missing_keys.append(k)
+
+    payload: Dict[str, Any] = {
+        "schema_version": "body_measurements_subset.v1",
+        "unit": "m",
+        "measurements": measurements,
+        "missing_keys": missing_keys,
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    for k, v in measurements.items():
+        payload[k] = v
+
+    parts = out_dir.parts
+    try:
+        runs_idx = list(parts).index("runs")
+        if runs_idx + 2 < len(parts):
+            payload["lane"] = parts[runs_idx + 1]
+            payload["run_id"] = parts[runs_idx + 2]
+    except (ValueError, IndexError):
+        pass
+
+    if subset_path.exists():
+        try:
+            with open(subset_path, encoding="utf-8") as f:
+                merge = json.load(f)
+            if isinstance(merge, dict):
+                merge.update(payload)
+                payload = merge
+        except Exception:
+            pass
+
+    try:
+        atomic_save_json(subset_path, payload)
+        print(f"[M0] body_measurements_subset stub ensured: {subset_path}")
+    except Exception as e:
+        _write_diagnostics_on_subset_failure(out_dir, e, None)
+        try:
+            stub = {**payload, "warnings": (payload.get("warnings") or []) + ["M0_SUBSET_WRITE_FAILED", str(e)[:80]]}
+            atomic_save_json(subset_path, stub)
+        except Exception:
+            pass
+        print(f"[WARN] M0 subset ensure failed: {e}; wrote stub", file=sys.stderr)
 
 
 def main():
@@ -2788,6 +2864,7 @@ def main():
     subset_path = out_dir / "body_measurements_subset.json"
     if _write_body_subset_atomic(out_dir, body_subset):
         print(f"[DONE] U1 subset saved: {subset_path}")
+    _ensure_m0_subset_stub(out_dir)
 
     # Minimal stubs so validator does not hard-fail (run_dir-only artifacts)
     for name, header in (

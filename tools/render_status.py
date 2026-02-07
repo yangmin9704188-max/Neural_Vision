@@ -703,6 +703,7 @@ def _collect_global_observed_paths(lab_roots: list[tuple[Path, str]]) -> set[str
         except Exception:
             pass
     runs_root = REPO_ROOT / "exports" / "runs"
+    # REPO exports/runs 스캔 (메인 레포 내부)
     if runs_root.exists():
         for name in ("body_measurements_subset.json", "garment_proxy_meta.json"):
             for p in runs_root.rglob(name):
@@ -711,16 +712,20 @@ def _collect_global_observed_paths(lab_roots: list[tuple[Path, str]]) -> set[str
                     out.add(rel)
                 except ValueError:
                     pass
+
+    # LAB exports/runs 스캔 (외부 lab 폴더)
     for lab_root, _ in lab_roots:
         if lab_root and lab_root.exists():
             runs_in_lab = lab_root / "exports" / "runs"
             if runs_in_lab.exists():
                 for p in runs_in_lab.rglob("garment_proxy_meta.json"):
                     try:
+                        # lab_root 기준 상대경로 => "exports/runs/..." 형태
                         rel = p.relative_to(lab_root).as_posix()
                         out.add(rel)
                     except ValueError:
                         pass
+
     return out
 
 
@@ -762,7 +767,16 @@ def _evaluate_m1_checks(checks: dict, data: dict) -> list[str]:
 
     keys_any = checks.get("require_keys_any")
     if keys_any:
-        found = any(k in data for k in keys_any)
+        targets = [data]
+        if checks.get("require_keys_any_in"):
+            sub = data.get(checks["require_keys_any_in"])
+            if isinstance(sub, dict):
+                targets.append(sub)
+        found = False
+        for t in targets:
+            if isinstance(t, dict) and any(k in t for k in keys_any):
+                found = True
+                break
         if not found:
             details.append(f"require_keys_any:{keys_any}")
 
