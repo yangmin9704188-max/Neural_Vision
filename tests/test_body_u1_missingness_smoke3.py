@@ -80,5 +80,56 @@ class TestSmoke3MissingnessWarnings(unittest.TestCase):
             self.assertIn("warnings", data)
 
 
+class TestAtomicWriteStubAndDiagnostics(unittest.TestCase):
+    """Explicit regression: write failure -> body_measurements_subset.json is valid stub; diagnostics exists."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self) -> None:
+        import shutil
+        if self.tmp.exists():
+            shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_write_failure_produces_valid_stub_and_diagnostics(self) -> None:
+        """Simulate write failure -> subset file is valid stub JSON; artifacts/diagnostics/u1_subset_write_error.json exists."""
+        from modules.body.src.runners.run_geo_v0_s1_facts import U1_KEYS, _write_body_subset_atomic
+
+        body_subset = {
+            "unit": "m",
+            "pose_id": "PZ1",
+            "keys": U1_KEYS,
+            "cases": [{"case_id": "c1", "BUST_CIRC_M": 0.88, "WAIST_CIRC_M": 0.70, "HIP_CIRC_M": 0.95}],
+            "warnings": [],
+        }
+        real_dump = __import__("json").dump
+        call_count = [0]
+
+        def fail_first_dump(obj, fp, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise OSError("simulated write failure")
+            return real_dump(obj, fp, **kwargs)
+
+        with patch("tools.utils.atomic_io.json.dump", side_effect=fail_first_dump):
+            ok = _write_body_subset_atomic(self.tmp, body_subset)
+        self.assertFalse(ok)
+
+        subset_path = self.tmp / "body_measurements_subset.json"
+        self.assertTrue(subset_path.exists())
+        data = json.loads(subset_path.read_text(encoding="utf-8"))
+        self.assertEqual(data.get("schema_version"), "body_measurements_subset.u1.v0")
+        self.assertEqual(data.get("unit"), "m")
+        self.assertEqual(data.get("pose_id"), "PZ1")
+        self.assertEqual(data.get("keys"), U1_KEYS)
+        self.assertEqual(data.get("cases"), [])
+        self.assertIn("U1_SUBSET_WRITE_FAILED", data.get("warnings", []))
+
+        diag_path = self.tmp / "artifacts" / "diagnostics" / "u1_subset_write_error.json"
+        self.assertTrue(diag_path.exists(), "diagnostics file must exist on failure")
+        diag = json.loads(diag_path.read_text(encoding="utf-8"))
+        self.assertEqual(diag.get("error_type"), "OSError")
+
+
 if __name__ == "__main__":
     unittest.main()
