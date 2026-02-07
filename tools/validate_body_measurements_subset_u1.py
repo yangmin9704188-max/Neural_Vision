@@ -106,10 +106,11 @@ def validate(data: dict) -> tuple[bool, list[str], dict]:
             elif null_count >= 2:
                 report["cases_2plus_null"] += 1
 
-        if report["cases_1_null"] > 0:
-            report["warnings_added"].append("U1_SUBSET_NULL_SOFT")
+        # Mutually exclusive: 2+ nulls => DEGRADED_HIGH only; 1 null => SOFT only
         if report["cases_2plus_null"] > 0:
             report["warnings_added"].append("U1_SUBSET_NULL_DEGRADED_HIGH")
+        elif report["cases_1_null"] > 0:
+            report["warnings_added"].append("U1_SUBSET_NULL_SOFT")
 
     ok = len(errors) == 0
     return ok, errors, report
