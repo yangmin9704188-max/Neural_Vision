@@ -62,6 +62,28 @@ If any rule is not met, `unlock_candidate` is false and the failed rule(s) are l
 
 ---
 
+## A4) Optional: recommendations (advisory only)
+
+When the generator is run with `--recommend_thresholds`, it may add an optional **recommendations** section. This is **advisory only** and **does not change unlock_candidate**; unlock_candidate is computed solely from user-provided thresholds.
+
+### recommendations (optional, in unlock_signal.json)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `generated_at` | string | UTC Z, ISO 8601 (when recommendations were computed) |
+| `based_on_metrics` | array of strings | Metric names used (e.g. residual_cm p90 per key, quality_score p90/min) |
+| `suggested_thresholds` | object | Candidate values considered |
+| `suggested_thresholds.threshold_residual_p90_cm_candidates` | array of numbers | e.g. [0.8, 1.0, 1.2] (cm) |
+| `suggested_thresholds.threshold_score_candidates` | array of numbers | e.g. [65, 70, 75] |
+| `implied_rates` | object or null | Per-candidate implied pass rates when computable |
+| `implied_rates.implied_ok_fraction` | number or null | Fraction above score threshold (only when summary provides it; else null) |
+| `implied_rates.notes` | array of strings | Warnings, e.g. FRACTION_NOT_AVAILABLE when cannot compute |
+| `combined_rows` | array of objects | Cartesian product: residual_candidate × score_candidate with booleans (all_keys_meet_p90, quality_meets_p90, would_be_candidate_by_p90) |
+
+If summary.json does not provide enough to estimate implied fraction-above-threshold, set `implied_ok_fraction` = null and add a warning (e.g. FRACTION_NOT_AVAILABLE). Do not infer from thin air.
+
+---
+
 ## Important
 
 - Do **not** claim "B2 unlocked"; only provide signal + reasons.
