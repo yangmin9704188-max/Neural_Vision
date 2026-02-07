@@ -1,0 +1,146 @@
+"""Tests for master_plan loading, artifact_observed glob, newly_unlocked diff, dashboard render."""
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
+
+from tools.ops.render_hub_state import (
+    _load_master_plan,
+    _eval_logic,
+    _artifact_observed,
+    _compute_artifacts_observed,
+    _compute_unlocks,
+    _newly_unlocked,
+    _render_dashboard,
+    _plan_items_not_done,
+    _blocker_warnings,
+    MASTER_PLAN_PATH,
+)
+
+
+class TestMasterPlanLoading(unittest.TestCase):
+    def test_load_master_plan(self):
+        if not MASTER_PLAN_PATH.exists():
+            self.skipTest("contracts/master_plan_v1.json not present")
+        plan, warnings = _load_master_plan()
+        self.assertIsInstance(plan, dict)
+        self.assertEqual(plan.get("schema_version"), "master_plan.v1")
+        self.assertIn("artifacts", plan)
+        self.assertIn("maturity_levels", plan)
+        self.assertIn("plan_items", plan)
+        self.assertIn("unlocks", plan)
+        self.assertIn("dashboard", plan)
+        self.assertGreaterEqual(len(plan.get("plan_items", [])), 3)
+        self.assertGreaterEqual(len(plan.get("unlocks", [])), 1)
+        unlocks = plan.get("unlocks", [])
+        ids = [u.get("unlock_id") for u in unlocks if u.get("unlock_id")]
+        self.assertIn("U1.FITTING_READY", ids)
+
+
+class TestArtifactObservedGlob(unittest.TestCase):
+    def test_artifact_observed_dummy_dir(self):
+        if not MASTER_PLAN_PATH.exists():
+            self.skipTest("contracts/master_plan_v1.json not present")
+        plan, _ = _load_master_plan()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runs = root / "exports" / "runs" / "lane1" / "run1"
+            runs.mkdir(parents=True)
+            (runs / "body_measurements_subset.json").write_text("{}")
+            (runs / "garment_proxy_meta.json").write_text("{}")
+            observed = _compute_artifacts_observed(plan, [root])
+            self.assertTrue(observed.get("body_subset_m0"))
+            self.assertTrue(observed.get("garment_proxy_meta_m0"))
+
+    def test_artifact_observed_empty_dir(self):
+        if not MASTER_PLAN_PATH.exists():
+            self.skipTest("contracts/master_plan_v1.json not present")
+        plan, _ = _load_master_plan()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            observed = _compute_artifacts_observed(plan, [root])
+            self.assertFalse(observed.get("body_subset_m0"))
+            self.assertFalse(observed.get("garment_proxy_meta_m0"))
+
+
+class TestEvalLogic(unittest.TestCase):
+    def test_and_logic(self):
+        plan = {}
+        observed_ids = {"a"}  # only a is observed; b is not
+        logic = {"type": "and", "items": [
+            {"type": "artifact_observed", "artifact_id": "a"},
+            {"type": "artifact_observed", "artifact_id": "b"},
+        ]}
+        self.assertFalse(_eval_logic(plan, logic, observed_ids))
+
+    def test_or_logic(self):
+        plan = {}
+        logic = {"type": "or", "items": [
+            {"type": "artifact_observed", "artifact_id": "x"},
+            {"type": "artifact_observed", "artifact_id": "y"},
+        ]}
+        self.assertFalse(_eval_logic(plan, logic, set()))
+        self.assertTrue(_eval_logic(plan, logic, {"y"}))
+
+    def test_artifact_observed(self):
+        plan = {}
+        self.assertTrue(_eval_logic(plan, {"type": "artifact_observed", "artifact_id": "a"}, {"a"}))
+        self.assertFalse(_eval_logic(plan, {"type": "artifact_observed", "artifact_id": "a"}, set()))
+
+
+class TestNewlyUnlocked(unittest.TestCase):
+    def test_newly_unlocked_diff(self):
+        current = {"U1.FITTING_READY": True, "U2.X": False}
+        previous = {}
+        self.assertEqual(_newly_unlocked(current, previous), ["U1.FITTING_READY"])
+
+    def test_newly_unlocked_no_new(self):
+        current = {"U1.FITTING_READY": True}
+        previous = {"unlocks": {"U1.FITTING_READY": True}}
+        self.assertEqual(_newly_unlocked(current, previous), [])
+
+    def test_newly_unlocked_previous_state(self):
+        current = {"U1.FITTING_READY": True}
+        previous = {"unlocks": {"U1.FITTING_READY": False}}
+        self.assertEqual(_newly_unlocked(current, previous), ["U1.FITTING_READY"])
+
+
+class TestDashboardRenderEmpty(unittest.TestCase):
+    def test_dashboard_empty_data_no_crash(self):
+        """Dashboard render with empty/minimal data must not raise."""
+        plan = {
+            "schema_version": "master_plan.v1",
+            "dashboard": {"title": "Test", "limits": {"newly_unlocked": 10, "blockers": 10, "next_actions_per_module": 3}},
+            "unlocks": [],
+            "plan_items": [],
+            "artifacts": {},
+        }
+        artifacts_observed = {}
+        unlocks = {}
+        newly_unlocked = []
+        warnings = []
+        out = _render_dashboard(plan, artifacts_observed, unlocks, newly_unlocked, warnings)
+        self.assertIn("# Test", out)
+        self.assertIn("새로 언락됨", out)
+        self.assertIn("막힌 것", out)
+        self.assertIn("할 일", out)
+        self.assertIn("모듈 상태", out)
+
+    def test_dashboard_with_unlocks_and_plan_items(self):
+        if not MASTER_PLAN_PATH.exists():
+            self.skipTest("contracts/master_plan_v1.json not present")
+        plan, _ = _load_master_plan()
+        artifacts_observed = {k: False for k in (plan.get("artifacts") or {})}
+        unlocks = {u["unlock_id"]: False for u in (plan.get("unlocks") or []) if u.get("unlock_id")}
+        newly_unlocked = []
+        out = _render_dashboard(plan, artifacts_observed, unlocks, newly_unlocked, [])
+        self.assertIn("Neural Vision Dashboard", out)
+        self.assertIn("(없음)" if not newly_unlocked else "✅", out)
+
+
+if __name__ == "__main__":
+    unittest.main()
