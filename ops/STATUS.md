@@ -1,9 +1,10 @@
 # Ops STATUS
 
 ## Editing Rule
-- Body 섹션은 Cursor만 수정
-- Fitting/Garment 섹션은 해당 에이전트만 수정
-- Generated 마커 밖은 자동화가 건드리지 않는다
+
+- **GENERATED 블록 내부** (`<!-- GENERATED:BEGIN:... -->` ~ `<!-- GENERATED:END:... -->`): 자동 생성 영역, 수동 편집 금지.
+- **GENERATED 블록 외부**: 사람이 편집 가능.
+- 렌더러(`render_work_briefs` → `render_status`)가 갱신하는 범위는 GENERATED 블록 내부만.
 
 ## Manual (ops auto-refresh checks)
 - Check scheduler: `Get-ScheduledTaskInfo -TaskName "NeuralVision-Ops-Refresh"`
@@ -35,7 +36,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-07 17:46:14*
+*Updated: 2026-02-07 20:21:35*
 
 - health: OK (warnings=0)
 
@@ -82,20 +83,24 @@
 <!-- GENERATED:BEGIN:FITTING -->
 - health: OK (warnings=0)
 - brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 17:46:14
+- brief_mtime: 2026-02-07 20:21:35
+- observed_paths:
+  - labs/samples/manifest.json
+  - labs/samples/manifest_body_facts_summary.json
+  - labs/samples/manifest_geo_only.json
 - brief_head:
   # FITTING Work Brief
   
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: fitting
-  updated_at: 2026-02-07 17:46:14 +0900
+  updated_at: 2026-02-07 20:21:35 +0900
   run_id: N/A
   phase: N/A
-  status: OK
-  summary: last_step=F01 dod_done=0 | run end hook
+  status: WARN
+  summary: last_step=UNSPECIFIED dod_done=1 | [WARN] STEP_ID_MISSING run end hook
   artifacts: N/A
-  warnings: 0
+  warnings: STEP_ID_MISSING
 <!-- GENERATED:END:FITTING -->
 
 ---
@@ -123,18 +128,19 @@
 <!-- GENERATED:BEGIN:GARMENT -->
 - health: OK (warnings=0)
 - brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 17:46:14
+- brief_mtime: 2026-02-07 20:21:35
+- observed_paths: N/A (no evidence paths observed in progress events yet)
 - brief_head:
   # GARMENT Work Brief
   
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: garment
-  updated_at: 2026-02-07 17:46:14 +0900
+  updated_at: 2026-02-07 20:21:35 +0900
   run_id: N/A
   phase: N/A
-  status: OK
-  summary: last_step=G01 dod_done=1 | run end hook
+  status: WARN
+  summary: last_step=UNSPECIFIED dod_done=2 | [WARN] STEP_ID_MISSING run end hook
   artifacts: N/A
-  warnings: 0
+  warnings: STEP_ID_MISSING
 <!-- GENERATED:END:GARMENT -->

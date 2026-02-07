@@ -45,6 +45,7 @@ def main() -> int:
     parser.add_argument("--note", default="")
     parser.add_argument("--dod-done-delta", type=int, default=0)
     parser.add_argument("--evidence", action="append", default=[])
+    parser.add_argument("--gate-code", action="append", default=[], help="e.g. STEP_ID_MISSING")
     parser.add_argument("--soft-validate", action="store_true")
     parser.add_argument("--ts", default=None)
     args = parser.parse_args()
@@ -71,7 +72,7 @@ def main() -> int:
         "dod_done_delta": args.dod_done_delta,
         "note": args.note,
         "evidence": args.evidence or [],
-        "warnings": warnings,
+        "warnings": warnings + [f"[{g}]" for g in args.gate_code],
     }
 
     line = json.dumps(ev, ensure_ascii=False) + "\n"
