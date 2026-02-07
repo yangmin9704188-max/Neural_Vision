@@ -35,6 +35,13 @@ FITTING_REGIONS = [
     "modules/fitting/",
 ]
 
+# Blocklist: local-only paths that must never be committed (ops automation)
+FORBIDDEN_LOCAL = [
+    "ops/lab_roots.local.json",
+    "ops/local/",
+    "exports/logs/",
+]
+
 # Allowlist: shared paths that don't trigger boundary violations
 ALLOWLIST = [
     "specs/",
@@ -50,6 +57,19 @@ ALLOWLIST = [
 def normalize_path(path: str) -> str:
     """Normalize path to use forward slashes (OS-independent)."""
     return Path(path).as_posix()
+
+
+def is_forbidden_local(file_path: str) -> bool:
+    """Check if file is in forbidden local-only paths (never commit)."""
+    normalized = normalize_path(file_path)
+    for pattern in FORBIDDEN_LOCAL:
+        if pattern.endswith("/"):
+            if normalized == pattern.rstrip("/") or normalized.startswith(pattern):
+                return True
+        else:
+            if normalized == pattern or normalized.startswith(pattern + "/"):
+                return True
+    return False
 
 
 def is_allowlisted(file_path: str) -> bool:
@@ -225,6 +245,15 @@ Allowlist (shared paths):
     if not changed_files:
         print("\n[PASS] No files changed. Boundary check: PASS")
         sys.exit(0)
+
+    # Check for forbidden local-only files (ops automation)
+    forbidden = [f for f in changed_files if is_forbidden_local(f)]
+    if forbidden:
+        print("\n[FAIL] Local-only files must not be committed:")
+        for f in forbidden:
+            print(f"  - {f}")
+        print("These paths are gitignored (ops/local/, exports/logs/, ops/lab_roots.local.json).")
+        sys.exit(1)
 
     # Classify files
     classified = classify_files(changed_files)

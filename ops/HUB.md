@@ -71,3 +71,11 @@
 One-liner run:
 - `py tools/render_work_briefs.py`
 - `py tools/render_status.py`
+
+### Ops Auto-Refresh (Local)
+- Windows Scheduled Task: `NeuralVision-Ops-Refresh` (every 30 minutes)
+- Command sequence: `py tools/render_work_briefs.py` -> `py tools/render_status.py`
+- Lab roots: `ops/lab_roots.local.json` (local-only; gitignored). If moved machines/paths change, update this file.
+- Local script/logs: `ops/local/ops_refresh.ps1`, `exports/logs/ops_refresh.log` (both gitignored).
+- Failure symptom: `ops/STATUS.md` shows WARN / `[LAB_ROOT_MISSING]` or brief_path=N/A.
+- Recovery (manual): run `py tools/render_status.py` and check `exports/logs/ops_refresh.log`.
