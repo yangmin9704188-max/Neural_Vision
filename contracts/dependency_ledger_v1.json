@@ -4,7 +4,11 @@
   "principles": {
     "u1_enforcement_default": "warn",
     "u2_enforcement_default": "fail",
-    "maturity_levels": ["M0", "M1", "M2"],
+    "maturity_levels": [
+      "M0",
+      "M1",
+      "M2"
+    ],
     "m0": "stub OK: existence + schema_version + fingerprint/determinism only",
     "m1": "real-like: key/unit alignment + minimal content checks",
     "m2": "realdata: stats/quality gates via KPI/KPI_DIFF"
@@ -26,7 +30,8 @@
       "gate_code": "BODY_MANIFEST_MISSING_OR_INVALID",
       "fallback_allowed": true,
       "fallback_rule": "Allow stub manifest in U1; must validate schema_version in U2.",
-      "owner": "producer"
+      "owner": "producer",
+      "hint_path": "exports/runs/<lane>/<run_id>/geometry_manifest.json"
     },
     {
       "id": "dep-fitting-consumes-body-measurements-subset",
@@ -44,7 +49,8 @@
       "gate_code": "BODY_SUBSET_MISSING_OR_INVALID",
       "fallback_allowed": true,
       "fallback_rule": "Allow missing in U1 (degraded); require existence + schema in U2.",
-      "owner": "producer"
+      "owner": "producer",
+      "hint_path": "exports/runs/<lane>/<run_id>/body_measurements_subset.json"
     },
     {
       "id": "dep-fitting-consumes-garment-proxy-meta",
@@ -62,7 +68,8 @@
       "gate_code": "GARMENT_PROXY_META_MISSING_OR_INVALID",
       "fallback_allowed": true,
       "fallback_rule": "Allow stub meta in U1; require schema in U2.",
-      "owner": "producer"
+      "owner": "producer",
+      "hint_path": "exports/runs/<lane>/<run_id>/garment_proxy_meta.json"
     },
     {
       "id": "dep-fitting-consumes-garment-manifest",
@@ -80,7 +87,8 @@
       "gate_code": "GARMENT_MANIFEST_MISSING_OR_INVALID",
       "fallback_allowed": true,
       "fallback_rule": "Allow stub manifest in U1; require schema in U2.",
-      "owner": "producer"
+      "owner": "producer",
+      "hint_path": "exports/runs/<lane>/<run_id>/geometry_manifest.json"
     },
     {
       "id": "dep-body-publishes-round-end-with-evidence",
@@ -97,7 +105,8 @@
       "gate_code": "BODY_ROUND_END_EVIDENCE_MISSING",
       "fallback_allowed": true,
       "fallback_rule": "U1/U2 both warn-only: require ROUND_END with observed_paths>=1.",
-      "owner": "producer"
+      "owner": "producer",
+      "hint_path": "exports/progress/PROGRESS_LOG.jsonl"
     }
   ]
 }

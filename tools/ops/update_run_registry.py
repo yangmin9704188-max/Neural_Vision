@@ -157,11 +157,36 @@ def main() -> int:
                         break
             if not lane or not run_id:
                 continue
-            round_id = (ev.get("round_id") or "").strip()
+            round_id_raw = (ev.get("round_id") or "").strip()
+            round_id = round_id_raw if round_id_raw else "N/A"
             key = (module, lane, run_id, round_id)
             if key in existing:
                 continue
             existing.add(key)
+            gate_codes = ev.get("gate_codes") or ev.get("gate_code") or []
+            if isinstance(gate_codes, str):
+                gate_codes = [gate_codes] if gate_codes else []
+            gate_codes = list(dict.fromkeys(gate_codes))
+            if not round_id_raw:
+                if "REGISTRY_INCOMPLETE" not in gate_codes:
+                    gate_codes.append("REGISTRY_INCOMPLETE")
+
+            run_prefix = f"exports/runs/{lane}/{run_id}/"
+            manifest_path = None
+            manifest_match_prefix = False
+            for ep in evidence_paths:
+                norm_ep = ep.replace("\\", "/")
+                if "manifest" in norm_ep.lower() or "geometry_manifest" in norm_ep:
+                    if norm_ep.startswith(run_prefix):
+                        manifest_path = ep
+                        manifest_match_prefix = True
+                        break
+                    elif manifest_path is None:
+                        manifest_path = ep
+            if manifest_path and not manifest_match_prefix:
+                if "REGISTRY_MANIFEST_MISMATCH" not in gate_codes:
+                    gate_codes.append("REGISTRY_MANIFEST_MISMATCH")
+
             rec = {
                 "ts": ev.get("ts", ""),
                 "module": module,
@@ -170,15 +195,8 @@ def main() -> int:
                 "round_id": round_id,
                 "step_id": (ev.get("step_id") or ""),
                 "evidence_paths": evidence_paths[:3],
-                "gate_codes": ev.get("gate_codes") or ev.get("gate_code") or [],
+                "gate_codes": gate_codes,
             }
-            if isinstance(rec["gate_codes"], str):
-                rec["gate_codes"] = [rec["gate_codes"]] if rec["gate_codes"] else []
-            manifest_path = None
-            for ep in evidence_paths:
-                if "manifest" in ep.lower() or "geometry_manifest" in ep:
-                    manifest_path = ep
-                    break
             if manifest_path:
                 rec["manifest_path"] = manifest_path
             try:
