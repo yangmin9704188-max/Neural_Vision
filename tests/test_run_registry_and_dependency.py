@@ -151,6 +151,44 @@ class TestDependencyLedger(unittest.TestCase):
                 if orig_repo is not None:
                     mod.REPO_ROOT = orig_repo
 
+    def test_check_m1_ledger_inputs_fingerprint_alias_passes(self):
+        """Manifest with inputs_fingerprint (legacy alias) passes m1_checks, no M1_CHECK_FAILED."""
+        import tools.render_status as mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            lab_root = Path(tmp) / "fitting_lab"
+            geo_path = lab_root / "exports" / "runs" / "_smoke" / "r2" / "geometry_manifest.json"
+            geo_path.parent.mkdir(parents=True)
+            geo_path.write_text(
+                '{"schema_version":"geometry_manifest.v1","inputs_fingerprint":"sha256:abc123"}'
+            )
+            orig_repo = getattr(mod, "REPO_ROOT", None)
+            ledger = {
+                "rows": [{
+                    "id": "dep-test",
+                    "consumer_module": "fitting",
+                    "producer_module": "body",
+                    "required_paths_any": ["exports/runs/**/geometry_manifest.json"],
+                    "hint_path": "exports/runs/<lane>/<run_id>/geometry_manifest.json",
+                    "m1_checks": {
+                        "require_fields": ["schema_version"],
+                        "require_any_fields": [["fingerprint", "inputs_fingerprint"]],
+                        "schema_version_exact": "geometry_manifest.v1",
+                    },
+                }],
+            }
+            try:
+                mod.REPO_ROOT = Path(tmp)
+                observed = {"exports/runs/_smoke/r2/geometry_manifest.json"}
+                lab_roots = [(lab_root, "fitting")]
+                result = mod._check_m1_ledger(ledger, observed, lab_roots)
+                self.assertIn("FITTING", result)
+                m1_warnings = [w for w in result["FITTING"] if "M1_CHECK_FAILED" in w and "fingerprint" in w]
+                self.assertEqual(len(m1_warnings), 0, "inputs_fingerprint should satisfy fingerprint check")
+            finally:
+                if orig_repo is not None:
+                    mod.REPO_ROOT = orig_repo
+
     def test_warn_m1_format(self):
         w = _warn_m1("dep-id", "exports/runs/x/y/z.json", "missing_field:schema_version")
         self.assertIn("M1_CHECK_FAILED", w)
@@ -196,6 +234,24 @@ class TestDependencyLedger(unittest.TestCase):
             [],
         )
 
+    def test_evaluate_m1_checks_require_any_fields_alias_pass(self):
+        """inputs_fingerprint (legacy alias) satisfies fingerprint requirement -> no M1_CHECK_FAILED."""
+        m1 = {"require_fields": ["schema_version"], "require_any_fields": [["fingerprint", "inputs_fingerprint"]], "schema_version_exact": "geometry_manifest.v1"}
+        data = {"schema_version": "geometry_manifest.v1", "inputs_fingerprint": "abc123"}
+        self.assertEqual(_evaluate_m1_checks(m1, data), [])
+
+    def test_evaluate_m1_checks_require_any_fields_canonical_pass(self):
+        """Canonical fingerprint present -> pass."""
+        m1 = {"require_fields": ["schema_version"], "require_any_fields": [["fingerprint", "inputs_fingerprint"]], "schema_version_exact": "geometry_manifest.v1"}
+        data = {"schema_version": "geometry_manifest.v1", "fingerprint": "abc123"}
+        self.assertEqual(_evaluate_m1_checks(m1, data), [])
+
+    def test_evaluate_m1_checks_require_any_fields_neither_fails(self):
+        """Neither fingerprint nor inputs_fingerprint -> M1 failure."""
+        m1 = {"require_fields": ["schema_version"], "require_any_fields": [["fingerprint", "inputs_fingerprint"]], "schema_version_exact": "geometry_manifest.v1"}
+        data = {"schema_version": "geometry_manifest.v1"}
+        self.assertIn("require_any_fields:", str(_evaluate_m1_checks(m1, data)[0]))
+
     def test_ledger_geometry_manifest_m1_checks(self):
         ledger = _load_dependency_ledger()
         if not ledger:
@@ -204,6 +260,7 @@ class TestDependencyLedger(unittest.TestCase):
             if row.get("artifact_kind") == "geometry_manifest":
                 mc = row.get("m1_checks") or {}
                 self.assertIn("require_fields", mc)
+                self.assertIn("require_any_fields", mc, "geometry_manifest must use require_any_fields for fingerprint/inputs_fingerprint")
                 self.assertIn("schema_version_exact", mc)
                 break
         else:

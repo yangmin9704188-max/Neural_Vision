@@ -697,7 +697,8 @@ def _resolve_path_to_file(rel_path: str, roots: list[Path]) -> Path | None:
 def _evaluate_m1_checks(checks: dict, data: dict) -> list[str]:
     """
     Evaluate m1_checks against loaded JSON data. Returns list of failure detail strings.
-    Checks: require_fields, schema_version_exact, require_keys_any, unit_exact, no_nan.
+    Checks: require_fields, require_any_fields, schema_version_exact, require_keys_any, unit_exact, no_nan.
+    require_any_fields: list of field groups; each group must have at least one field present.
     """
     details = []
     if not isinstance(data, dict):
@@ -706,6 +707,12 @@ def _evaluate_m1_checks(checks: dict, data: dict) -> list[str]:
     for field in checks.get("require_fields") or []:
         if field not in data:
             details.append(f"missing_field:{field}")
+
+    for group in checks.get("require_any_fields") or []:
+        if not isinstance(group, (list, tuple)):
+            continue
+        if not any(f in data for f in group):
+            details.append(f"require_any_fields:{group}")
 
     exact = checks.get("schema_version_exact")
     if exact:
