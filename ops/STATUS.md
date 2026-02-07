@@ -43,7 +43,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-07 21:50:09*
+*Updated: 2026-02-07 21:57:40*
 
 - health: OK (warnings=0)
 
@@ -91,7 +91,7 @@
 - health: WARN (warnings=3)
 - health_summary: [BODY_SUBSET_MISSING_OR_INVALID] dependency | expected=exports/runs/<lane>/<run_id>/body_measurements_subset.json; [GARMENT_PROXY_META_MISSING_OR_INVALID] dependency | expected=exports/runs/<lane>/<run_id>/garment_proxy_meta.json; [STEP_ID_MISSING] observed | path=N/A
 - brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 21:50:08
+- brief_mtime: 2026-02-07 21:57:40
 - observed_paths:
   - exports/runs/_smoke/20260206_164438/fitting_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_170827/fitting_smoke_v1/geometry_manifest.json
@@ -102,11 +102,11 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: fitting
-  updated_at: 2026-02-07 21:50:08 +0900
+  updated_at: 2026-02-07 21:57:40 +0900
   run_id: N/A
   phase: N/A
   status: WARN
-  summary: last_step=F10 dod_done=1 | P3 test end: exports/runs path in observed_paths
+  summary: last_step=F11 dod_done=1 | P5 verify end
   artifacts: N/A
   warnings: STEP_ID_MISSING
 - warnings:
@@ -141,22 +141,22 @@
 - health: WARN (warnings=2)
 - health_summary: [STEP_ID_MISSING] observed | path=N/A; [STEP_ID_MISSING] observed | path=N/A
 - brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-07 21:50:08
+- brief_mtime: 2026-02-07 21:57:40
 - observed_paths:
   - exports/runs/_smoke/20260206_171153/garment_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_171420/garment_smoke_v1/geometry_manifest.json
-  - exports/runs/_smoke/20260207_092104/garment_smoke_v1/geometry_manifest.json
+  - exports/runs/_smoke/20260207_092104/RUN_README.md
 - brief_head:
   # GARMENT Work Brief
   
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: garment
-  updated_at: 2026-02-07 21:50:08 +0900
+  updated_at: 2026-02-07 21:57:40 +0900
   run_id: N/A
   phase: N/A
   status: WARN
-  summary: last_step=G08 dod_done=2 | P3 test end
+  summary: last_step=G09 dod_done=2 | P5: run minset verified
   artifacts: N/A
   warnings: STEP_ID_MISSING,STEP_ID_MISSING
 - warnings:

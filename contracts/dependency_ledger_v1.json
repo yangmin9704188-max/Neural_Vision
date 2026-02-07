@@ -31,7 +31,14 @@
       "fallback_allowed": true,
       "fallback_rule": "Allow stub manifest in U1; must validate schema_version in U2.",
       "owner": "producer",
-      "hint_path": "exports/runs/<lane>/<run_id>/geometry_manifest.json"
+      "hint_path": "exports/runs/<lane>/<run_id>/geometry_manifest.json",
+      "m1_checks": {
+        "require_fields": [
+          "schema_version",
+          "fingerprint"
+        ],
+        "schema_version_exact": "geometry_manifest.v1"
+      }
     },
     {
       "id": "dep-fitting-consumes-body-measurements-subset",
@@ -50,7 +57,16 @@
       "fallback_allowed": true,
       "fallback_rule": "Allow missing in U1 (degraded); require existence + schema in U2.",
       "owner": "producer",
-      "hint_path": "exports/runs/<lane>/<run_id>/body_measurements_subset.json"
+      "hint_path": "exports/runs/<lane>/<run_id>/body_measurements_subset.json",
+      "m1_checks": {
+        "require_keys_any": [
+          "BUST",
+          "WAIST",
+          "HIP"
+        ],
+        "unit_exact": "m",
+        "no_nan": true
+      }
     },
     {
       "id": "dep-fitting-consumes-garment-proxy-meta",
@@ -69,7 +85,13 @@
       "fallback_allowed": true,
       "fallback_rule": "Allow stub meta in U1; require schema in U2.",
       "owner": "producer",
-      "hint_path": "exports/runs/<lane>/<run_id>/garment_proxy_meta.json"
+      "hint_path": "exports/runs/<lane>/<run_id>/garment_proxy_meta.json",
+      "m1_checks": {
+        "require_fields": [
+          "schema_version"
+        ],
+        "schema_version_exact": "garment_proxy_meta.v1"
+      }
     },
     {
       "id": "dep-fitting-consumes-garment-manifest",
@@ -88,7 +110,14 @@
       "fallback_allowed": true,
       "fallback_rule": "Allow stub manifest in U1; require schema in U2.",
       "owner": "producer",
-      "hint_path": "exports/runs/<lane>/<run_id>/geometry_manifest.json"
+      "hint_path": "exports/runs/<lane>/<run_id>/geometry_manifest.json",
+      "m1_checks": {
+        "require_fields": [
+          "schema_version",
+          "fingerprint"
+        ],
+        "schema_version_exact": "geometry_manifest.v1"
+      }
     },
     {
       "id": "dep-body-publishes-round-end-with-evidence",
@@ -106,7 +135,8 @@
       "fallback_allowed": true,
       "fallback_rule": "U1/U2 both warn-only: require ROUND_END with observed_paths>=1.",
       "owner": "producer",
-      "hint_path": "exports/progress/PROGRESS_LOG.jsonl"
+      "hint_path": "exports/progress/PROGRESS_LOG.jsonl",
+      "m1_checks": {}
     }
   ]
 }
