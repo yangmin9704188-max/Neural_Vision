@@ -166,6 +166,18 @@
 
 ---
 
+## Step2) 384 centroid generation (Phase0)
+
+- **Determinism (Lock)**
+  - Stable subject ordering: sort by `subject_id` (string-stable) before any clustering.
+  - Fixed `random_seed` default (e.g. 42); must be recorded in output metadata.
+  - Tie-break rules: stable sort by (distance, subject_id) for clustering/assignment.
+- **Atomic writes (Lock)**
+  - All Step2 outputs must be written via tmp → flush+fsync → os.replace (reuse `tools.utils.atomic_io.atomic_save_json` or equivalent). No partial final files.
+- Outputs: centroids artifact + diagnostics; JSON must not contain NaN/Inf (use null + warnings).
+
+---
+
 ## 4) KPI / KPI_DIFF (Ops Plane 기반: 생성 규칙 단위)
 - baseline 구성(고정값, curated_v0 lane 기준 예)
   - baseline_tag(alias): curated-v0-realdata-v0.1
