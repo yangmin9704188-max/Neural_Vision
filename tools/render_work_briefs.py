@@ -95,7 +95,7 @@ def _parse_progress_log(log_path: Path) -> tuple[list[dict], list[str]]:
 
 
 def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
-    """Per module: dod_done, last_event_ts, last_step_id, last_note, warnings."""
+    """Per module: dod_done, last_event_ts, last_step_id (valid only), last_note, warnings. UNSPECIFIED excluded from last_step."""
     by_mod: dict[str, dict] = {m: {"dod_done": 0, "last_ts": None, "last_step": None, "last_note": None, "by_step": {}, "warnings": []} for m in MODULES}
 
     for ev in events:
@@ -117,10 +117,12 @@ def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
                 cur["ts"] = ts
             cur["note"] = note or cur.get("note")
             by_mod[mod]["dod_done"] += delta
-            if ts:
-                by_mod[mod]["last_ts"] = ts
-            by_mod[mod]["last_step"] = step_id
-            by_mod[mod]["last_note"] = note or by_mod[mod]["last_note"]
+            # Exclude UNSPECIFIED from last_step (progress calculation)
+            if step_id != "UNSPECIFIED":
+                if ts:
+                    by_mod[mod]["last_ts"] = ts
+                by_mod[mod]["last_step"] = step_id
+                by_mod[mod]["last_note"] = note or by_mod[mod]["last_note"]
 
             exp_total = _plan_dod_total(plan, mod, step_id)
             if exp_total is not None and cur["done"] > exp_total:

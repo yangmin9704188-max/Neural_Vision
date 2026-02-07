@@ -500,9 +500,23 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
     return out, warnings
 
 
+def _parse_brief_head_warnings(brief_head: list[str]) -> list[str]:
+    """Extract warning codes from brief_head 'warnings: X' line for health aggregation."""
+    for ln in brief_head or []:
+        s = ln.strip()
+        if s.lower().startswith("warnings:"):
+            val = s.split(":", 1)[-1].strip()
+            if not val or val == "0":
+                return []
+            return [c.strip() for c in val.split(",") if c.strip()]
+    return []
+
+
 def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
     soft = list(brief.get("path_hygiene") or [])
     soft.extend(brief.get("progress_hygiene") or [])
+    brief_warn_codes = _parse_brief_head_warnings(brief.get("brief_head") or [])
+    soft.extend(brief_warn_codes)
     soft_warns = [_warn(c, "observed", "N/A") for c in soft]
     all_w = warnings + soft_warns
     nw = len(all_w)
