@@ -441,6 +441,41 @@ def _extract_observed_paths(lab_root: Path, module: str, max_items: int = 3) -> 
     return result, hygiene
 
 
+def _extract_raw_observed_paths(lab_root: Path, module: str, max_events: int = 30) -> list[str]:
+    """Extract raw path strings from PROGRESS_LOG for dependency matching."""
+    log_path = lab_root / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+    if not log_path.exists():
+        return []
+    mod_lower = module.lower()
+    events = []
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                    if ev.get("module", "").lower() == mod_lower:
+                        events.append(ev)
+                except json.JSONDecodeError:
+                    continue
+    except Exception:
+        return []
+    seen = set()
+    out = []
+    for ev in events[-max_events:]:
+        for key in ("evidence", "artifacts_touched", "evidence_paths", "observed_paths"):
+            for item in (ev.get(key) or []):
+                if isinstance(item, str):
+                    raw = item.split(":")[0].strip() if ":" in item else item
+                    raw = raw.replace("\\", "/").strip()
+                    if raw and raw not in seen:
+                        seen.add(raw)
+                        out.append(raw)
+    return out
+
+
 def _get_lab_root(module: str) -> str:
     """Lab root: (1) ENV, (2) lab_roots.local.json, (3) empty. Returns resolved path or ''."""
     env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
@@ -568,6 +603,112 @@ def _ensure_markers(text: str) -> str:
     return text
 
 
+def _load_dependency_ledger() -> dict | None:
+    """Load contracts/dependency_ledger_v1.json. Returns None on error."""
+    path = REPO_ROOT / "contracts" / "dependency_ledger_v1.json"
+    if not path.exists():
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _path_matches_glob(path: str, pattern: str) -> bool:
+    """Check if path matches glob pattern (supports **). Uses fnmatch; ** = any path segments."""
+    import fnmatch
+
+    pnorm = path.replace("\\", "/")
+    pnorm_pat = pattern.replace("\\", "/")
+    if "**" not in pnorm_pat:
+        return fnmatch.fnmatch(pnorm, pnorm_pat)
+    parts = pnorm_pat.split("**", 1)
+    prefix, suffix = parts[0].rstrip("/"), (parts[1].lstrip("/") if len(parts) > 1 else "")
+    if not prefix and not suffix:
+        return True
+    if prefix and not pnorm.startswith(prefix):
+        return False
+    if suffix and not pnorm.endswith(suffix):
+        return False
+    if prefix and suffix and len(pnorm) < len(prefix) + len(suffix):
+        return False
+    return True
+
+
+def _collect_global_observed_paths(lab_roots: list[tuple[Path, str]]) -> set[str]:
+    """Collect all raw observed paths from progress logs and run_registry."""
+    out = set()
+    for lab_root, module in lab_roots:
+        for p in _extract_raw_observed_paths(lab_root, module, max_events=50):
+            out.add(p.replace("\\", "/"))
+    body_progress_path = REPO_ROOT / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+    if body_progress_path.exists():
+        for p in _extract_raw_observed_paths(REPO_ROOT, "body", max_events=50):
+            out.add(p.replace("\\", "/"))
+    registry_path = REPO_ROOT / "ops" / "run_registry.jsonl"
+    if registry_path.exists():
+        try:
+            with open(registry_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                        for ep in rec.get("evidence_paths") or []:
+                            if isinstance(ep, str):
+                                out.add(ep.replace("\\", "/"))
+                        mp = rec.get("manifest_path")
+                        if isinstance(mp, str):
+                            out.add(mp.replace("\\", "/"))
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            pass
+    return out
+
+
+def _check_dependency_ledger(
+    ledger: dict,
+    observed_paths: set[str],
+) -> dict[str, list[str]]:
+    """
+    Check dependency ledger against observed paths. enforcement_u1=warn only (no FAIL).
+    Returns {module_upper: [gate_code, ...]} for modules with missing deps.
+    """
+    result = {"BODY": [], "FITTING": [], "GARMENT": []}
+    rows = ledger.get("rows") or []
+    for row in rows:
+        if (row.get("enforcement_u1") or "").lower() != "warn":
+            continue
+        required = row.get("required_paths_any") or []
+        if not required:
+            continue
+        matched = False
+        for pattern in required:
+            for op in observed_paths:
+                if _path_matches_glob(op, pattern):
+                    matched = True
+                    break
+            if matched:
+                break
+        if matched:
+            continue
+        gate = (row.get("gate_code") or "").strip()
+        if not gate:
+            continue
+        consumer = (row.get("consumer_module") or "").lower()
+        producer = (row.get("producer_module") or "").lower()
+        if consumer == "fitting":
+            result["FITTING"].append(gate)
+        elif consumer == "garment":
+            result["GARMENT"].append(gate)
+        elif consumer == "ops" and producer == "body":
+            result["BODY"].append(gate)
+    return result
+
+
 def _render_blockers(lab_roots: list[tuple[Path, str]]) -> str:
     """Render BLOCKERS Top 5 content."""
     top = _aggregate_blockers_top_n(lab_roots, n=5)
@@ -604,6 +745,18 @@ def main() -> int:
         if p.exists():
             lab_roots.append((p, "garment"))
     blockers_content = _render_blockers(lab_roots)
+
+    dep_warnings = {"BODY": [], "FITTING": [], "GARMENT": []}
+    ledger = _load_dependency_ledger()
+    if ledger:
+        observed = _collect_global_observed_paths(lab_roots)
+        dep_warnings = _check_dependency_ledger(ledger, observed)
+    for gate in dep_warnings.get("BODY", []):
+        w1.append(_warn(gate, "dependency", "N/A"))
+    for gate in dep_warnings.get("FITTING", []):
+        w3.append(_warn(gate, "dependency", "N/A"))
+    for gate in dep_warnings.get("GARMENT", []):
+        w4.append(_warn(gate, "dependency", "N/A"))
 
     body_progress = _latest_body_progress(max_items=3)
     body_content = _render_body(curated, geo, w1 + w2, body_progress=body_progress)

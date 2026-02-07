@@ -1,0 +1,103 @@
+{
+  "schema_version": "dependency_ledger.v1",
+  "updated_at": "2026-02-07",
+  "principles": {
+    "u1_enforcement_default": "warn",
+    "u2_enforcement_default": "fail",
+    "maturity_levels": ["M0", "M1", "M2"],
+    "m0": "stub OK: existence + schema_version + fingerprint/determinism only",
+    "m1": "real-like: key/unit alignment + minimal content checks",
+    "m2": "realdata: stats/quality gates via KPI/KPI_DIFF"
+  },
+  "rows": [
+    {
+      "id": "dep-fitting-consumes-body-manifest",
+      "consumer_module": "fitting",
+      "producer_module": "body",
+      "artifact_kind": "geometry_manifest",
+      "required_paths_any": [
+        "exports/runs/**/geometry_manifest.json",
+        "geometry_manifest.json"
+      ],
+      "required_schema_version": "geometry_manifest.v1",
+      "required_maturity_level": "M0",
+      "enforcement_u1": "warn",
+      "enforcement_u2": "fail",
+      "gate_code": "BODY_MANIFEST_MISSING_OR_INVALID",
+      "fallback_allowed": true,
+      "fallback_rule": "Allow stub manifest in U1; must validate schema_version in U2.",
+      "owner": "producer"
+    },
+    {
+      "id": "dep-fitting-consumes-body-measurements-subset",
+      "consumer_module": "fitting",
+      "producer_module": "body",
+      "artifact_kind": "body_measurements_subset",
+      "required_paths_any": [
+        "exports/runs/**/body_measurements_subset.json",
+        "body_measurements_subset.json"
+      ],
+      "required_schema_version": "body_measurements_subset.v1",
+      "required_maturity_level": "M0",
+      "enforcement_u1": "warn",
+      "enforcement_u2": "fail",
+      "gate_code": "BODY_SUBSET_MISSING_OR_INVALID",
+      "fallback_allowed": true,
+      "fallback_rule": "Allow missing in U1 (degraded); require existence + schema in U2.",
+      "owner": "producer"
+    },
+    {
+      "id": "dep-fitting-consumes-garment-proxy-meta",
+      "consumer_module": "fitting",
+      "producer_module": "garment",
+      "artifact_kind": "garment_proxy_meta",
+      "required_paths_any": [
+        "exports/runs/**/garment_proxy_meta.json",
+        "garment_proxy_meta.json"
+      ],
+      "required_schema_version": "garment_proxy_meta.v1",
+      "required_maturity_level": "M0",
+      "enforcement_u1": "warn",
+      "enforcement_u2": "fail",
+      "gate_code": "GARMENT_PROXY_META_MISSING_OR_INVALID",
+      "fallback_allowed": true,
+      "fallback_rule": "Allow stub meta in U1; require schema in U2.",
+      "owner": "producer"
+    },
+    {
+      "id": "dep-fitting-consumes-garment-manifest",
+      "consumer_module": "fitting",
+      "producer_module": "garment",
+      "artifact_kind": "geometry_manifest",
+      "required_paths_any": [
+        "exports/runs/**/geometry_manifest.json",
+        "geometry_manifest.json"
+      ],
+      "required_schema_version": "geometry_manifest.v1",
+      "required_maturity_level": "M0",
+      "enforcement_u1": "warn",
+      "enforcement_u2": "fail",
+      "gate_code": "GARMENT_MANIFEST_MISSING_OR_INVALID",
+      "fallback_allowed": true,
+      "fallback_rule": "Allow stub manifest in U1; require schema in U2.",
+      "owner": "producer"
+    },
+    {
+      "id": "dep-body-publishes-round-end-with-evidence",
+      "consumer_module": "ops",
+      "producer_module": "body",
+      "artifact_kind": "round_end_evidence_hint",
+      "required_paths_any": [
+        "exports/progress/PROGRESS_LOG.jsonl"
+      ],
+      "required_schema_version": "progress_event.v1",
+      "required_maturity_level": "M0",
+      "enforcement_u1": "warn",
+      "enforcement_u2": "warn",
+      "gate_code": "BODY_ROUND_END_EVIDENCE_MISSING",
+      "fallback_allowed": true,
+      "fallback_rule": "U1/U2 both warn-only: require ROUND_END with observed_paths>=1.",
+      "owner": "producer"
+    }
+  ]
+}
