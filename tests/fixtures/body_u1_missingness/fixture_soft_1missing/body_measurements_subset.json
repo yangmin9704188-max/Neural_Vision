@@ -1,0 +1,11 @@
+{
+  "schema_version": "body_measurements_subset.u1.v0",
+  "unit": "m",
+  "pose_id": "PZ1",
+  "keys": ["BUST_CIRC_M", "WAIST_CIRC_M", "HIP_CIRC_M"],
+  "cases": [
+    {"case_id": "soft_1null_a", "BUST_CIRC_M": null, "WAIST_CIRC_M": 0.70, "HIP_CIRC_M": 0.95},
+    {"case_id": "full_b", "BUST_CIRC_M": 0.88, "WAIST_CIRC_M": 0.72, "HIP_CIRC_M": 0.92}
+  ],
+  "warnings": []
+}
