@@ -92,6 +92,18 @@ class TestDependencyLedger(unittest.TestCase):
         self.assertIn("FITTING", result)
         self.assertIn("BODY", result)
 
+    def test_garment_proxy_meta_observed_removes_dep_warning(self):
+        """When garment_proxy_meta.json is in observed_paths, GARMENT_PROXY_META_MISSING_OR_INVALID is not raised for FITTING."""
+        ledger = _load_dependency_ledger()
+        if not ledger:
+            self.skipTest("dependency_ledger not found")
+        observed = {
+            "exports/runs/_smoke/20260206/garment_proxy_meta.json",
+        }
+        result = _check_dependency_ledger(ledger, observed)
+        fitting_codes = [g for g, _ in result.get("FITTING", [])]
+        self.assertNotIn("GARMENT_PROXY_META_MISSING_OR_INVALID", fitting_codes)
+
     def test_check_dependency_ledger_empty_observed(self):
         ledger = _load_dependency_ledger()
         if not ledger:
