@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""run_ops_loop.py — Standard ops loop entrypoint (Round 04).
+"""run_ops_loop.py — Standard ops loop entrypoint (Round 04, cleanup Round 09).
 
 Orchestrates the standard verification/progress workflow:
   - quick mode: doctor + next_step + render_status
   - full mode: doctor + u2_smokes + (optional u1 validators) + next_step + render_briefs+status
+
+With --restore-generated: restores ops/STATUS.md and removes .tmp_pr_body.txt
+after the loop, keeping the working tree clean.
 
 Exit codes: 0 = PASS/WARN, 1 = FAIL
 """
@@ -11,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -188,11 +192,72 @@ def print_summary(results: List[ToolResult], mode: str, *,
     return 1 if worst == FAIL else 0
 
 
+# ── Post-loop cleanup (Round 09) ─────────────────────────────────────
+
+# Files to restore/remove when --restore-generated is active
+_GENERATED_RESTORE_TARGETS = [
+    "ops/STATUS.md",
+]
+_TEMP_REMOVE_TARGETS = [
+    ".tmp_pr_body.txt",
+]
+
+
+def _cleanup_generated(repo_root: Path, *, json_output: bool = False) -> None:
+    """Restore generated files and remove temp files. WARN on failure, never FAIL."""
+    cleanup_lines: List[str] = []
+
+    def _log(msg: str) -> None:
+        cleanup_lines.append(msg)
+
+    _log("[CLEANUP] restore_generated: ON")
+
+    # 1. git restore generated files
+    for rel_path in _GENERATED_RESTORE_TARGETS:
+        full = repo_root / rel_path
+        if not full.is_file():
+            _log(f"[CLEANUP] {rel_path}: missing (skipped)")
+            continue
+        try:
+            r = subprocess.run(
+                ["git", "restore", rel_path],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if r.returncode == 0:
+                _log(f"[CLEANUP] {rel_path}: restored")
+            else:
+                stderr_brief = (r.stderr or "").strip()[:120]
+                _log(f"[CLEANUP] {rel_path}: warn (git restore exit {r.returncode}: {stderr_brief})")
+        except Exception as exc:
+            _log(f"[CLEANUP] {rel_path}: warn ({exc})")
+
+    # 2. Remove temp files
+    for rel_path in _TEMP_REMOVE_TARGETS:
+        full = repo_root / rel_path
+        if not full.is_file():
+            _log(f"[CLEANUP] {rel_path}: absent")
+            continue
+        try:
+            full.unlink()
+            _log(f"[CLEANUP] {rel_path}: removed")
+        except OSError as exc:
+            _log(f"[CLEANUP] {rel_path}: warn (delete failed: {exc})")
+
+    # Print cleanup report
+    if not json_output:
+        _safe_print()
+        for line in cleanup_lines:
+            _safe_print(f"  {line}")
+
+
 # ── Main ─────────────────────────────────────────────────────────────
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Standard ops loop entrypoint (Round 04)")
+        description="Standard ops loop entrypoint (Round 04, cleanup Round 09)")
     parser.add_argument("--mode", type=str, default="quick",
                         choices=["quick", "full"],
                         help="Execution mode (default: quick)")
@@ -207,6 +272,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="Run directory for U1 validators (optional)")
     parser.add_argument("--skip-render", action="store_true",
                         help="Skip render_briefs/render_status")
+    parser.add_argument("--restore-generated", action="store_true",
+                        help="Restore ops/STATUS.md and remove temp files after loop (Round 09)")
     parser.add_argument("--json", dest="json_output", action="store_true",
                         help="Output structured JSON")
     args = parser.parse_args(argv)
@@ -265,7 +332,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             results.append(ToolResult(status_path, 0, "[SKIP] Not found", ""))
 
     # Print summary
-    return print_summary(results, args.mode, json_output=args.json_output)
+    exit_code = print_summary(results, args.mode, json_output=args.json_output)
+
+    # 5. Post-loop cleanup (Round 09)
+    if args.restore_generated:
+        _cleanup_generated(repo_root, json_output=args.json_output)
+
+    return exit_code
 
 
 if __name__ == "__main__":

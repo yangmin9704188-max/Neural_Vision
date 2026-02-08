@@ -2,7 +2,9 @@
 """
 Run-end ops hook: B2 unlock readiness (if beta_fit run found) → append progress → render_work_briefs → render_status.
 Called from postprocess_round or run completion. Exit 0 always. Facts-only; never gate.
+With --restore-generated (Round 09): restores ops/STATUS.md and removes temp files after render.
 """
+import argparse
 import json
 import os
 import subprocess
@@ -113,11 +115,61 @@ def _run_b2_unlock_readiness() -> None:
     print(f"[B2 unlock] run_dir={run_dir} log_progress={log_progress} rules_match={rules_match}")
 
 
+def _cleanup_generated(repo_root: Path) -> None:
+    """Restore generated files and remove temp files. WARN on failure, never FAIL. (Round 09)"""
+    targets_restore = ["ops/STATUS.md"]
+    targets_remove = [".tmp_pr_body.txt"]
+
+    for rel_path in targets_restore:
+        full = repo_root / rel_path
+        if not full.is_file():
+            print(f"[CLEANUP] {rel_path}: missing (skipped)")
+            continue
+        try:
+            r = subprocess.run(
+                ["git", "restore", rel_path],
+                cwd=str(repo_root), capture_output=True, text=True, timeout=15,
+            )
+            if r.returncode == 0:
+                print(f"[CLEANUP] {rel_path}: restored")
+            else:
+                print(f"[CLEANUP] {rel_path}: warn (git restore exit {r.returncode})")
+        except Exception as exc:
+            print(f"[CLEANUP] {rel_path}: warn ({exc})")
+
+    for rel_path in targets_remove:
+        full = repo_root / rel_path
+        if not full.is_file():
+            print(f"[CLEANUP] {rel_path}: absent")
+            continue
+        try:
+            full.unlink()
+            print(f"[CLEANUP] {rel_path}: removed")
+        except OSError as exc:
+            print(f"[CLEANUP] {rel_path}: warn ({exc})")
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Run-end ops hook (Round 09: --restore-generated support)")
+    parser.add_argument("--restore-generated", action="store_true",
+                        help="Restore ops/STATUS.md and remove temp files after render")
+    parser.add_argument("--require-step-id", action="store_true",
+                        help="(legacy) Require step IDs via env")
+    parser.add_argument("--fitting-step-id", type=str, default=None,
+                        help="(legacy) Fitting step ID override")
+    parser.add_argument("--garment-step-id", type=str, default=None,
+                        help="(legacy) Garment step ID override")
+    args, _unknown = parser.parse_known_args()
+
     warnings = 0
     roots = _get_lab_roots()
-    fitting_step_raw = os.environ.get("FITTING_STEP_ID", "").strip()
-    garment_step_raw = os.environ.get("GARMENT_STEP_ID", "").strip()
+
+    # Step IDs: CLI override > ENV
+    fitting_step_raw = (args.fitting_step_id
+                        or os.environ.get("FITTING_STEP_ID", "")).strip()
+    garment_step_raw = (args.garment_step_id
+                        or os.environ.get("GARMENT_STEP_ID", "")).strip()
     fitting_step = fitting_step_raw if fitting_step_raw else "UNSPECIFIED"
     garment_step = garment_step_raw if garment_step_raw else "UNSPECIFIED"
 
@@ -158,6 +210,11 @@ def main() -> int:
             warnings += 1
 
     print(f"ops hook done, warnings={warnings}")
+
+    # Post-render cleanup (Round 09)
+    if args.restore_generated:
+        _cleanup_generated(REPO_ROOT)
+
     return 0
 
 
