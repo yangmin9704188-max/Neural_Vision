@@ -1459,8 +1459,9 @@ def measure_waist_group_with_shared_slice(
         return results
     
     # WAIST region (same as WAIST_CIRC_M)
-    y_start = y_min + 0.40 * y_range
-    y_end = y_min + 0.70 * y_range
+    # Refine01: Shift band 0.40-0.70 -> 0.42-0.66 to reduce overestimation (residual pattern +,+,-)
+    y_start = y_min + 0.42 * y_range
+    y_end = y_min + 0.66 * y_range
     
     # Generate candidates and select best (same as WAIST_CIRC_M)
     num_slices = 20
@@ -1485,9 +1486,9 @@ def measure_waist_group_with_shared_slice(
                 "debug_info": debug_info
             })
     
-    # Select candidate (WAIST: min perimeter)
+    # Select candidate (WAIST: min perimeter; tie-break: prefer higher y = closer to waist narrowing)
     if len(candidates) > 0:
-        selected = min(candidates, key=lambda c: c["perimeter"])
+        selected = min(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
         chosen_candidate_index = selected["slice_index"]
         
         # Re-extract slice for the selected y_value (to get vertices_2d)
@@ -1726,8 +1727,9 @@ def measure_hip_group_with_shared_slice(
         return results
     
     # HIP region (same as HIP_CIRC_M)
-    y_start = y_min + 0.50 * y_range
-    y_end = y_min + 0.80 * y_range
+    # Refine01: Shift band 0.50-0.80 -> 0.48-0.78 to reduce underestimation (dominant TORSO_LOWER)
+    y_start = y_min + 0.48 * y_range
+    y_end = y_min + 0.78 * y_range
     
     # Generate candidates and select best (HIP: max perimeter)
     num_slices = 20
@@ -1752,9 +1754,9 @@ def measure_hip_group_with_shared_slice(
                 "debug_info": debug_info
             })
     
-    # Select candidate (HIP: max perimeter)
+    # Select candidate (HIP: max perimeter; tie-break: prefer lower y = closer to hip prominence)
     if len(candidates) > 0:
-        selected = max(candidates, key=lambda c: c["perimeter"])
+        selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
         chosen_candidate_index = selected["slice_index"]
         
         # Re-extract slice for the selected y_value
@@ -2030,15 +2032,15 @@ def measure_circumference_v0_with_metadata(
         landmark_confidence = "high"
         landmark_resolution = "direct"
     elif standard_key == "WAIST_CIRC_M":
-        # Mid torso (waist line - semantic defines as "most constricted", but we use fixed height)
-        y_start = y_min + 0.40 * y_range
-        y_end = y_min + 0.70 * y_range
+        # Mid torso (waist line). Refine01: 0.42-0.66 to reduce overestimation (residual pattern +,+,-)
+        y_start = y_min + 0.42 * y_range
+        y_end = y_min + 0.66 * y_range
         landmark_confidence = "high"
         landmark_resolution = "direct"
     elif standard_key == "HIP_CIRC_M":
-        # Lower torso (hip maximum)
-        y_start = y_min + 0.50 * y_range
-        y_end = y_min + 0.80 * y_range
+        # Lower torso (hip maximum). Refine01: 0.48-0.78 to reduce underestimation (dominant TORSO_LOWER)
+        y_start = y_min + 0.48 * y_range
+        y_end = y_min + 0.78 * y_range
         landmark_confidence = "high"
         landmark_resolution = "direct"
     elif standard_key == "THIGH_CIRC_M":
@@ -2155,20 +2157,20 @@ def measure_circumference_v0_with_metadata(
     selected_debug_info = None
     
     # Select candidate based on semantic rule
-    # BUST/HIP: max (maximum protrusion)
+    # BUST/HIP: max (maximum protrusion); tie-break: prefer lower y (closer to prominence)
     # WAIST: semantic defines as "most constricted" but we use fixed height (no min search)
     # THIGH: max (maximum)
     # MIN_CALF: min (minimum)
     if standard_key in ["BUST_CIRC_M", "HIP_CIRC_M", "THIGH_CIRC_M"]:
-        selected = max(candidates, key=lambda c: c["perimeter"])
+        selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
     elif standard_key == "MIN_CALF_CIRC_M":
-        selected = min(candidates, key=lambda c: c["perimeter"])
+        selected = min(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
         warnings.append("MIN_SEARCH_USED")  # Record that min search was used
     else:
-        # NECK, UNDERBUST, WAIST: use median for stability (fixed height approach)
+        # NECK, UNDERBUST, WAIST: use median for stability; tie-break: prefer higher y (waist narrowing)
         perimeters = [c["perimeter"] for c in candidates]
         median_perimeter = float(np.median(perimeters))
-        selected = min(candidates, key=lambda c: abs(c["perimeter"] - median_perimeter))
+        selected = min(candidates, key=lambda c: (abs(c["perimeter"] - median_perimeter), -c["y_value"]))
     
     # Round37: Re-compute selected candidate with debug enabled to get full debug info (new method)
     # Round41: Also compute torso-only analysis for torso keys

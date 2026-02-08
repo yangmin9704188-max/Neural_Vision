@@ -443,9 +443,21 @@ def main() -> int:
         res_p90 = metrics["residual_cm"]
         res_str = ",".join(f"{k}:{res_p90[k].get('p90')}" for k in sorted(res_p90.keys()))
         note = (
-            f"B2 unlock signal: candidate={str(candidate).lower()}, quality_p90={q90_str}, "
-            f"residual_p90_cm={{{res_str}}}, failures={metrics['failures_count']}, run_dir={rel_out}"
+            f"B2 unlock signal: candidate={str(candidate).lower()}, failures_count={metrics['failures_count']}, "
+            f"residual_p90_cm={{{res_str}}}, quality_p90={q90_str}, run_dir={rel_out}"
         )
+        rec_suffix = ""
+        if "recommendations" in payload:
+            rows = payload["recommendations"].get("combined_rows") or []
+            passed = [r for r in rows if r.get("would_be_candidate_by_p90")]
+            if passed:
+                tightest = min(passed, key=lambda r: (r.get("residual_thr_p90_cm", 999), -r.get("score_thr_p90", 0)))
+                rec_suffix = f" | rec: residual_thr={tightest.get('residual_thr_p90_cm')}, score_thr={tightest.get('score_thr_p90')}, would_be_candidate_by_p90=true"
+            elif rows:
+                closest = max(rows, key=lambda r: (r.get("residual_thr_p90_cm", 0), -r.get("score_thr_p90", 999)))
+                rec_suffix = f" | rec: residual_thr={closest.get('residual_thr_p90_cm')}, score_thr={closest.get('score_thr_p90')}, would_be_candidate_by_p90=false"
+        if rec_suffix:
+            note = note + rec_suffix
         import subprocess
         subprocess.run(
             [
