@@ -134,7 +134,13 @@ def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
         gc = ev.get("gate_codes") or ev.get("gate_code")
         if isinstance(gc, str):
             gc = [gc] if gc else []
-        if isinstance(gc, list) and "STEP_ID_BACKFILLED" in gc:
+        wrn = ev.get("warnings") or []
+        if isinstance(wrn, str):
+            wrn = [wrn] if wrn else []
+        has_backfill = (isinstance(gc, list) and "STEP_ID_BACKFILLED" in gc) or any(
+            "STEP_ID_BACKFILLED" in str(w) for w in wrn
+        )
+        if has_backfill:
             by_mod[mod]["_backfilled"] += 1
 
     for mod in by_mod:

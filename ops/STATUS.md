@@ -14,8 +14,7 @@
 ## BLOCKERS (generated)
 <!-- GENERATED:BEGIN:BLOCKERS -->
 - BLOCKERS Top 5:
-  - STEP_ID_MISSING: 3
-  - STEP_ID_BACKFILLED: 1
+  - STEP_ID_BACKFILLED: 7
   - EVIDENCE_ONLY_SAMPLES: 1
 <!-- GENERATED:END:BLOCKERS -->
 
@@ -44,7 +43,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-08 00:21:53*
+*Updated: 2026-02-08 13:16:15*
 
 - health: OK (warnings=0)
 
@@ -60,9 +59,9 @@
   - duplicates=1, missing=0, sink=0
 
 ### Latest progress
-- [B03] 2026-02-07T16:31:49+09:00: Step4 beta_fit_v0 full k=384: run_dir=exports/runs/facts/beta_fit_v0/run_20260207_162505 summary sha256=bd76b0f0095d7dc7898a9484a9ccb65c743350ee6fbf11ff14e5d3e4ab964221 quality p50=79.18 p90=86.95 min=66.26 failures=0
-- [B04] 2026-02-07T16:41:52+09:00: B2 unlock signal: candidate=false, quality_p90=86.95, residual_p90_cm={BUST_CIRC_M:3.5427999999999997,HIP_CIRC_M:-4.68869,WAIST_CIRC_M:12.415719999999999}, failures=0, run_dir=exports\runs\facts\beta_fit_v0\run_20260207_162505
-- [B04] 2026-02-07T17:01:49+09:00: B2 unlock signal: candidate=false, quality_p90=86.40, residual_p90_cm={BUST_CIRC_M:2.0820999999999996,HIP_CIRC_M:-5.31998,WAIST_CIRC_M:12.982859999999999}, failures=0, run_dir=exports\runs\facts\beta_fit_v0\determinism_subset_run2
+- [B04] 2026-02-08T12:00:41+09:00: B2 unlock signal: candidate=false, quality_p90=86.40, residual_p90_cm={BUST_CIRC_M:2.0820999999999996,HIP_CIRC_M:-5.31998,WAIST_CIRC_M:12.982859999999999}, failures=0, run_dir=exports\runs\facts\beta_fit_v0\determinism_subset_run2
+- [B04] 2026-02-08T12:01:23+09:00: B2 unlock signal: candidate=false, failures_count=0, residual_p90_cm={BUST_CIRC_M:2.0820999999999996,HIP_CIRC_M:-5.31998,WAIST_CIRC_M:12.982859999999999}, quality_p90=86.40, run_dir=exports\runs\facts\beta_fit_v0\determinism_subset_run2 | rec: residual_thr=1.2, score_thr=65, would_be_candidate_by_p90=false
+- [B04] 2026-02-08T12:05:29+09:00: B2 unlock signal: candidate=false, failures_count=0, residual_p90_cm={BUST_CIRC_M:2.0820999999999996,HIP_CIRC_M:-5.31998,WAIST_CIRC_M:12.982859999999999}, quality_p90=86.40, run_dir=exports\runs\facts\beta_fit_v0\determinism_subset_run2 | rec: residual_thr=1.2, score_thr=65, would_be_candidate_by_p90=false
 
 <!-- GENERATED:END:BODY -->
 
@@ -89,29 +88,26 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:FITTING -->
-- health: WARN (warnings=1)
-- health_summary: [STEP_ID_MISSING] observed | path=N/A
+- health: OK (warnings=0)
 - brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-08 00:21:52
+- brief_mtime: 2026-02-08 13:16:15
 - observed_paths:
   - exports/runs/_smoke/20260206_164438/fitting_smoke_v1/geometry_manifest.json
-  - exports/runs/_smoke/20260206_170827/fitting_smoke_v1/geometry_manifest.json
-  - exports/runs/_smoke/20260206_171040/fitting_smoke_v1/geometry_manifest.json
+  - exports/runs/_smoke/20260206_170827/RUN_README.md
+  - exports/runs/_smoke/20260206_170827/facts_summary.json
 - brief_head:
   # FITTING Work Brief
   
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: fitting
-  updated_at: 2026-02-08 00:21:52 +0900
+  updated_at: 2026-02-08 13:16:15 +0900
   run_id: N/A
   phase: N/A
-  status: WARN
-  summary: last_step=F_BACKFILL dod_done=1 | Backfill: previous step-id missing event corrected; original run_end_ops_hook UN
+  status: OK
+  summary: last_step=F14 dod_done=1 | Smoke-3 E2E: minset, degraded_indicators recorded
   artifacts: N/A
-  warnings: STEP_ID_MISSING
-- warnings:
-  - [STEP_ID_MISSING] observed | path=N/A
+  warnings: 0
 <!-- GENERATED:END:FITTING -->
 
 ---
@@ -137,10 +133,9 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:GARMENT -->
-- health: WARN (warnings=2)
-- health_summary: [STEP_ID_MISSING] observed | path=N/A; [STEP_ID_MISSING] observed | path=N/A
+- health: OK (warnings=0)
 - brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-08 00:21:52
+- brief_mtime: 2026-02-08 13:16:15
 - observed_paths:
   - exports/runs/_smoke/20260206_171153/garment_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_171153/geometry_manifest.json
@@ -151,14 +146,11 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: garment
-  updated_at: 2026-02-08 00:21:52 +0900
+  updated_at: 2026-02-08 13:16:15 +0900
   run_id: N/A
   phase: N/A
-  status: WARN
-  summary: last_step=G11 dod_done=2 | M0: garment_proxy_meta verified
+  status: OK
+  summary: last_step=U2.SMOKE3.PRODUCER dod_done=2 | Smoke-3 production success
   artifacts: N/A
-  warnings: STEP_ID_MISSING,STEP_ID_MISSING
-- warnings:
-  - [STEP_ID_MISSING] observed | path=N/A
-  - [STEP_ID_MISSING] observed | path=N/A
+  warnings: 0
 <!-- GENERATED:END:GARMENT -->
