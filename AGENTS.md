@@ -144,6 +144,9 @@ fitting_facts_summary.json 최소 필드(요약):
 - `py tools/ops/run_ops_loop.py --mode quick`  # 표준 루프: doctor + next_step + render_status
 - `py tools/ops/run_ops_loop.py --mode full`  # 전체 검증: doctor + u2_smokes + next_step + render_briefs+status
 
+### 5.8 CI Guard (Round 05)
+- `py tools/ci/ci_guard.py`  # 경계 위반 탐지: exports/data 커밋, PROGRESS_LOG append-only, 루트 사본 수정
+
 ---
 
 ## 6) 루트 산재 문서(사본) 정책
