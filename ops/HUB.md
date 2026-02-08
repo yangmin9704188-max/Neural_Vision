@@ -17,9 +17,11 @@
 - 레거시 [DOD_CLAIM_PROTOCOL_v1](docs/ops/dashboard_legacy/DOD_CLAIM_PROTOCOL_v1.md) 참조
 
 ## Commands
-### Standard Loop (Round 04)
+### Standard Loop (Round 04, cleanup Round 09)
 - `py tools/ops/run_ops_loop.py --mode quick` — 표준 루프: doctor + next_step + render_status
 - `py tools/ops/run_ops_loop.py --mode full` — 전체 검증: doctor + u2_smokes + next_step + render_briefs+status
+- `py tools/ops/run_ops_loop.py --mode full --restore-generated` — 전체 검증 + STATUS 자동 복원 (workspace clean 유지)
+- `py tools/ops/run_end_ops_hook.py --restore-generated` — run 마무리 훅 + STATUS 자동 복원
 
 ### Individual Tools
 - `py tools/ops/doctor.py` — 레포 부트스트랩/헬스 체크 (read-only, --fix로 누락 디렉토리 생성)
