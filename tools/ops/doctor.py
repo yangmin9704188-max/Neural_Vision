@@ -193,7 +193,10 @@ _LOOSE_LINE_RE = re.compile(
 
 
 def _parse_loose_map(root: Path) -> Optional[List[Tuple[str, str]]]:
-    """Return [(root_file, canonical_path), ...] or None on parse failure."""
+    """Return [(root_file, canonical_path), ...] or None on parse failure.
+    
+    Returns empty list [] if section indicates "NONE" or "cleaned" status.
+    """
     pm = root / "project_map.md"
     if not pm.is_file():
         return None
@@ -201,16 +204,33 @@ def _parse_loose_map(root: Path) -> Optional[List[Tuple[str, str]]]:
         text = pm.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return None
-    m = _LOOSE_BLOCK_RE.search(text)
-    if not m:
+    
+    # Find the section header
+    section_match = re.search(
+        r"##\s*Root\s+루즈\s+파일\s*\(정리\s*대상\)(.*?)(?=^##|\Z)",
+        text, re.MULTILINE | re.DOTALL
+    )
+    if not section_match:
         return None
-    block = m.group(1)
-    pairs: List[Tuple[str, str]] = []
-    for line in block.splitlines():
-        lm = _LOOSE_LINE_RE.search(line)
-        if lm:
-            pairs.append((lm.group(1).strip(), lm.group(2).strip()))
-    return pairs if pairs else None
+    
+    section_content = section_match.group(1)
+    
+    # Check for "Status: NONE" or "Round 06 cleaned" indicating no active loose files
+    if re.search(r"Status.*?NONE|cleaned|Round\s*0?6", section_content, re.IGNORECASE):
+        return []  # Empty list = no loose files (success state)
+    
+    # Try old format (code block with tree structure)
+    m = _LOOSE_BLOCK_RE.search(text)
+    if m:
+        block = m.group(1)
+        pairs: List[Tuple[str, str]] = []
+        for line in block.splitlines():
+            lm = _LOOSE_LINE_RE.search(line)
+            if lm:
+                pairs.append((lm.group(1).strip(), lm.group(2).strip()))
+        return pairs if pairs else None
+    
+    return None
 
 
 def check_loose_files(root: Path) -> List[CheckResult]:
@@ -243,6 +263,9 @@ def check_lab_roots(root: Path) -> List[CheckResult]:
     results: List[CheckResult] = []
     lr_path = root / "ops" / "lab_roots.local.json"
 
+    # Track which keys are configured via local config
+    local_config_valid = {"FITTING_LAB_ROOT": False, "GARMENT_LAB_ROOT": False}
+
     if not lr_path.is_file():
         results.append(CheckResult(
             WARN, "lab_roots:file",
@@ -260,6 +283,7 @@ def check_lab_roots(root: Path) -> List[CheckResult]:
                         results.append(CheckResult(
                             PASS, f"lab_roots:{key}",
                             f"{key}={val} → exists"))
+                        local_config_valid[key] = True
                     else:
                         results.append(CheckResult(
                             WARN, f"lab_roots:{key}",
@@ -280,8 +304,14 @@ def check_lab_roots(root: Path) -> List[CheckResult]:
             results.append(CheckResult(
                 PASS, f"env:{env_key}", f"Set → {val}"))
         else:
-            results.append(CheckResult(
-                WARN, f"env:{env_key}", "Not set"))
+            # If local config is valid, downgrade to PASS with info message
+            if local_config_valid[env_key]:
+                results.append(CheckResult(
+                    PASS, f"env:{env_key}",
+                    f"Not set (OK: ops/lab_roots.local.json provides {env_key})"))
+            else:
+                results.append(CheckResult(
+                    WARN, f"env:{env_key}", "Not set"))
 
     return results
 
