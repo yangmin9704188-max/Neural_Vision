@@ -148,6 +148,20 @@ fitting_facts_summary.json 최소 필드(요약):
 ### 5.8 CI Guard (Round 05)
 - `py tools/ci/ci_guard.py`  # 경계 위반 탐지: exports/data 커밋, PROGRESS_LOG append-only, 루트 사본 수정
 
+### 5.9 Auto-Refresh Gate (Round 08)
+- `py tools/ops/autorender_tick.py`  # 스케줄러 엔트리포인트 (기본: no-op, enabled=false)
+- 설정: `ops/autorender.local.json` (gitignored, 예시: `ops/autorender.local.example.json`)
+- 스케줄러 탐지/비활성화:
+  - `powershell -ExecutionPolicy Bypass -File tools/ops/find_autorender_tasks.ps1`
+  - `powershell -ExecutionPolicy Bypass -File tools/ops/disable_autorender_tasks.ps1 -Execute`
+  - `powershell -ExecutionPolicy Bypass -File tools/ops/enable_autorender_tasks.ps1 -Execute`  # 롤백
+
+### 5.10 마감 갱신 표준 커맨드 (Round 08)
+- 30분 자동 업데이트: **기본 OFF** (autorender_tick.py 게이트, Task Scheduler disable 권장)
+- PR 올리기 직전: `py tools/ops/run_ops_loop.py --mode full`
+- merge 직후:       `py tools/ops/run_ops_loop.py --mode quick`
+- 라운드 종료:       `py tools/ops/run_end_ops_hook.py`
+
 ---
 
 ## 6) 루트 산재 문서(사본) 정책
