@@ -133,6 +133,9 @@ fitting_facts_summary.json 최소 필드(요약):
 - `py tools/validate/validate_u1_garment.py --run-dir <dir>`  # Garment→Fitting U1 검증
 - `py tools/validate/validate_u1_fitting.py --run-dir <dir>`  # Fitting U1 검증
 
+### 5.5 U2 Smoke (Runnable Unlock)
+- `py tools/smoke/run_u2_smokes.py`  # U2 스모크 3종 실행 (Freeze §3: OK/HardGate/Degraded)
+
 ---
 
 ## 6) 루트 산재 문서(사본) 정책
