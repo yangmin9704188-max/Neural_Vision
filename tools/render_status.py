@@ -385,7 +385,11 @@ def _aggregate_blockers_top_n(lab_roots: list[tuple[Path, str]], n: int = 5) -> 
             gc = ev.get("gate_codes") or ev.get("gate_code")
             if isinstance(gc, str):
                 gc = [gc] if gc else []
-            if isinstance(gc, list) and "STEP_ID_BACKFILLED" in gc:
+            wrn = ev.get("warnings") or []
+            has_backfill = (isinstance(gc, list) and "STEP_ID_BACKFILLED" in gc) or any(
+                "STEP_ID_BACKFILLED" in str(w) for w in wrn
+            )
+            if has_backfill:
                 step_backfilled_by_mod[mod_key] = step_backfilled_by_mod.get(mod_key, 0) + 1
         for c in codes:
             if c != "STEP_ID_MISSING":
@@ -718,13 +722,13 @@ def _collect_global_observed_paths(lab_roots: list[tuple[Path, str]]) -> set[str
         if lab_root and lab_root.exists():
             runs_in_lab = lab_root / "exports" / "runs"
             if runs_in_lab.exists():
-                for p in runs_in_lab.rglob("garment_proxy_meta.json"):
-                    try:
-                        # lab_root 기준 상대경로 => "exports/runs/..." 형태
-                        rel = p.relative_to(lab_root).as_posix()
-                        out.add(rel)
-                    except ValueError:
-                        pass
+                for name in ("body_measurements_subset.json", "garment_proxy_meta.json"):
+                    for p in runs_in_lab.rglob(name):
+                        try:
+                            rel = p.relative_to(lab_root).as_posix()
+                            out.add(rel)
+                        except ValueError:
+                            pass
 
     return out
 

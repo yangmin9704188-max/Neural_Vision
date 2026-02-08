@@ -70,8 +70,11 @@
 - [ ] fitting_facts_summary.json 존재
 
 ### C.2 Smoke-2 Garment Hard Gate(Early Exit)
+- invalid_face_flag는 degenerate/invalid face 등 기하학적 불량을 의미하는 호환 Hard Gate 신호이며, Smoke-2 재현의 1차 기준으로 사용 가능.
+- fitting_facts_summary.json의 early_exit_reason에는 **실제로 true였던 플래그명(들)**이 포함되어야 함
+예: "garment_hard_gate_violation: invalid_face_flag".
 - [ ] garment_proxy_meta.json 플래그
-  - [ ] negative_face_area_flag == true OR self_intersection_flag == true
+  - [ ] negative_face_area_flag == true OR self_intersection_flag == true OR invalid_face_flag == true
 - [ ] Garment Hard Gate 시에도 반드시 생성(추적성)
   - [ ] garment_proxy_meta.json
   - [ ] geometry_manifest.json
