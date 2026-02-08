@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://neural-vision/contracts/progress_event_v1.schema.json",
+  "title": "Progress Event v1",
+  "description": "PROGRESS_LOG.jsonl event schema (minimal required fields)",
+  "type": "object",
+  "required": ["ts", "module", "step_id"],
+  "anyOf": [{ "required": ["event_type"] }, { "required": ["event"] }],
+  "properties": {
+    "ts": { "type": "string", "description": "ISO 8601 timestamp" },
+    "module": { "type": "string", "enum": ["body", "fitting", "garment"] },
+    "event_type": {
+      "type": "string",
+      "description": "Primary field; renderers also accept 'event' as fallback. Recommended: ROUND_START, ROUND_END, BACKFILL, INFO"
+    },
+    "event": { "type": "string", "description": "Legacy alias for event_type (accepted by renderers)" },
+    "step_id": { "type": "string", "description": "Step identifier, UNSPECIFIED if missing" },
+    "round_id": { "type": "string" },
+    "lane": { "type": "string" },
+    "run_id": { "type": "string" },
+    "evidence_paths": { "type": "array", "items": { "type": "string" } },
+    "gate_codes": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "note": { "type": "string" }
+  },
+  "_comment": "event_type required in schema; renderers accept event as fallback for backward compat"
+}
