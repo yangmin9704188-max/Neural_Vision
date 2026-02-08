@@ -1,0 +1,11 @@
+{
+  "schema_version": "notion_sync_status.v1",
+  "updated_at": "2026-02-08T11:49:52+0900",
+  "mode": "skipped",
+  "reason": "missing_config",
+  "processed": 0,
+  "updated": 0,
+  "skipped": 0,
+  "error_count": 0,
+  "cursor": -1
+}

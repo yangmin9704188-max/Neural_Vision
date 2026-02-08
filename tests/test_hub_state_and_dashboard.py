@@ -16,9 +16,11 @@ from tools.ops.render_hub_state import (
     _compute_unlocks,
     _newly_unlocked,
     _render_dashboard,
+    _render_notion_sync_section,
     _plan_items_not_done,
     _blocker_warnings,
     MASTER_PLAN_PATH,
+    NOTION_SYNC_STATUS_PATH,
 )
 
 
@@ -140,6 +142,67 @@ class TestDashboardRenderEmpty(unittest.TestCase):
         out = _render_dashboard(plan, artifacts_observed, unlocks, newly_unlocked, [])
         self.assertIn("Neural Vision Dashboard", out)
         self.assertIn("(없음)" if not newly_unlocked else "✅", out)
+
+
+class TestNotionSyncSection(unittest.TestCase):
+    """DASHBOARD includes Notion Sync status section."""
+
+    def test_render_notion_sync_section_no_file(self):
+        """When ops/notion_sync_status.json does not exist, show (no status file)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            status_path = Path(tmp) / "notion_sync_status.json"
+            self.assertFalse(status_path.exists())
+            import tools.ops.render_hub_state as rh
+            orig = rh.NOTION_SYNC_STATUS_PATH
+            try:
+                rh.NOTION_SYNC_STATUS_PATH = status_path
+                lines = _render_notion_sync_section()
+            finally:
+                rh.NOTION_SYNC_STATUS_PATH = orig
+            self.assertIn("## 🔁 Notion Sync 상태", lines)
+            joined = "\n".join(lines)
+            self.assertIn("(no status file)", joined)
+
+    def test_render_notion_sync_section_with_status(self):
+        """When status file exists, dashboard shows updated_at, mode, reason, processed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            status_path = Path(tmp) / "notion_sync_status.json"
+            status_path.write_text(json.dumps({
+                "schema_version": "notion_sync_status.v1",
+                "updated_at": "2026-02-08T02:10:00+0900",
+                "mode": "skipped",
+                "reason": "missing_config",
+                "processed": 0,
+                "updated": 0,
+                "skipped": 0,
+                "error_count": 0,
+                "cursor": None,
+            }))
+            import tools.ops.render_hub_state as rh
+            orig = rh.NOTION_SYNC_STATUS_PATH
+            try:
+                rh.NOTION_SYNC_STATUS_PATH = status_path
+                lines = _render_notion_sync_section()
+            finally:
+                rh.NOTION_SYNC_STATUS_PATH = orig
+            joined = "\n".join(lines)
+            self.assertIn("## 🔁 Notion Sync 상태", joined)
+            self.assertIn("skipped", joined)
+            self.assertIn("missing_config", joined)
+            self.assertIn("processed=", joined)
+            self.assertIn("error_count=", joined)
+
+    def test_dashboard_includes_notion_sync_section(self):
+        """Full dashboard render includes Notion Sync section."""
+        plan = {
+            "schema_version": "master_plan.v1",
+            "dashboard": {"title": "Test", "limits": {"newly_unlocked": 10, "blockers": 10, "next_actions_per_module": 3}},
+            "unlocks": [],
+            "plan_items": [],
+            "artifacts": {},
+        }
+        out = _render_dashboard(plan, {}, {}, [], [])
+        self.assertIn("## 🔁 Notion Sync 상태", out)
 
 
 class TestDashboardP02UX(unittest.TestCase):
