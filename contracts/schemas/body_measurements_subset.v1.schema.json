@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "body_measurements_subset.v1",
+  "title": "body_measurements_subset.v1 — U1 Freeze (Body→Fitting)",
+  "description": "Minimal schema for body_measurements_subset.json. Ref: unlock_conditions_u1_u2.md §2.1",
+  "type": "object",
+  "required": [
+    "unit",
+    "pose_id",
+    "measurements",
+    "warnings"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "unit": {
+      "const": "m",
+      "description": "Unit must be meters"
+    },
+    "pose_id": {
+      "const": "PZ1",
+      "description": "Pose identifier (Freeze)"
+    },
+    "measurements": {
+      "type": "object",
+      "required": [
+        "BUST_CIRC_M",
+        "WAIST_CIRC_M",
+        "HIP_CIRC_M"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "BUST_CIRC_M": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "null" }
+          ],
+          "description": "Bust circumference in meters (number or null; NaN forbidden)"
+        },
+        "WAIST_CIRC_M": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "null" }
+          ],
+          "description": "Waist circumference in meters (number or null; NaN forbidden)"
+        },
+        "HIP_CIRC_M": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "null" }
+          ],
+          "description": "Hip circumference in meters (number or null; NaN forbidden)"
+        }
+      },
+      "description": "Measurement keys — 3 required keys minimum (§2.1)"
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Warnings array (required, may be empty)"
+    }
+  }
+}
