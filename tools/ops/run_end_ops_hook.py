@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Run-end ops hook: B2 unlock readiness (if beta_fit run found) → append progress → render_work_briefs → render_status.
-Called from postprocess_round or run completion. Exit 0 always. Facts-only; never gate.
+Called from postprocess_round or run completion. Exit 0 by default. Facts-only; never gate.
 With --restore-generated (Round 09): restores ops/STATUS.md and removes temp files after render.
+With --strict-clean (Round 10): FAIL if working tree dirty at start or end.
 """
 import argparse
 import json
@@ -115,6 +116,34 @@ def _run_b2_unlock_readiness() -> None:
     print(f"[B2 unlock] run_dir={run_dir} log_progress={log_progress} rules_match={rules_match}")
 
 
+def _git_status_porcelain(repo_root: Path):
+    """Run git status --porcelain.  Returns (stdout, error_msg)."""
+    try:
+        r = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(repo_root), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=15,
+        )
+        if r.returncode == 0:
+            return r.stdout, None
+        return None, f"git status exit {r.returncode}"
+    except Exception as exc:
+        return None, str(exc)
+
+
+def _is_clean(porcelain_output: str) -> bool:
+    return porcelain_output.strip() == ""
+
+
+def _dirty_files_summary(porcelain_output: str, max_lines: int = 20) -> str:
+    lines = [l for l in porcelain_output.strip().splitlines() if l.strip()]
+    shown = lines[:max_lines]
+    text = "\n".join(f"    {l}" for l in shown)
+    if len(lines) > max_lines:
+        text += f"\n    ... ({len(lines) - max_lines} more)"
+    return text
+
+
 def _cleanup_generated(repo_root: Path) -> None:
     """Restore generated files and remove temp files. WARN on failure, never FAIL. (Round 09)"""
     targets_restore = ["ops/STATUS.md"]
@@ -151,9 +180,13 @@ def _cleanup_generated(repo_root: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run-end ops hook (Round 09: --restore-generated support)")
+        description="Run-end ops hook (R09 restore / R10 strict-clean)")
     parser.add_argument("--restore-generated", action="store_true",
                         help="Restore ops/STATUS.md and remove temp files after render")
+    parser.add_argument("--strict-clean", action="store_true",
+                        help="FAIL if working tree dirty at start or end (Round 10)")
+    parser.add_argument("--allow-pre-dirty", action="store_true",
+                        help="With --strict-clean: downgrade pre-dirty to WARN (Round 10)")
     parser.add_argument("--require-step-id", action="store_true",
                         help="(legacy) Require step IDs via env")
     parser.add_argument("--fitting-step-id", type=str, default=None,
@@ -161,6 +194,27 @@ def main() -> int:
     parser.add_argument("--garment-step-id", type=str, default=None,
                         help="(legacy) Garment step ID override")
     args, _unknown = parser.parse_known_args()
+
+    strict = args.strict_clean
+    pre_status = "clean"
+
+    # ── Pre-check (Round 10) ─────────────────────────────────────────
+    if strict:
+        out, err = _git_status_porcelain(REPO_ROOT)
+        if err is not None:
+            print(f"[STRICT_CLEAN] pre-check ERROR: {err}")
+            return 1
+        if not _is_clean(out):
+            pre_status = "dirty"
+            if args.allow_pre_dirty:
+                print("[STRICT_CLEAN] pre=dirty (WARN, --allow-pre-dirty)")
+                print(_dirty_files_summary(out))
+            else:
+                print("[STRICT_CLEAN] pre=dirty policy=FAIL")
+                print(_dirty_files_summary(out))
+                return 1
+        else:
+            pre_status = "clean"
 
     warnings = 0
     roots = _get_lab_roots()
@@ -214,6 +268,20 @@ def main() -> int:
     # Post-render cleanup (Round 09)
     if args.restore_generated:
         _cleanup_generated(REPO_ROOT)
+
+    # ── Post-check (Round 10) ────────────────────────────────────────
+    if strict:
+        out, err = _git_status_porcelain(REPO_ROOT)
+        if err is not None:
+            print(f"[STRICT_CLEAN] post-check ERROR: {err}")
+            return 1
+        post_clean = _is_clean(out)
+        post_status = "clean" if post_clean else "dirty"
+        policy = "FAIL" if not post_clean else ("WARN" if pre_status == "dirty" else "PASS")
+        print(f"[STRICT_CLEAN] pre={pre_status} post={post_status} policy={policy}")
+        if not post_clean:
+            print(_dirty_files_summary(out))
+            return 1
 
     return 0
 
