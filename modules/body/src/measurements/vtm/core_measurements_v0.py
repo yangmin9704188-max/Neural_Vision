@@ -1387,6 +1387,103 @@ class SliceArtifact:
     chosen_candidate_index: Optional[int] = None  # If selected from multiple candidates
 
 
+# Refine02: Internal HIP band sweep configs (not exposed to contracts)
+HIP_BAND_CONFIGS = {
+    "A": {"y_start": 0.50, "y_end": 0.80, "tie_prefer_lower_y": True},
+    "B": {"y_start": 0.48, "y_end": 0.78, "tie_prefer_lower_y": True},
+    "C": {"y_start": 0.50, "y_end": 0.78, "tie_prefer_lower_y": True},
+    "D": {"y_start": 0.52, "y_end": 0.80, "tie_prefer_lower_y": True},
+    "E": {"y_start": 0.46, "y_end": 0.76, "tie_prefer_lower_y": True},
+    "B_high": {"y_start": 0.48, "y_end": 0.78, "tie_prefer_lower_y": False},
+}
+_HIP_BAND_OVERRIDE: Optional[Tuple[float, float, bool]] = None  # (y_start, y_end, tie_prefer_lower_y)
+
+
+def _hip_circumference_sweep_evaluate(
+    verts: np.ndarray,
+    y_start_ratio: float,
+    y_end_ratio: float,
+    tie_prefer_lower_y: bool,
+    case_id: Optional[str] = None,
+) -> Tuple[Optional[float], List[str]]:
+    """
+    Refine02: Internal experimental helper - compute HIP circumference with given band and tie-break.
+    Returns (value_m or None, warnings). Deterministic.
+    """
+    warnings: List[str] = []
+    verts = _as_np_f32(verts)
+    is_valid, w = _validate_verts(verts)
+    warnings.extend(w)
+    if not is_valid:
+        return float('nan'), warnings
+
+    y_coords = verts[:, 1]
+    y_min = float(np.min(y_coords))
+    y_max = float(np.max(y_coords))
+    y_range = y_max - y_min
+    if y_range < 1e-6:
+        warnings.append("BODY_AXIS_TOO_SHORT")
+        return float('nan'), warnings
+
+    y_start = y_min + y_start_ratio * y_range
+    y_end = y_min + y_end_ratio * y_range
+    num_slices = 20
+    slice_step = (y_end - y_start) / max(1, num_slices - 1)
+    tolerance = slice_step * 0.5
+
+    candidates: List[Dict[str, Any]] = []
+    for i in range(num_slices):
+        y_value = y_start + i * slice_step
+        perimeter, _ = _compute_circumference_at_height(
+            verts, y_value, tolerance, warnings, y_min, y_max, case_id=case_id
+        )
+        if perimeter is not None:
+            candidates.append({"y_value": y_value, "perimeter": perimeter, "slice_index": i})
+
+    if len(candidates) == 0:
+        warnings.append("EMPTY_CANDIDATES")
+        return float('nan'), warnings
+
+    if tie_prefer_lower_y:
+        selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
+    else:
+        selected = max(candidates, key=lambda c: (c["perimeter"], c["y_value"]))
+
+    vertices_2d, _ = _find_cross_section(
+        verts, selected["y_value"], tolerance, warnings, y_min, y_max,
+        target_mode="ratio", allow_nearest_fallback=False
+    )
+    if vertices_2d is None:
+        return float('nan'), warnings
+    perimeter = _compute_perimeter(vertices_2d)
+    return perimeter if perimeter is not None else float('nan'), warnings
+
+
+def _get_hip_band_config() -> Optional[Tuple[float, float, bool]]:
+    """Refine02: Return override if set, else None (use default)."""
+    return _HIP_BAND_OVERRIDE
+
+
+def set_hip_band_override(config_id: str) -> None:
+    """Refine02: Set HIP band override from HIP_BAND_CONFIGS. Internal/experimental."""
+    global _HIP_BAND_OVERRIDE
+    cfg = HIP_BAND_CONFIGS.get(config_id)
+    if cfg is None:
+        _HIP_BAND_OVERRIDE = None
+        return
+    _HIP_BAND_OVERRIDE = (
+        cfg["y_start"],
+        cfg["y_end"],
+        cfg["tie_prefer_lower_y"],
+    )
+
+
+def clear_hip_band_override() -> None:
+    """Refine02: Clear HIP band override."""
+    global _HIP_BAND_OVERRIDE
+    _HIP_BAND_OVERRIDE = None
+
+
 # -----------------------------
 # Group Measurements (Slice Sharing)
 # -----------------------------
@@ -1727,9 +1824,16 @@ def measure_hip_group_with_shared_slice(
         return results
     
     # HIP region (same as HIP_CIRC_M)
-    # Refine01: Shift band 0.50-0.80 -> 0.48-0.78 to reduce underestimation (dominant TORSO_LOWER)
-    y_start = y_min + 0.48 * y_range
-    y_end = y_min + 0.78 * y_range
+    # Refine01: Shift band 0.50-0.80 -> 0.48-0.78; Refine02: B selected by sweep; override via _HIP_BAND_OVERRIDE
+    override = _get_hip_band_config()
+    if override is not None:
+        y_start = y_min + override[0] * y_range
+        y_end = y_min + override[1] * y_range
+        tie_prefer_lower_y = override[2]
+    else:
+        y_start = y_min + 0.48 * y_range
+        y_end = y_min + 0.78 * y_range
+        tie_prefer_lower_y = True
     
     # Generate candidates and select best (HIP: max perimeter)
     num_slices = 20
@@ -1754,9 +1858,12 @@ def measure_hip_group_with_shared_slice(
                 "debug_info": debug_info
             })
     
-    # Select candidate (HIP: max perimeter; tie-break: prefer lower y = closer to hip prominence)
+    # Select candidate (HIP: max perimeter; tie-break: prefer lower y or higher y per override)
     if len(candidates) > 0:
-        selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
+        if tie_prefer_lower_y:
+            selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
+        else:
+            selected = max(candidates, key=lambda c: (c["perimeter"], c["y_value"]))
         chosen_candidate_index = selected["slice_index"]
         
         # Re-extract slice for the selected y_value
@@ -2038,9 +2145,14 @@ def measure_circumference_v0_with_metadata(
         landmark_confidence = "high"
         landmark_resolution = "direct"
     elif standard_key == "HIP_CIRC_M":
-        # Lower torso (hip maximum). Refine01: 0.48-0.78 to reduce underestimation (dominant TORSO_LOWER)
-        y_start = y_min + 0.48 * y_range
-        y_end = y_min + 0.78 * y_range
+        # Lower torso (hip maximum). Refine01: 0.48-0.78; Refine02: B selected by sweep; override via _HIP_BAND_OVERRIDE
+        override = _get_hip_band_config()
+        if override is not None:
+            y_start = y_min + override[0] * y_range
+            y_end = y_min + override[1] * y_range
+        else:
+            y_start = y_min + 0.48 * y_range
+            y_end = y_min + 0.78 * y_range
         landmark_confidence = "high"
         landmark_resolution = "direct"
     elif standard_key == "THIGH_CIRC_M":
@@ -2158,11 +2270,20 @@ def measure_circumference_v0_with_metadata(
     
     # Select candidate based on semantic rule
     # BUST/HIP: max (maximum protrusion); tie-break: prefer lower y (closer to prominence)
+    # HIP: Refine02 override tie-break when _HIP_BAND_OVERRIDE set
     # WAIST: semantic defines as "most constricted" but we use fixed height (no min search)
     # THIGH: max (maximum)
     # MIN_CALF: min (minimum)
     if standard_key in ["BUST_CIRC_M", "HIP_CIRC_M", "THIGH_CIRC_M"]:
-        selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
+        if standard_key == "HIP_CIRC_M":
+            hip_override = _get_hip_band_config()
+            tie_prefer_lower_y = hip_override[2] if hip_override is not None else True
+        else:
+            tie_prefer_lower_y = True
+        if tie_prefer_lower_y:
+            selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
+        else:
+            selected = max(candidates, key=lambda c: (c["perimeter"], c["y_value"]))
     elif standard_key == "MIN_CALF_CIRC_M":
         selected = min(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
         warnings.append("MIN_SEARCH_USED")  # Record that min search was used
