@@ -79,6 +79,52 @@ class TestStepIdMissingRuleAlignment(unittest.TestCase):
             self.assertLessEqual(len(events), 50)
 
 
+class TestTombstoneExempt(unittest.TestCase):
+    """Tombstone (SCHEMA_VIOLATION_BACKFILLED) exempts referenced legacy lines."""
+
+    def test_legacy_event_plus_tombstone_zero_warnings(self):
+        """Legacy event (missing event_type) + tombstone with referenced_line=N → 0 warnings."""
+        import tempfile
+        from tools.ops.validate_renderer_inputs import _validate_progress_log
+        with tempfile.TemporaryDirectory() as tmp:
+            lab = Path(tmp)
+            log_dir = lab / "exports" / "progress"
+            log_dir.mkdir(parents=True)
+            log_path = log_dir / "PROGRESS_LOG.jsonl"
+            # Line 1: legacy (no event_type)
+            legacy = {"ts": "2026-02-08T12:00:00", "module": "garment", "step_id": "G01", "note": "legacy"}
+            # Line 2: tombstone exempting line 1
+            tombstone = {
+                "ts": "2026-02-08T12:01:00", "module": "garment", "step_id": "G_BACKFILL",
+                "event_type": "INFO", "gate_codes": ["SCHEMA_VIOLATION_BACKFILLED"],
+                "note": "referenced_line=1; action=tombstone_append_only"
+            }
+            log_path.write_text(json.dumps(legacy) + "\n" + json.dumps(tombstone))
+            warns, exempted = _validate_progress_log(log_path)
+            self.assertEqual(len(warns), 0, f"expected 0 warnings, got {warns}")
+            self.assertEqual(exempted, 1, f"expected exempted=1, got {exempted}")
+
+    def test_malformed_note_no_exempt(self):
+        """Malformed note (no referenced_line parse) → exempt not applied, warnings remain."""
+        import tempfile
+        from tools.ops.validate_renderer_inputs import _validate_progress_log
+        with tempfile.TemporaryDirectory() as tmp:
+            lab = Path(tmp)
+            log_dir = lab / "exports" / "progress"
+            log_dir.mkdir(parents=True)
+            log_path = log_dir / "PROGRESS_LOG.jsonl"
+            legacy = {"ts": "2026-02-08T12:00:00", "module": "garment", "step_id": "G01", "note": "legacy"}
+            tombstone_bad = {
+                "ts": "2026-02-08T12:01:00", "module": "garment", "step_id": "G_BACKFILL",
+                "event_type": "INFO", "gate_codes": ["SCHEMA_VIOLATION_BACKFILLED"],
+                "note": "action=tombstone but no referenced_line"
+            }
+            log_path.write_text(json.dumps(legacy) + "\n" + json.dumps(tombstone_bad))
+            warns, exempted = _validate_progress_log(log_path)
+            self.assertGreater(len(warns), 0, "malformed tombstone should not exempt")
+            self.assertEqual(exempted, 0)
+
+
 class TestBriefFilenameRules(unittest.TestCase):
     """Brief filename rules: BODY_WORK_BRIEF.md, FITTING_WORK_BRIEF.md, GARMENT_WORK_BRIEF.md."""
 

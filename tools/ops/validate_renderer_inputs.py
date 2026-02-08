@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -63,6 +64,31 @@ def _load_schema() -> dict | None:
         return None
 
 
+def _collect_tombstone_exempt_lines(lines: list[str], log_path: Path) -> set[int]:
+    """Collect 1-indexed line numbers exempted by SCHEMA_VIOLATION_BACKFILLED tombstone events."""
+    exempt: set[int] = set()
+    for line in lines:
+        line = line.strip() if isinstance(line, str) else ""
+        if not line:
+            continue
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        gc = ev.get("gate_codes") or ev.get("gate_code")
+        if isinstance(gc, str):
+            gc = [gc] if gc else []
+        if not isinstance(gc, list) or "SCHEMA_VIOLATION_BACKFILLED" not in gc:
+            continue
+        note = str(ev.get("note") or "")
+        m = re.search(r"referenced_line=([\d/]+)", note)
+        if m:
+            for part in m.group(1).split("/"):
+                if part.strip().isdigit():
+                    exempt.add(int(part.strip()))
+    return exempt
+
+
 def _validate_event_manual(ev: dict, line_no: int) -> list[str]:
     """Manual minimal validation when jsonschema unavailable."""
     warns = []
@@ -84,35 +110,42 @@ def _validate_event_manual(ev: dict, line_no: int) -> list[str]:
     return warns
 
 
-def _validate_progress_log(log_path: Path) -> list[str]:
-    warns = []
+def _validate_progress_log(log_path: Path) -> tuple[list[str], int]:
+    """Validate PROGRESS_LOG. Returns (warnings, exempted_count)."""
+    warns: list[str] = []
+    exempted_count = 0
     if not log_path.exists():
         warns.append(_warn("PROGRESS_LOG_NOT_FOUND", "PROGRESS_LOG.jsonl not found", str(log_path)))
-        return warns
+        return warns, 0
     try:
         lines = log_path.read_text(encoding="utf-8", errors="replace").strip().splitlines()
     except Exception as e:
         warns.append(_warn("PROGRESS_LOG_READ_FAIL", str(e), str(log_path)))
-        return warns
+        return warns, 0
     lines = [ln.strip() for ln in lines if ln.strip()][-MAX_LINES:]
+    exempt = _collect_tombstone_exempt_lines(lines, log_path)
     schema = _load_schema()
     for i, line in enumerate(lines):
+        line_no = i + 1
+        if line_no in exempt:
+            exempted_count += 1
+            continue
         try:
             ev = json.loads(line)
         except json.JSONDecodeError as e:
-            warns.append(_warn("PROGRESS_LOG_PARSE_FAIL", f"line {i+1}: {e}", str(log_path)))
+            warns.append(_warn("PROGRESS_LOG_PARSE_FAIL", f"line {line_no}: {e}", str(log_path)))
             continue
         if schema:
             try:
                 import jsonschema
                 jsonschema.validate(ev, schema)
             except ImportError:
-                warns.extend(_validate_event_manual(ev, i + 1))
+                warns.extend(_validate_event_manual(ev, line_no))
             except jsonschema.ValidationError as e:
-                warns.append(_warn("SCHEMA_VIOLATION", f"line {i+1}: {e.message}", str(log_path)))
+                warns.append(_warn("SCHEMA_VIOLATION", f"line {line_no}: {e}", str(log_path)))
         else:
-            warns.extend(_validate_event_manual(ev, i + 1))
-    return warns
+            warns.extend(_validate_event_manual(ev, line_no))
+    return warns, exempted_count
 
 
 def _validate_brief_files(roots: dict[str, Path | None]) -> list[str]:
@@ -172,6 +205,7 @@ def _update_hub_state_diagnostics(warnings: list[str]) -> None:
 
 def main() -> int:
     warnings: list[str] = []
+    exempted_total = 0
     roots = _get_lab_roots()
 
     warnings.extend(_validate_master_plan())
@@ -182,7 +216,9 @@ def main() -> int:
         if root is None or not root.exists():
             continue
         log_path = root / "exports" / "progress" / "PROGRESS_LOG.jsonl"
-        warnings.extend(_validate_progress_log(log_path))
+        w, exempted = _validate_progress_log(log_path)
+        warnings.extend(w)
+        exempted_total += exempted
 
     if not LAB_ROOTS_PATH.exists():
         warnings.append(_warn("LAB_ROOTS_MISSING", "ops/lab_roots.local.json not found (fitting/garment optional)", str(LAB_ROOTS_PATH)))
@@ -193,10 +229,11 @@ def main() -> int:
         _update_hub_state_diagnostics(warnings)
 
     n = len(warnings)
+    summary_suffix = f" exempted={exempted_total}" if exempted_total else ""
     if n == 0:
-        print("validate_renderer_inputs: OK (no warnings)")
+        print(f"validate_renderer_inputs: OK (no warnings){summary_suffix}")
     else:
-        print(f"validate_renderer_inputs: {n} warning(s)")
+        print(f"validate_renderer_inputs: {n} warning(s){summary_suffix}")
         for w in warnings[:15]:
             print(f"  {w}")
         if n > 15:
