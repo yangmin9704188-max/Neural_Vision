@@ -17,6 +17,11 @@
 - 레거시 [DOD_CLAIM_PROTOCOL_v1](docs/ops/dashboard_legacy/DOD_CLAIM_PROTOCOL_v1.md) 참조
 
 ## Commands
+### Standard Loop (Round 04)
+- `py tools/ops/run_ops_loop.py --mode quick` — 표준 루프: doctor + next_step + render_status
+- `py tools/ops/run_ops_loop.py --mode full` — 전체 검증: doctor + u2_smokes + next_step + render_briefs+status
+
+### Individual Tools
 - `py tools/ops/doctor.py` — 레포 부트스트랩/헬스 체크 (read-only, --fix로 누락 디렉토리 생성)
 - `py tools/smoke/run_u2_smokes.py` — U2 스모크 3종 실행 (Freeze §3: OK/HardGate/Degraded)
 - `py tools/agent/plan_lint.py --plan contracts/master_plan_v1.json` — Plan 구조 검증

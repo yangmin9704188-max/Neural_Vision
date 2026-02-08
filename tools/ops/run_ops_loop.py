@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+"""run_ops_loop.py — Standard ops loop entrypoint (Round 04).
+
+Orchestrates the standard verification/progress workflow:
+  - quick mode: doctor + next_step + render_status
+  - full mode: doctor + u2_smokes + (optional u1 validators) + next_step + render_briefs+status
+
+Exit codes: 0 = PASS/WARN, 1 = FAIL
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+# ── Constants ────────────────────────────────────────────────────────
+
+PASS = "PASS"
+WARN = "WARN"
+FAIL = "FAIL"
+
+CORE_TOOLS = {
+    "doctor": "tools/ops/doctor.py",
+    "next_step": "tools/agent/next_step.py",
+    "u2_smokes": "tools/smoke/run_u2_smokes.py",
+}
+
+OPTIONAL_TOOLS = {
+    "render_status": "tools/render_status.py",
+    "render_work_briefs": "tools/render_work_briefs.py",
+}
+
+VALIDATORS = {
+    "body": "tools/validate/validate_u1_body.py",
+    "garment": "tools/validate/validate_u1_garment.py",
+    "fitting": "tools/validate/validate_u1_fitting.py",
+}
+
+
+class ToolResult:
+    """Result of a single tool execution."""
+    __slots__ = ("tool_name", "exit_code", "stdout", "stderr", "severity")
+
+    def __init__(self, tool_name: str, exit_code: int, stdout: str, stderr: str):
+        self.tool_name = tool_name
+        self.exit_code = exit_code
+        self.stdout = stdout
+        self.stderr = stderr
+        self.severity = self._compute_severity()
+
+    def _compute_severity(self) -> str:
+        if self.exit_code == 0:
+            # Check first line for SUMMARY indicators
+            first_line = self.stdout.split("\n")[0] if self.stdout else ""
+            if "SUMMARY:" in first_line:
+                if "FAIL" in first_line:
+                    return FAIL
+                elif "WARN" in first_line:
+                    return WARN
+                else:
+                    return PASS
+            # Fallback: check full stdout
+            elif "FAIL" in self.stdout:
+                return FAIL
+            elif "WARN" in self.stdout:
+                return WARN
+            else:
+                return PASS
+        else:
+            return FAIL
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "tool_name": self.tool_name,
+            "exit_code": self.exit_code,
+            "severity": self.severity,
+            "stdout_preview": self.stdout[:500] if self.stdout else "",
+            "stderr_preview": self.stderr[:200] if self.stderr else "",
+        }
+
+
+# ── Repo root detection ──────────────────────────────────────────────
+
+def find_repo_root(start_dir: Optional[Path] = None) -> Optional[Path]:
+    """Find repository root by walking up until .git/ or project_map.md."""
+    if start_dir is None:
+        start_dir = Path.cwd()
+    current = start_dir.resolve()
+    while True:
+        if (current / ".git").is_dir():
+            return current
+        if (current / "project_map.md").is_file():
+            return current
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
+
+
+# ── Tool execution ───────────────────────────────────────────────────
+
+def run_tool(repo_root: Path, tool_path: str, args: List[str]) -> ToolResult:
+    """Execute a tool and capture result."""
+    full_path = repo_root / tool_path
+    if not full_path.is_file():
+        return ToolResult(tool_path, 1, "", f"File not found: {full_path}")
+
+    cmd = [sys.executable, str(full_path)] + args
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=180,
+        )
+        return ToolResult(tool_path, result.returncode, result.stdout, result.stderr)
+    except subprocess.TimeoutExpired:
+        return ToolResult(tool_path, 1, "", "Timeout (>180s)")
+    except Exception as exc:
+        return ToolResult(tool_path, 1, "", f"Execution error: {exc}")
+
+
+# ── Output formatting ────────────────────────────────────────────────
+
+def _safe_print(text: str = "") -> None:
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode("ascii", errors="replace").decode("ascii"))
+
+
+def print_summary(results: List[ToolResult], mode: str, *,
+                  json_output: bool = False) -> int:
+    """Print summary and return exit code."""
+    worst = PASS
+    counts = {PASS: 0, WARN: 0, FAIL: 0}
+    for r in results:
+        counts[r.severity] = counts.get(r.severity, 0) + 1
+        rank = {PASS: 0, WARN: 1, FAIL: 2}.get(r.severity, 0)
+        worst_rank = {PASS: 0, WARN: 1, FAIL: 2}.get(worst, 0)
+        if rank > worst_rank:
+            worst = r.severity
+
+    if json_output:
+        out = {
+            "summary": worst,
+            "mode": mode,
+            "tools_run": [r.to_dict() for r in results],
+        }
+        _safe_print(json.dumps(out, indent=2, ensure_ascii=False))
+        return 1 if worst == FAIL else 0
+
+    # Human-readable
+    if worst == PASS:
+        _safe_print("OPS LOOP SUMMARY: PASS")
+    else:
+        _safe_print(f"OPS LOOP SUMMARY: {worst} ({counts[worst]})")
+    _safe_print()
+
+    _safe_print(f"-- Mode: {mode} --")
+    _safe_print()
+
+    for r in results:
+        _safe_print(f"-- {r.tool_name} [{r.severity}] --")
+        # Print first 20 lines of stdout
+        lines = r.stdout.split("\n")[:20]
+        for line in lines:
+            _safe_print(f"  {line}")
+        if len(r.stdout.split("\n")) > 20:
+            _safe_print("  ...")
+        if r.stderr:
+            _safe_print(f"  [stderr]: {r.stderr[:200]}")
+        _safe_print()
+
+    _safe_print("-- Next Actions --")
+    if worst == FAIL:
+        _safe_print("  Fix FAIL items above, then re-run.")
+    else:
+        _safe_print("  py tools/agent/next_step.py --module all --top 5")
+        _safe_print("  py tools/ops/run_ops_loop.py --mode full  # for comprehensive check")
+
+    return 1 if worst == FAIL else 0
+
+
+# ── Main ─────────────────────────────────────────────────────────────
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Standard ops loop entrypoint (Round 04)")
+    parser.add_argument("--mode", type=str, default="quick",
+                        choices=["quick", "full"],
+                        help="Execution mode (default: quick)")
+    parser.add_argument("--top", type=int, default=5,
+                        help="Number of top next steps (default: 5)")
+    parser.add_argument("--module", type=str, default="all",
+                        choices=["body", "garment", "fitting", "common", "all"],
+                        help="Module filter for next_step (default: all)")
+    parser.add_argument("--plan", type=str, default="contracts/master_plan_v1.json",
+                        help="Path to plan JSON (default: contracts/master_plan_v1.json)")
+    parser.add_argument("--run-dir", type=str, default=None,
+                        help="Run directory for U1 validators (optional)")
+    parser.add_argument("--skip-render", action="store_true",
+                        help="Skip render_briefs/render_status")
+    parser.add_argument("--json", dest="json_output", action="store_true",
+                        help="Output structured JSON")
+    args = parser.parse_args(argv)
+
+    # Repo root
+    repo_root = find_repo_root()
+    if not repo_root:
+        _safe_print("ERROR: Could not find repo root. Run from repo directory.")
+        return 1
+
+    results: List[ToolResult] = []
+
+    # 1. Doctor (always)
+    results.append(run_tool(repo_root, CORE_TOOLS["doctor"], []))
+
+    # 2. Mode-specific tools
+    if args.mode == "full":
+        # U2 smokes
+        results.append(run_tool(repo_root, CORE_TOOLS["u2_smokes"], []))
+
+        # U1 validators (if run-dir provided)
+        if args.run_dir:
+            run_dir_path = Path(args.run_dir)
+            if not run_dir_path.is_absolute():
+                run_dir_path = repo_root / run_dir_path
+
+            for module, validator_path in VALIDATORS.items():
+                validator_full = repo_root / validator_path
+                if validator_full.is_file():
+                    results.append(run_tool(repo_root, validator_path,
+                                           ["--run-dir", str(run_dir_path)]))
+
+    # 3. Next step (always)
+    next_step_args = [
+        "--module", args.module,
+        "--top", str(args.top),
+        "--plan", args.plan,
+    ]
+    results.append(run_tool(repo_root, CORE_TOOLS["next_step"], next_step_args))
+
+    # 4. Render (if not skipped and mode=full)
+    if not args.skip_render:
+        if args.mode == "full":
+            # render_work_briefs (optional)
+            briefs_path = OPTIONAL_TOOLS["render_work_briefs"]
+            if (repo_root / briefs_path).is_file():
+                results.append(run_tool(repo_root, briefs_path, []))
+            else:
+                results.append(ToolResult(briefs_path, 0, "[SKIP] Not found", ""))
+
+        # render_status (both modes)
+        status_path = OPTIONAL_TOOLS["render_status"]
+        if (repo_root / status_path).is_file():
+            results.append(run_tool(repo_root, status_path, []))
+        else:
+            results.append(ToolResult(status_path, 0, "[SKIP] Not found", ""))
+
+    # Print summary
+    return print_summary(results, args.mode, json_output=args.json_output)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
