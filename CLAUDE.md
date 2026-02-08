@@ -41,6 +41,7 @@
 - Hub가 외부 Lab 폴더에 쓸 수 있는 유일 경로: `<lab_root>/exports/brief/**`
 - 그 외 경로에 대한 cross-folder write는 금지.
 - PROGRESS_LOG는 각 폴더가 자기 이벤트를 append하는 것이 원칙.
+- Lab roots 설정: env var(FITTING_LAB_ROOT/GARMENT_LAB_ROOT) 또는 `ops/lab_roots.local.json` 사용 (둘 중 하나만 있으면 OK).
 
 ### 3.3 Generated-only / Append-only
 - `exports/brief/**` : generated-only (수동 편집 금지)
