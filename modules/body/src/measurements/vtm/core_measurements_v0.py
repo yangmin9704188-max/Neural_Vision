@@ -18,6 +18,7 @@ import json
 import math
 
 from modules.body.src.measurements.vtm.metadata_v0 import create_metadata_v0, get_evidence_ref
+from modules.body.src.measurements.vtm.pelvis_frame_v0 import get_pelvis_frame
 
 # -----------------------------
 # Types
@@ -676,6 +677,62 @@ def _find_cross_section(
     # Project to x-z plane
     vertices_2d = slice_verts[:, [0, 2]]
     return vertices_2d, debug_info
+
+
+def _find_cross_section_by_h(
+    verts: np.ndarray,
+    h_value: float,
+    tolerance: float,
+    pelvis_origin: np.ndarray,
+    up_axis: np.ndarray,
+    warnings: List[str],
+) -> tuple[Optional[np.ndarray], Optional[Dict[str, Any]]]:
+    """
+    Refine04: Find cross-section at pelvis-relative height h_value.
+    h = dot(v - pelvis_origin, up_axis). Plane perpendicular to up_axis; 2D projection for perimeter.
+    Returns (vertices_2d (N,2) or None, debug_info or None).
+    """
+    verts = _as_np_f32(verts)
+    pelvis_origin = _as_np_f32(pelvis_origin)
+    up_axis = _as_np_f32(up_axis)
+    h_all = np.dot(verts - pelvis_origin, up_axis)
+    h_min = float(np.min(h_all))
+    h_max = float(np.max(h_all))
+    h_range = h_max - h_min
+    debug_info = {
+        "target_mode": "pelvis_relative_h",
+        "target_h_m": float(h_value),
+        "h_axis_length_m": float(h_range),
+        "slice_half_thickness_m": float(tolerance),
+        "candidates_count": 0,
+        "reason_not_found": None,
+    }
+    if h_range < 1e-6:
+        debug_info["reason_not_found"] = "axis_invalid"
+        return None, debug_info
+    if tolerance < 1e-6:
+        debug_info["reason_not_found"] = "too_thin_slice"
+        return None, debug_info
+    mask = np.abs(h_all - h_value) < tolerance
+    candidate_count = int(np.sum(mask))
+    debug_info["candidates_count"] = candidate_count
+    if candidate_count < 3:
+        debug_info["reason_not_found"] = "empty_slice" if candidate_count > 0 else "mesh_empty_at_height"
+        return None, debug_info
+    slice_verts = verts[mask]
+    center = pelvis_origin + h_value * up_axis
+    # Plane basis: up_axis = (0,1,0) -> use x,z; else deterministic orthonormal in plane
+    up = up_axis / (np.linalg.norm(up_axis) + 1e-9)
+    if np.abs(up[0]) < 0.9:
+        e1 = np.cross(up, np.array([1.0, 0.0, 0.0], dtype=np.float32))
+    else:
+        e1 = np.cross(up, np.array([0.0, 0.0, 1.0], dtype=np.float32))
+    e1 = e1 / (np.linalg.norm(e1) + 1e-9)
+    e2 = np.cross(up, e1)
+    e2 = e2 / (np.linalg.norm(e2) + 1e-9)
+    rel = slice_verts - center
+    pts_2d = np.stack([np.dot(rel, e1), np.dot(rel, e2)], axis=1).astype(np.float32)
+    return pts_2d, debug_info
 
 
 def _find_nearest_valid_plane(
@@ -1387,6 +1444,27 @@ class SliceArtifact:
     chosen_candidate_index: Optional[int] = None  # If selected from multiple candidates
 
 
+def _compute_circumference_at_h(
+    verts: np.ndarray,
+    h_value: float,
+    tolerance: float,
+    pelvis_origin: np.ndarray,
+    up_axis: np.ndarray,
+    warnings: List[str],
+) -> tuple[Optional[float], Optional[Dict[str, Any]]]:
+    """
+    Refine04: Compute circumference at pelvis-relative height h_value.
+    Returns (perimeter or None, debug_info or None). Deterministic.
+    """
+    vertices_2d, debug_info = _find_cross_section_by_h(
+        verts, h_value, tolerance, pelvis_origin, up_axis, warnings
+    )
+    if vertices_2d is None:
+        return None, debug_info
+    perimeter = _compute_perimeter(vertices_2d)
+    return perimeter, debug_info
+
+
 # Refine02: Internal HIP band sweep configs (not exposed to contracts)
 HIP_BAND_CONFIGS = {
     "A": {"y_start": 0.50, "y_end": 0.80, "tie_prefer_lower_y": True},
@@ -1482,6 +1560,35 @@ def clear_hip_band_override() -> None:
     """Refine02: Clear HIP band override."""
     global _HIP_BAND_OVERRIDE
     _HIP_BAND_OVERRIDE = None
+
+
+# Refine04: HIP method toggle (world_y_band vs pelvis_frame_band). Default world_y_band until proven.
+HIP_METHOD_WORLD_Y_BAND = "world_y_band"
+HIP_METHOD_PELVIS_FRAME_BAND = "pelvis_frame_band"
+_HIP_METHOD_OVERRIDE: Optional[str] = None
+
+
+def get_hip_method() -> str:
+    """Refine04: Return current HIP method. Default world_y_band."""
+    global _HIP_METHOD_OVERRIDE
+    if _HIP_METHOD_OVERRIDE is not None:
+        return _HIP_METHOD_OVERRIDE
+    return HIP_METHOD_WORLD_Y_BAND
+
+
+def set_hip_method(method: str) -> None:
+    """Refine04: Set HIP method (world_y_band | pelvis_frame_band). Internal/experimental."""
+    global _HIP_METHOD_OVERRIDE
+    if method in (HIP_METHOD_WORLD_Y_BAND, HIP_METHOD_PELVIS_FRAME_BAND):
+        _HIP_METHOD_OVERRIDE = method
+    else:
+        _HIP_METHOD_OVERRIDE = None
+
+
+def clear_hip_method() -> None:
+    """Refine04: Reset HIP method to default (world_y_band)."""
+    global _HIP_METHOD_OVERRIDE
+    _HIP_METHOD_OVERRIDE = None
 
 
 # -----------------------------
@@ -1823,65 +1930,123 @@ def measure_hip_group_with_shared_slice(
             results[key] = MeasurementResult(standard_key=key, value_m=float('nan'), metadata=metadata)
         return results
     
-    # HIP region (same as HIP_CIRC_M)
-    # Refine01: Shift band 0.50-0.80 -> 0.48-0.78; Refine02: B selected by sweep; override via _HIP_BAND_OVERRIDE
-    override = _get_hip_band_config()
-    if override is not None:
-        y_start = y_min + override[0] * y_range
-        y_end = y_min + override[1] * y_range
-        tie_prefer_lower_y = override[2]
-    else:
-        y_start = y_min + 0.48 * y_range
-        y_end = y_min + 0.78 * y_range
-        tie_prefer_lower_y = True
-    
-    # Generate candidates and select best (HIP: max perimeter)
-    num_slices = 20
-    slice_step = (y_end - y_start) / max(1, num_slices - 1)
-    tolerance = slice_step * 0.5
-    
-    candidates = []
-    cross_section_debug_list = []
+    use_pelvis_frame = get_hip_method() == HIP_METHOD_PELVIS_FRAME_BAND
+    pelvis_origin = None
+    up_axis = None
     chosen_slice_artifact = None
     chosen_candidate_index = None
     
-    for i in range(num_slices):
-        y_value = y_start + i * slice_step
-        perimeter, debug_info = _compute_circumference_at_height(verts, y_value, tolerance, warnings_circ, y_min, y_max, case_id=case_id)
-        if debug_info:
-            cross_section_debug_list.append(debug_info)
-        if perimeter is not None:
-            candidates.append({
-                "y_value": y_value,
-                "perimeter": perimeter,
-                "slice_index": i,
-                "debug_info": debug_info
-            })
+    if use_pelvis_frame:
+        pelvis_origin, up_axis, frame_warnings = get_pelvis_frame(verts)
+        warnings_circ.extend(frame_warnings)
+        if pelvis_origin is None or up_axis is None:
+            warnings_circ.append("HIP_FRAME_FALLBACK_TO_WORLD_Y")
+            use_pelvis_frame = False
     
-    # Select candidate (HIP: max perimeter; tie-break: prefer lower y or higher y per override)
-    if len(candidates) > 0:
-        if tie_prefer_lower_y:
-            selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
+    if use_pelvis_frame and pelvis_origin is not None and up_axis is not None:
+        # Refine04: pelvis-relative band [h0, h1]; max perimeter; tie-break: h closest to target, then slice_index
+        h_all = np.dot(verts - pelvis_origin, up_axis)
+        h_min = float(np.min(h_all))
+        h_max = float(np.max(h_all))
+        h_range = h_max - h_min
+        if h_range < 1e-6:
+            warnings_circ.append("BODY_AXIS_TOO_SHORT")
+            use_pelvis_frame = False
         else:
-            selected = max(candidates, key=lambda c: (c["perimeter"], c["y_value"]))
-        chosen_candidate_index = selected["slice_index"]
+            h_start = h_min + 0.48 * h_range
+            h_end = h_min + 0.78 * h_range
+            num_slices = 20
+            slice_step = (h_end - h_start) / max(1, num_slices - 1)
+            tolerance = slice_step * 0.5
+            candidates = []
+            cross_section_debug_list = []
+            for i in range(num_slices):
+                h_value = h_start + i * slice_step
+                perimeter, debug_info = _compute_circumference_at_h(
+                    verts, h_value, tolerance, pelvis_origin, up_axis, warnings_circ
+                )
+                if debug_info:
+                    cross_section_debug_list.append(debug_info)
+                if perimeter is not None:
+                    candidates.append({"h_value": h_value, "perimeter": perimeter, "slice_index": i, "debug_info": debug_info})
+            if len(candidates) == 0:
+                warnings_circ.append("EMPTY_CANDIDATES")
+            else:
+                h_target = h_start + 0.5 * (h_end - h_start)
+                selected = max(
+                    candidates,
+                    key=lambda c: (c["perimeter"], -abs(c["h_value"] - h_target), -c["slice_index"]),
+                )
+                vertices_2d, cross_section_debug = _find_cross_section_by_h(
+                    verts, selected["h_value"], tolerance, pelvis_origin, up_axis, []
+                )
+                if vertices_2d is not None:
+                    chosen_slice_artifact = SliceArtifact(
+                        vertices_2d=vertices_2d,
+                        y_value=selected["h_value"],
+                        tolerance=tolerance,
+                        candidates_count=cross_section_debug.get("candidates_count", 0) if cross_section_debug else 0,
+                        cross_section_debug=cross_section_debug or {},
+                        chosen_candidate_index=selected["slice_index"],
+                    )
+                    chosen_candidate_index = selected["slice_index"]
+    
+    if not use_pelvis_frame or chosen_slice_artifact is None:
+        # HIP region (world_y_band or fallback): Refine01/02 B band; override via _HIP_BAND_OVERRIDE
+        override = _get_hip_band_config()
+        if override is not None:
+            y_start = y_min + override[0] * y_range
+            y_end = y_min + override[1] * y_range
+            tie_prefer_lower_y = override[2]
+        else:
+            y_start = y_min + 0.48 * y_range
+            y_end = y_min + 0.78 * y_range
+            tie_prefer_lower_y = True
         
-        # Re-extract slice for the selected y_value
-        vertices_2d, cross_section_debug = _find_cross_section(
-            verts, selected["y_value"], tolerance, warnings_circ, y_min, y_max,
-            target_mode="ratio",
-            allow_nearest_fallback=False
-        )
+        num_slices = 20
+        slice_step = (y_end - y_start) / max(1, num_slices - 1)
+        tolerance = slice_step * 0.5
         
-        if vertices_2d is not None:
-            chosen_slice_artifact = SliceArtifact(
-                vertices_2d=vertices_2d,
-                y_value=selected["y_value"],
-                tolerance=tolerance,
-                candidates_count=cross_section_debug.get("candidates_count", 0) if cross_section_debug else 0,
-                cross_section_debug=cross_section_debug or {},
-                chosen_candidate_index=chosen_candidate_index
+        candidates = []
+        cross_section_debug_list = []
+        chosen_slice_artifact = None
+        chosen_candidate_index = None
+        
+        for i in range(num_slices):
+            y_value = y_start + i * slice_step
+            perimeter, debug_info = _compute_circumference_at_height(verts, y_value, tolerance, warnings_circ, y_min, y_max, case_id=case_id)
+            if debug_info:
+                cross_section_debug_list.append(debug_info)
+            if perimeter is not None:
+                candidates.append({
+                    "y_value": y_value,
+                    "perimeter": perimeter,
+                    "slice_index": i,
+                    "debug_info": debug_info
+                })
+        
+        if len(candidates) > 0:
+            if tie_prefer_lower_y:
+                selected = max(candidates, key=lambda c: (c["perimeter"], -c["y_value"]))
+            else:
+                selected = max(candidates, key=lambda c: (c["perimeter"], c["y_value"]))
+            chosen_candidate_index = selected["slice_index"]
+            
+            vertices_2d, cross_section_debug = _find_cross_section(
+                verts, selected["y_value"], tolerance, warnings_circ, y_min, y_max,
+                target_mode="ratio",
+                allow_nearest_fallback=False
             )
+            
+            if vertices_2d is not None:
+                chosen_slice_artifact = SliceArtifact(
+                    vertices_2d=vertices_2d,
+                    y_value=selected["y_value"],
+                    tolerance=tolerance,
+                    candidates_count=cross_section_debug.get("candidates_count", 0) if cross_section_debug else 0,
+                    cross_section_debug=cross_section_debug or {},
+                    chosen_candidate_index=chosen_candidate_index
+                )
     
     # Step 2: Compute HIP_CIRC_M from chosen slice
     if chosen_slice_artifact is not None:

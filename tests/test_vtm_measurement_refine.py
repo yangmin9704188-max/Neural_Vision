@@ -168,5 +168,89 @@ class TestHIPBandSweep(unittest.TestCase):
             self.assertGreater(abs(v_default - v_d), 1e-6, "config D must differ from default B")
 
 
+class TestHIPMethodPelvisFrame(unittest.TestCase):
+    """Refine04: pelvis_frame_band HIP method - determinism, finite, sane range."""
+
+    def setUp(self) -> None:
+        self.assertTrue(VTM_MESH_FIXTURE.exists(), f"Mesh fixture missing: {VTM_MESH_FIXTURE}")
+
+    def test_pelvis_frame_band_deterministic(self) -> None:
+        """pelvis_frame_band: run twice, HIP_CIRC_M must match."""
+        from modules.body.src.measurements.vtm.core_measurements_v0 import (
+            measure_hip_group_with_shared_slice,
+            set_hip_method,
+            clear_hip_method,
+            HIP_METHOD_PELVIS_FRAME_BAND,
+        )
+        verts = _load_verts(VTM_MESH_FIXTURE)
+        set_hip_method(HIP_METHOD_PELVIS_FRAME_BAND)
+        try:
+            r1 = measure_hip_group_with_shared_slice(verts)
+            r2 = measure_hip_group_with_shared_slice(verts)
+            h1 = getattr(r1.get("HIP_CIRC_M"), "value_m", None)
+            h2 = getattr(r2.get("HIP_CIRC_M"), "value_m", None)
+            self.assertIsNotNone(h1, "HIP_CIRC_M run1 should be value or null")
+            self.assertIsNotNone(h2, "HIP_CIRC_M run2 should be value or null")
+            if h1 is not None and h2 is not None:
+                self.assertFalse(math.isnan(h1) or math.isinf(h1), "no NaN/Inf")
+                self.assertAlmostEqual(h1, h2, delta=1e-9, msg="pelvis_frame_band must be deterministic")
+        finally:
+            clear_hip_method()
+
+    def test_pelvis_frame_band_finite_sane_range(self) -> None:
+        """pelvis_frame_band: HIP_CIRC_M finite and in sane range (0.4–2.5 m)."""
+        from modules.body.src.measurements.vtm.core_measurements_v0 import (
+            measure_hip_group_with_shared_slice,
+            set_hip_method,
+            clear_hip_method,
+            HIP_METHOD_PELVIS_FRAME_BAND,
+        )
+        verts = _load_verts(VTM_MESH_FIXTURE)
+        set_hip_method(HIP_METHOD_PELVIS_FRAME_BAND)
+        try:
+            r = measure_hip_group_with_shared_slice(verts)
+            hip = r.get("HIP_CIRC_M")
+            v = getattr(hip, "value_m", None) if hip else None
+            self.assertTrue(
+                v is None or (isinstance(v, (int, float)) and math.isfinite(v)),
+                "HIP must be null or finite"
+            )
+            if v is not None:
+                self.assertGreaterEqual(v, CIRC_MIN_M, f"HIP={v} below sane min")
+                self.assertLessEqual(v, CIRC_MAX_M, f"HIP={v} above sane max")
+        finally:
+            clear_hip_method()
+
+
+class TestPelvisFrameV0(unittest.TestCase):
+    """Refine04: get_pelvis_frame - deterministic, fallback when mesh invalid."""
+
+    def test_pelvis_frame_mesh_only_deterministic(self) -> None:
+        """get_pelvis_frame(verts) without joints: origin and up_axis deterministic across runs."""
+        from modules.body.src.measurements.vtm.pelvis_frame_v0 import get_pelvis_frame
+        verts = _load_verts(VTM_MESH_FIXTURE)
+        o1, u1, w1 = get_pelvis_frame(verts)
+        o2, u2, w2 = get_pelvis_frame(verts)
+        self.assertIsNotNone(o1, "origin should be computed")
+        self.assertIsNotNone(u1, "up_axis should be computed")
+        self.assertEqual(len(o1), 3)
+        self.assertEqual(len(u1), 3)
+        for i in range(3):
+            self.assertAlmostEqual(float(o1[i]), float(o2[i]), delta=1e-9)
+            self.assertAlmostEqual(float(u1[i]), float(u2[i]), delta=1e-9)
+        self.assertFalse(any(math.isnan(x) or math.isinf(x) for x in o1))
+        self.assertFalse(any(math.isnan(x) or math.isinf(x) for x in u1))
+
+    def test_pelvis_frame_fallback_on_invalid_verts(self) -> None:
+        """Too few verts or invalid shape: fallback warning, None origin/up."""
+        import numpy as np
+        from modules.body.src.measurements.vtm.pelvis_frame_v0 import get_pelvis_frame
+        bad = np.zeros((2, 3), dtype=np.float32)  # too few points for band
+        o, u, w = get_pelvis_frame(bad)
+        self.assertIsNone(o)
+        self.assertIsNone(u)
+        self.assertTrue(any("HIP_FRAME_FALLBACK" in x for x in w), "expect fallback warning")
+
+
 if __name__ == "__main__":
     unittest.main()
