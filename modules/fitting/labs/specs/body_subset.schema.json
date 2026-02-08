@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "specs/body_subset.schema.json",
+  "title": "Body Subset Input Schema v1",
+  "description": "Body subset input for fitting. Unit m, pose PZ1. Values: measurement keys -> number|null. NaN/Infinity in input serialize as null.",
+  "type": "object",
+  "required": ["schema_version", "unit", "pose_id", "values"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "body_subset.v1",
+      "description": "Schema version (fixed v1)."
+    },
+    "unit": {
+      "type": "string",
+      "const": "m",
+      "description": "Unit (meters)."
+    },
+    "pose_id": {
+      "type": "string",
+      "const": "PZ1",
+      "description": "Pose identifier (canonical PZ1)."
+    },
+    "values": {
+      "type": "object",
+      "description": "Measurement keys -> number|null. Keys may be aliases; normalization via body_subset_keymap.",
+      "additionalProperties": {
+        "type": ["number", "null"]
+      }
+    }
+  }
+}

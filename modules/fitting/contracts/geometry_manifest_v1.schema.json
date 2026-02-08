@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "contracts/geometry_manifest_v1.schema.json",
+  "title": "Geometry Manifest Schema v1 (MAIN canonical)",
+  "description": "v1: schema_version, module_name, contract_version, created_at, inputs_fingerprint, version_keys, artifacts, warnings. All paths relative to leaf run_dir.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "module_name",
+    "contract_version",
+    "created_at",
+    "inputs_fingerprint",
+    "version_keys",
+    "artifacts",
+    "warnings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "geometry_manifest.v1"
+    },
+    "module_name": {
+      "type": "string",
+      "enum": ["body", "garment", "fitting"]
+    },
+    "contract_version": {
+      "type": "string",
+      "description": "Contract version (e.g. v0)"
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "UTC date-time seconds+Z (YYYY-MM-DDTHH:MM:SSZ). Must NOT be included in inputs_fingerprint."
+    },
+    "inputs_fingerprint": {
+      "type": "string",
+      "description": "Deterministic fingerprint of inputs only (e.g. sha256:stub). Must NOT include created_at."
+    },
+    "version_keys": {
+      "type": "object",
+      "required": ["snapshot_version", "semantic_version", "geometry_impl_version", "dataset_version"],
+      "additionalProperties": false,
+      "properties": {
+        "snapshot_version": { "type": "string" },
+        "semantic_version": { "type": "string" },
+        "geometry_impl_version": { "type": "string" },
+        "dataset_version": { "type": "string" }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Relative paths to artifact files (must exist under leaf run_dir)"
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Warning codes/messages"
+    }
+  }
+}

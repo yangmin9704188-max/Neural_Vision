@@ -57,15 +57,15 @@
 - `ops/lab_roots.local.json` 은 로컬 전용(gitignore). `ops/lab_roots.local.json.example` 참고.
 - brief가 없으면 STATUS에 N/A + warning으로 표기됨.
 
-## Standard Operating Mode (External Labs)
-- 랩 분리: fitting_lab / garment_lab 은 별도 폴더(깃 연동 없을 수 있음).
+## Standard Operating Mode (Monorepo Labs)
+- 랩 위치: modules/fitting, modules/garment (모노레포 내부).
 - 랩 책임(Writer): 각 랩은 `<lab_root>/exports/progress/PROGRESS_LOG.jsonl` 에 append-only로 이벤트 기록.
   - 권장 훅: `<lab_root>/tools/run_end_hook.ps1` (event=run_finished, dod_done_delta=0).
 - 메인 책임(Renderer): 메인은 랩의 exports/progress를 read하여
   - `py tools/render_work_briefs.py` → `<lab_root>/exports/brief/*_WORK_BRIEF.md` 생성/갱신
   - `py tools/render_status.py` → ops/STATUS.md 마커 내부만 갱신
-- 경로: ENV(`FITTING_LAB_ROOT`, `GARMENT_LAB_ROOT`) > `ops/lab_roots.local.json` (gitignore).
-- 쓰기 경계: 메인이 외부 랩에 쓰는 것은 `exports/brief/**` 만 (progress는 랩이 씀).
+- 경로: ENV(`FITTING_LAB_ROOT`, `GARMENT_LAB_ROOT`) > `ops/lab_roots.local.json` (기본값: modules/fitting, modules/garment).
+- 쓰기 경계: 메인이 랩에 쓰는 것은 `exports/brief/**` 만 (progress는 랩이 씀).
 - DoD claim: 자동 dod_done_delta 증가 금지(증거 기반 claim은 별도 프로토콜).
 
 One-liner run:

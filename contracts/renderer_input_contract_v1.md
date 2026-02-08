@@ -14,7 +14,7 @@
 | run_registry | `ops/run_registry.jsonl` | ROUND_END에서 추출한 run 레코드 | ✅ |
 | master_plan | `contracts/master_plan_v1.json` | SSoT: unlocks, plan_items, artifacts | ❌ |
 
-- **lab_root**: Body = repo root; Fitting/Garment = `ops/lab_roots.local.json`의 `FITTING_LAB_ROOT`/`GARMENT_LAB_ROOT` (또는 환경변수).
+- **lab_root**: Body = repo root; Fitting = `modules/fitting`; Garment = `modules/garment`. 경로 해석: `ops/lab_roots.local.json`의 `FITTING_LAB_ROOT`/`GARMENT_LAB_ROOT` (또는 환경변수).
 - **PROGRESS_LOG**: Body는 `REPO_ROOT/exports/progress/PROGRESS_LOG.jsonl`; Fitting/Garment는 각 lab root 하위.
 
 ---
@@ -109,3 +109,32 @@
 ---
 
 *Contract version: v1 | Updated: 2026-02-08*
+
+## 9. 재발 방지 규율 (Lab 필수, 0 warnings 목표)
+
+### 9.1 단일 통로 원칙 (MUST)
+- Lab은 `exports/progress/PROGRESS_LOG.jsonl`에 이벤트를 기록할 때 **오직 `roundwrap start/end`만 사용한다.**
+- 수동으로 JSONL 라인을 append(예: "note" 이벤트 임의 추가)하지 않는다.
+- 목표: `py tools/ops/validate_renderer_inputs.py` 실행 시 **새로 추가된 라인에 대해 warning=0**.
+
+### 9.2 이벤트 최소 스키마 (MUST)
+모든 신규 이벤트 라인은 다음 필드를 반드시 포함한다:
+- `ts` (ISO-8601, timezone 포함 권장)
+- `module` ("body" | "fitting" | "garment")
+- `step_id` (빈 값 금지)
+- `event_type` 또는 `event` (둘 중 하나는 반드시)
+
+> `event_type/event` 누락은 스키마 위반(SCHEMA_VIOLATION)이며 신규 라인에서 발생하면 안 된다.
+
+### 9.3 step_id 누락 방지 (MUST)
+- `roundwrap start/end`는 `step_id` 미지정 시 **즉시 실패(exit non-zero)하고 이벤트를 append하지 않는다.**
+- 과거에 `step_id == "UNSPECIFIED"` 이벤트가 존재한다면, append-only 원칙으로 `BACKFILL` 이벤트를 추가하고 `gate_codes=["STEP_ID_BACKFILLED"]`로 정리한다.
+
+### 9.4 레거시 스키마 위반 정리 방식 (MUST, append-only)
+- 이미 존재하는 레거시 라인(예: `event_type/event` 누락)은 **수정/삭제 금지**.
+- 대신 tombstone(INFO) 이벤트를 append하여 종결한다:
+  - `event_type="INFO"`
+  - `gate_codes`에 `"SCHEMA_VIOLATION_BACKFILLED"` 포함
+  - `note`에 `referenced_line=<N>` 포함 (1-indexed)
+- 검증기(`validate_renderer_inputs`)는 tombstone의 `referenced_line`을 면책 처리(exempt)할 수 있다.
+

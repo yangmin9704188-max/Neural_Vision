@@ -27,12 +27,15 @@ from pathlib import Path
 BODY_REGIONS = [
     "core/",
     "verification/",
-    "tools/",
     "modules/body/",
 ]
 
 FITTING_REGIONS = [
     "modules/fitting/",
+]
+
+GARMENT_REGIONS = [
+    "modules/garment/",
 ]
 
 # Blocklist: local-only paths that must never be committed (ops automation)
@@ -43,6 +46,8 @@ FORBIDDEN_LOCAL = [
 ]
 
 # Allowlist: shared paths that don't trigger boundary violations
+# tools/ops/ = shared hub infrastructure (renderers, hooks, etc.)
+# tools/ (non-ops) scripts that are shared across modules
 ALLOWLIST = [
     "specs/",
     "docs/ops/rounds/",
@@ -51,6 +56,9 @@ ALLOWLIST = [
     ".cursorrules",
     "docs/ops/GUARDRAILS.md",
     "CLAUDE.md",
+    "tools/ops/",
+    "tools/render_status.py",
+    "tools/render_work_briefs.py",
 ]
 
 
@@ -99,6 +107,15 @@ def is_fitting_region(file_path: str) -> bool:
     return False
 
 
+def is_garment_region(file_path: str) -> bool:
+    """Check if file is in garment region."""
+    normalized = normalize_path(file_path)
+    for region in GARMENT_REGIONS:
+        if normalized.startswith(region):
+            return True
+    return False
+
+
 def get_changed_files(base: str, head: str) -> list[str]:
     """Get list of changed files between base and head."""
     try:
@@ -122,12 +139,13 @@ def classify_files(files: list[str]) -> dict[str, list[str]]:
     Classify files into categories.
 
     Returns:
-        dict with keys: allowlisted, body_triggering, fitting_triggering, other
+        dict with keys: allowlisted, body_triggering, fitting_triggering, garment_triggering, other
     """
     result = {
         "allowlisted": [],
         "body_triggering": [],
         "fitting_triggering": [],
+        "garment_triggering": [],
         "other": [],
     }
 
@@ -138,6 +156,8 @@ def classify_files(files: list[str]) -> dict[str, list[str]]:
             result["body_triggering"].append(file)
         elif is_fitting_region(file):
             result["fitting_triggering"].append(file)
+        elif is_garment_region(file):
+            result["garment_triggering"].append(file)
         else:
             result["other"].append(file)
 
@@ -160,6 +180,11 @@ def print_diagnostics(classified: dict[str, list[str]]):
         for f in classified["fitting_triggering"]:
             print(f"  - {f}")
 
+    if classified["garment_triggering"]:
+        print(f"\n[GARMENT] Garment region files ({len(classified['garment_triggering'])}):")
+        for f in classified["garment_triggering"]:
+            print(f"  - {f}")
+
     if classified["allowlisted"]:
         print(f"\n[OK] Allowlisted files ({len(classified['allowlisted'])}):")
         for f in classified["allowlisted"]:
@@ -176,12 +201,14 @@ def check_boundary_violation(classified: dict[str, list[str]]) -> bool:
     Check if there's a boundary violation.
 
     Returns:
-        True if violation detected (both body and fitting changes), False otherwise
+        True if violation detected (body changes mixed with fitting or garment changes), False otherwise
     """
     has_body = len(classified["body_triggering"]) > 0
     has_fitting = len(classified["fitting_triggering"]) > 0
+    has_garment = len(classified["garment_triggering"]) > 0
 
-    return has_body and has_fitting
+    # Body cannot be mixed with fitting or garment in the same PR
+    return has_body and (has_fitting or has_garment)
 
 
 def suggest_action(classified: dict[str, list[str]]):
@@ -216,11 +243,10 @@ Examples:
   BASE=origin/main HEAD=HEAD python tools/ops/check_change_boundaries.py
 
 Boundaries:
-  Body region:    core/, verification/, tools/, modules/body/
+  Body region:    core/, verification/, modules/body/
   Fitting region: modules/fitting/
-
-Allowlist (shared paths):
-  specs/, docs/ops/rounds/, .cursorrules, CLAUDE.md, etc.
+  Garment region: modules/garment/
+  Shared (allowlisted): tools/ops/, tools/render_*.py, specs/, .cursorrules, etc.
         """,
     )
 

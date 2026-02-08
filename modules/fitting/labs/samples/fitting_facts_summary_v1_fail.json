@@ -1,0 +1,21 @@
+{
+  "schema_version": "fitting_facts_summary.v1",
+  "garment_input_path_used": "glb",
+  "early_exit": true,
+  "early_exit_reason": "hard_gate_negative_face",
+  "degraded_state": { "reason": "garment_meta_hard_gate" },
+  "warnings_summary": {
+    "TOO_MANY_SAMPLES": {
+      "count": 10,
+      "sample_messages": [
+        "msg1",
+        "msg2",
+        "msg3",
+        "msg4",
+        "msg5",
+        "msg6"
+      ],
+      "truncated": true
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": "fitting_facts_summary.v1",
+  "garment_input_path_used": "npz",
+  "early_exit": false,
+  "early_exit_reason": null,
+  "degraded_state": {},
+  "warnings_summary": {
+    "MISSING_KEY": {
+      "count": 0,
+      "sample_messages": [],
+      "truncated": false
+    },
+    "BODY_WARNINGS_PRESENT": {
+      "count": 1,
+      "sample_messages": ["value_stats.median missing for BUST_CIRC_M"],
+      "truncated": false
+    }
+  }
+}

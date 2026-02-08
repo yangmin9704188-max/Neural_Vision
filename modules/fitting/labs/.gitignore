@@ -1,0 +1,20 @@
+# Fitting module gitignore
+
+# Large binary outputs
+outputs/**/*.npz
+outputs/**/*.obj
+outputs/**/*.ply
+outputs/**/*.mesh
+outputs/**/*.pkl
+
+# Temporary files
+outputs/**/*.tmp
+outputs/**/*.cache
+
+# But allow metadata and small summaries
+!outputs/**/*.json
+!outputs/**/*.csv
+!outputs/**/*.md
+!outputs/**/*.txt
+
+__pycache__

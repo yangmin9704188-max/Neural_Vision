@@ -1,0 +1,117 @@
+$ErrorActionPreference = "Stop"
+
+param (
+    [string]$garment_lab_root = "C:\Users\caino\Desktop\garment_lab",
+    [string]$smoke2_out_dir = ""
+)
+
+Write-Host "=== Fitting Lab: E2E Smoke-2 Consumer Runner ===" -ForegroundColor Cyan
+Write-Host "Garment Root: $garment_lab_root"
+
+# 1. Run Garment Smoke-2 (Producer)
+# If smoke2_out_dir is NOT provided, we run the producer to generate a fresh one.
+# If provided, we assume we want to consume that specific existing run.
+if ([string]::IsNullOrWhiteSpace($smoke2_out_dir)) {
+    Write-Host "1. Running Garment Smoke-2 Producer..." -ForegroundColor Yellow
+    $producer_script = Join-Path $garment_lab_root "scripts\run_smoke2_garment.ps1"
+    
+    if (-not (Test-Path $producer_script)) {
+        Write-Error "Producer script not found: $producer_script"
+        exit 1
+    }
+
+    try {
+        & powershell -ExecutionPolicy Bypass -File $producer_script
+        if ($LASTEXITCODE -ne 0) { throw "Producer script failed with exit code $LASTEXITCODE" }
+    } catch {
+        Write-Error "Failed to execute Garment Producer."
+        exit 1
+    }
+
+    # Find latest output
+    $smoke_base = Join-Path $garment_lab_root "runs\smoke\smoke2"
+    if (-not (Test-Path $smoke_base)) {
+        Write-Error "Smoke output dir not found: $smoke_base"
+        exit 1
+    }
+    
+    $latest_run = Get-ChildItem -Path $smoke_base -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $latest_run) {
+        Write-Error "No run directories found in $smoke_base"
+        exit 1
+    }
+    $target_dir = $latest_run.FullName
+} else {
+    $target_dir = $smoke2_out_dir
+}
+
+Write-Host "Target Smoke-2 Output: $target_dir" -ForegroundColor Green
+
+# 2. Run Fitting Stub (Consumer)
+# Located in ../tools relative to this script, or absolute path in fitting_lab
+# We assume this script is in fitting_lab/scripts/
+$script_dir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$fitting_lab_root = Split-Path -Parent $script_dir
+$stub_tool = Join-Path $fitting_lab_root "tools\gen_fitting_facts_summary_stub.py"
+
+Write-Host "2. Running Fitting Stub..." -ForegroundColor Yellow
+Write-Host "Tool: $stub_tool"
+
+if (-not (Test-Path $stub_tool)) {
+    Write-Error "Stub tool not found: $stub_tool"
+    exit 1
+}
+
+$stub_out = Join-Path $target_dir "fitting_facts_summary.json"
+
+try {
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        py $stub_tool --garment_out_dir "$target_dir" --out "$stub_out"
+    } else {
+        python $stub_tool --garment_out_dir "$target_dir" --out "$stub_out"
+    }
+} catch {
+    Write-Error "Failed to run Fitting Stub."
+    exit 1
+}
+
+# 3. Verify Output
+Write-Host "3. Verifying Output..." -ForegroundColor Yellow
+
+if (-not (Test-Path $stub_out)) {
+    Write-Error "Output not found: $stub_out"
+    exit 1
+}
+
+try {
+    $json = Get-Content -Raw $stub_out | ConvertFrom-Json
+} catch {
+    Write-Error "Failed to parse JSON."
+    exit 1
+}
+
+$pass = $true
+
+if (-not $json.early_exit) {
+    Write-Error "FAIL: early_exit is false"
+    $pass = $false
+}
+
+if ($json.early_exit_reason -notmatch "invalid_face_flag") {
+    Write-Error "FAIL: early_exit_reason missing 'invalid_face_flag'. Got: $($json.early_exit_reason)"
+    $pass = $false
+}
+
+if ($json.garment_input_path_used -ne "npz" -and $json.garment_input_path_used -ne "glb_fallback") {
+    Write-Error "FAIL: Invalid garment_input_path_used: $($json.garment_input_path_used)"
+    $pass = $false
+}
+
+if ($pass) {
+    Write-Host "SUCCESS: E2E Fitting Consumer Verify Passed." -ForegroundColor Green
+    Write-Host "Artifact: $stub_out"
+    exit 0
+} else {
+    Write-Error "FAILED: E2E Verification"
+    exit 1
+}
