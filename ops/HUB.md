@@ -82,10 +82,19 @@ One-liner run:
 - `py tools/render_work_briefs.py`
 - `py tools/render_status.py`
 
-### Ops Auto-Refresh (Local)
-- Windows Scheduled Task: `NeuralVision-Ops-Refresh` (every 30 minutes)
-- Command sequence: `py tools/render_work_briefs.py` -> `py tools/render_status.py`
-- Lab roots: `ops/lab_roots.local.json` (local-only; gitignored). If moved machines/paths change, update this file.
-- Local script/logs: `ops/local/ops_refresh.ps1`, `exports/logs/ops_refresh.log` (both gitignored).
-- Failure symptom: `ops/STATUS.md` shows WARN / `[LAB_ROOT_MISSING]` or brief_path=N/A.
-- Recovery (manual): run `py tools/render_status.py` and check `exports/logs/ops_refresh.log`.
+### Ops Auto-Refresh (Local) — Round 08 updated
+- **Default: OFF.** Periodic auto-refresh is disabled by default.
+- Entrypoint: `py tools/ops/autorender_tick.py` (checks `ops/autorender.local.json`; default = no-op)
+- Config: `ops/autorender.local.json` (gitignored). Example: `ops/autorender.local.example.json` (enabled=false)
+- To enable periodic refresh: copy example → local, set `"enabled": true`
+- Windows Scheduled Task: `NeuralVision-Ops-Refresh` (legacy, should be **disabled**)
+  - Detect: `powershell -ExecutionPolicy Bypass -File tools/ops/find_autorender_tasks.ps1`
+  - Disable: `powershell -ExecutionPolicy Bypass -File tools/ops/disable_autorender_tasks.ps1 -Execute`
+  - Re-enable (rollback): `powershell -ExecutionPolicy Bypass -File tools/ops/enable_autorender_tasks.ps1 -Execute`
+- Local script: `ops/local/ops_refresh.ps1` (gitignored, delegates to autorender_tick.py)
+- Lab roots: `ops/lab_roots.local.json` (local-only; gitignored)
+
+### Milestone Refresh Commands (Round 08)
+- PR 직전:    `py tools/ops/run_ops_loop.py --mode full`
+- merge 직후: `py tools/ops/run_ops_loop.py --mode quick`
+- 라운드 종료: `py tools/ops/run_end_ops_hook.py`

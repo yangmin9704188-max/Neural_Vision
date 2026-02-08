@@ -9,6 +9,7 @@ ops/lab_roots.local.json
 ops/notion.local.json
 ops/notion_sync_cursor.json
 ops/local/
+ops/autorender.local.json
 
 # ── Session shortcut folder (local-only) ──
 shortcut/
