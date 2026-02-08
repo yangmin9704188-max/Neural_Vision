@@ -127,6 +127,12 @@ fitting_facts_summary.json 최소 필드(요약):
 - Hub(Body): exports/progress/PROGRESS_LOG.jsonl 에 1줄 append
 - Lab(Fitting/Garment): 각 lab의 exports/progress/PROGRESS_LOG.jsonl 에 1줄 append
 
+### 5.4 U1 Validators (run-dir 기준 검증)
+- `py tools/validate/validate_geometry_manifest.py --run-dir <dir>`  # geometry_manifest.json 규칙 강제
+- `py tools/validate/validate_u1_body.py --run-dir <dir>`  # Body→Fitting U1 검증
+- `py tools/validate/validate_u1_garment.py --run-dir <dir>`  # Garment→Fitting U1 검증
+- `py tools/validate/validate_u1_fitting.py --run-dir <dir>`  # Fitting U1 검증
+
 ---
 
 ## 6) 루트 산재 문서(사본) 정책
