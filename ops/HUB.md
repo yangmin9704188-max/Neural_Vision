@@ -19,6 +19,8 @@
 ## Commands
 - `py tools/ops/doctor.py` — 레포 부트스트랩/헬스 체크 (read-only, --fix로 누락 디렉토리 생성)
 - `py tools/smoke/run_u2_smokes.py` — U2 스모크 3종 실행 (Freeze §3: OK/HardGate/Degraded)
+- `py tools/agent/plan_lint.py --plan contracts/master_plan_v1.json` — Plan 구조 검증
+- `py tools/agent/next_step.py --module all --top 5` — 다음 할 일 계산 (facts-only)
 - `py tools/ops/run_end_ops_hook.py` — run 마무리 훅: progress append → render_work_briefs → render_status
 - `py tools/ops/append_progress_event.py` — PROGRESS_LOG.jsonl append (append-only)
 - `py tools/render_work_briefs.py` — PROGRESS_LOG → WORK_BRIEF 렌더

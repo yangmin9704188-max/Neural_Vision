@@ -136,6 +136,10 @@ fitting_facts_summary.json 최소 필드(요약):
 ### 5.5 U2 Smoke (Runnable Unlock)
 - `py tools/smoke/run_u2_smokes.py`  # U2 스모크 3종 실행 (Freeze §3: OK/HardGate/Degraded)
 
+### 5.6 Task Graph & Next Step Navigator (Round 03)
+- `py tools/agent/plan_lint.py --plan contracts/master_plan_v1.json`  # Plan 구조 검증
+- `py tools/agent/next_step.py --module all --top 5`  # 다음 할 일 계산 (facts-only)
+
 ---
 
 ## 6) 루트 산재 문서(사본) 정책
