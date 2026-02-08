@@ -1,0 +1,7 @@
+{
+  "garment_input_path_used": "glb_fallback",
+  "early_exit": true,
+  "early_exit_reason": "garment_hard_gate_violation: invalid_face_flag",
+  "warnings_summary": ["garment_hard_gate_violation: invalid_face_flag"],
+  "degraded_state": "none"
+}
