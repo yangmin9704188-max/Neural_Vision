@@ -17,6 +17,7 @@
 - 레거시 [DOD_CLAIM_PROTOCOL_v1](docs/ops/dashboard_legacy/DOD_CLAIM_PROTOCOL_v1.md) 참조
 
 ## Commands
+- `py tools/ops/doctor.py` — 레포 부트스트랩/헬스 체크 (read-only, --fix로 누락 디렉토리 생성)
 - `py tools/ops/run_end_ops_hook.py` — run 마무리 훅: progress append → render_work_briefs → render_status
 - `py tools/ops/append_progress_event.py` — PROGRESS_LOG.jsonl append (append-only)
 - `py tools/render_work_briefs.py` — PROGRESS_LOG → WORK_BRIEF 렌더
