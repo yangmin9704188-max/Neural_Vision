@@ -1,21 +1,26 @@
-# Neural_Vision
+# Body
 
-Numerical Input-Based Virtual Deployment Project.
+## Purpose
+- Body 모듈: ingest(SizeKorea 정제), VTM 측정, geo/curated runners.
 
-## Structure
-- **ssot/**: 정본 문서. contracts/ops: 계약·운영.
-- **exports/**, **data/**: generated-only / gitignore. Do not edit by hand.
-- **modules/body/**: Body 모듈 (ingest, VTM, runners).
+## Do / Don't
+- Do: src/pipeline, src/measurements, src/runners 사용.
+- Don't: 비 Body 로직 혼입 금지.
 
-## Entrypoints
+## Key files
+- src/pipeline/ingest/build_curated_v0.py
+- src/runners/run_geo_v0_s1_facts.py
+- src/measurements/vtm/core_measurements_v0.py
+
+## How to run
 ```bash
-# geo_v0_s1 facts runner
-py -m modules.body.src.runners.run_geo_v0_s1_facts --manifest data/golden/s1_mesh_v0/s1_manifest_v0_round71.json --out_dir exports/runs/geo_v0_s1/run_<id>
-
-# curated_v0 ingest
-py -m modules.body.src.pipeline.ingest.build_curated_v0 --mapping data/column_map/sizekorea_v2.json --output data/derived/curated_v0/<RUN_ID>/curated_v0.parquet --format parquet
+py -m modules.body.src.pipeline.ingest.build_curated_v0 --mapping data/column_map/sizekorea_v2.json --output <path> --format parquet
+py -m modules.body.src.runners.run_geo_v0_s1_facts --manifest data/golden/s1_mesh_v0/s1_manifest_v0_round71.json --out_dir exports/runs/geo_v0_s1/<run_id>
 ```
 
+## Outputs
+- data/derived/curated_v0/<RUN_ID>/curated_v0.parquet
+- exports/runs/geo_v0_s1/<run_id>/
+
 ## References
-- ops/HUB.md, ssot/, contracts/
-- 폴더/파일 배치 규칙 정본: ssot/repo_layout_policy_v1.md
+- contracts/, ssot/, [ingest/README.md](src/pipeline/ingest/README.md)

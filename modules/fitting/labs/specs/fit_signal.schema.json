@@ -1,0 +1,160 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "specs/fit_signal.schema.json",
+  "title": "Fit Signal Schema v0",
+  "description": "Solver output (fit_signal.json). Facts-only. No quality thresholds.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "created_at",
+    "input_refs",
+    "solver",
+    "timing",
+    "quality_scores",
+    "flags"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "fit_signal.v0",
+      "description": "Schema version (fixed v0)."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp (ISO 8601)."
+    },
+    "input_refs": {
+      "type": "object",
+      "required": ["body_subset_path", "garment_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "body_subset_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to body subset (e.g. body_measurements_subset.json). Relative preferred."
+        },
+        "garment_ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Garment manifest path or geometry manifest path. Relative preferred."
+        },
+        "resolved_paths": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "body_subset_path_resolved": { "type": "string" },
+            "garment_ref_resolved": { "type": "string" }
+          },
+          "description": "Optional resolved absolute paths."
+        }
+      }
+    },
+    "solver": {
+      "type": "object",
+      "required": ["solver_id", "solver_version"],
+      "additionalProperties": false,
+      "properties": {
+        "solver_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Solver identifier (e.g. tier1_constraint_solver_stub)."
+        },
+        "solver_version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Solver version (e.g. 0.0)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional solver notes (e.g. proxy params alpha/beta)."
+        }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "required": ["wall_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "wall_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Wall-clock time in milliseconds."
+        },
+        "cpu_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "CPU time in milliseconds (optional)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional timing notes."
+        }
+      }
+    },
+    "quality_scores": {
+      "type": "object",
+      "required": ["clipping_score", "penetration_score", "constraint_violation_score"],
+      "additionalProperties": false,
+      "properties": {
+        "clipping_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Clipping score (0=worst, 1=best). Facts-only."
+        },
+        "penetration_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Penetration score (0=worst, 1=best). Facts-only."
+        },
+        "constraint_violation_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Constraint violation score (0=worst, 1=best). Facts-only."
+        }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "required": ["early_exit", "degraded"],
+      "additionalProperties": false,
+      "properties": {
+        "early_exit": {
+          "type": "boolean",
+          "description": "True if solver exited early (e.g. hard gate)."
+        },
+        "degraded": {
+          "type": "boolean",
+          "description": "True if output is degraded (partial convergence etc)."
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wall_ms_soft_limit": { "type": "integer", "minimum": 0 },
+        "wall_ms_soft_exceeded": { "type": "boolean" }
+      },
+      "description": "Optional budget tracking. Soft limit exceeded = warning only."
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Optional warnings from solver.",
+      "items": {
+        "type": "object",
+        "required": ["code", "severity", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

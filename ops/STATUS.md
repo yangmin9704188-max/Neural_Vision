@@ -15,6 +15,7 @@
 <!-- GENERATED:BEGIN:BLOCKERS -->
 - BLOCKERS Top 5:
   - STEP_ID_BACKFILLED: 7
+  - SCHEMA_VIOLATION_BACKFILLED: 6
   - EVIDENCE_ONLY_SAMPLES: 1
 <!-- GENERATED:END:BLOCKERS -->
 
@@ -43,7 +44,7 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-08 13:16:15*
+*Updated: 2026-02-08 20:50:35*
 
 - health: OK (warnings=0)
 
@@ -89,8 +90,8 @@
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:FITTING -->
 - health: OK (warnings=0)
-- brief_path: C:\Users\caino\Desktop\fitting_lab\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-08 13:16:15
+- brief_path: C:\Users\caino\Desktop\Neural_Vision\modules\fitting\exports\brief\FITTING_WORK_BRIEF.md
+- brief_mtime: 2026-02-08 20:50:35
 - observed_paths:
   - exports/runs/_smoke/20260206_164438/fitting_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_170827/RUN_README.md
@@ -101,7 +102,7 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: fitting
-  updated_at: 2026-02-08 13:16:15 +0900
+  updated_at: 2026-02-08 20:50:35 +0900
   run_id: N/A
   phase: N/A
   status: OK
@@ -134,8 +135,8 @@
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:GARMENT -->
 - health: OK (warnings=0)
-- brief_path: C:\Users\caino\Desktop\garment_lab\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-08 13:16:15
+- brief_path: C:\Users\caino\Desktop\Neural_Vision\modules\garment\exports\brief\GARMENT_WORK_BRIEF.md
+- brief_mtime: 2026-02-08 20:50:35
 - observed_paths:
   - exports/runs/_smoke/20260206_171153/garment_smoke_v1/geometry_manifest.json
   - exports/runs/_smoke/20260206_171153/geometry_manifest.json
@@ -146,11 +147,11 @@
   <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
   
   module: garment
-  updated_at: 2026-02-08 13:16:15 +0900
+  updated_at: 2026-02-08 20:50:35 +0900
   run_id: N/A
   phase: N/A
   status: OK
-  summary: last_step=U2.SMOKE3.PRODUCER dod_done=2 | Smoke-3 production success
+  summary: last_step=G_BACKFILL dod_done=2 | Backfill: legacy event missing event_type/event; referenced_line=17; action=tomb
   artifacts: N/A
   warnings: 0
 <!-- GENERATED:END:GARMENT -->

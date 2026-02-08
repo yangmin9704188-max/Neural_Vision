@@ -1,0 +1,9 @@
+{
+  "schema_version": "body_subset_keymap.v1",
+  "canonical_keys": ["BUST_CIRC_M", "WAIST_CIRC_M", "HIP_CIRC_M"],
+  "aliases": {
+    "BUST_CIRC_M": ["bust_circumference_m", "bust_circ_m", "chest_circumference", "bust_circ", "bust"],
+    "WAIST_CIRC_M": ["waist_circumference_m", "waist_circ_m", "waist_circumference", "waist_circ", "waist"],
+    "HIP_CIRC_M": ["hip_circumference_m", "hip_circ_m", "hip_circumference", "hips", "hip_circ", "hip"]
+  }
+}

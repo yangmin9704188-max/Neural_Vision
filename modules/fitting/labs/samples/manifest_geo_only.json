@@ -1,0 +1,19 @@
+{
+    "schema_version": "fitting_manifest.v0",
+    "inputs": {
+        "units": "m",
+        "body_source": {
+            "geometry_manifest_path": "PATH/TO/geometry_manifest.json"
+        },
+        "garment_source": {
+            "garment_template_path": "PATH/TO/garment_template.json"
+        }
+    },
+    "outputs": {
+        "out_dir": "runs/smoke_geo_only"
+    },
+    "provenance": {
+        "schema_version": "fitting_manifest.v0",
+        "code_fingerprint": "lab"
+    }
+}

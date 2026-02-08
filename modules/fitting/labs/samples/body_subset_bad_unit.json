@@ -1,0 +1,10 @@
+{
+  "schema_version": "body_subset.v1",
+  "unit": "cm",
+  "pose_id": "PZ1",
+  "values": {
+    "bust": 90,
+    "waist": 75,
+    "hip": 95
+  }
+}

@@ -37,8 +37,9 @@ NOTE:
 1) Roles & Work Boundaries (Hub vs External Labs)
 ──────────────────────────────────────────────────────────────────────────────
 Definitions:
-- Hub = this main repo root (Body/main).
-- External Labs = fitting_lab, garment_lab (separate folders; may be non-git).
+- Hub = this main repo root.
+- Labs = modules/fitting, modules/garment (monorepo modules; previously separate folders).
+- Body = modules/body (always in-repo).
 
 Standard Operating Mode (default):
 - Labs are WRITERS for their own progress logs (append-only).
@@ -46,14 +47,14 @@ Standard Operating Mode (default):
 
 Hub MAY:
 - Modify hub code/docs only within allowed areas (see §2).
-- Read external labs’ exports/progress/** (read-only).
-- Write external labs’ exports/brief/** only (generated-only publish surface).
+- Read labs exports/progress/** (read-only).
+- Write labs exports/brief/** only (generated-only publish surface).
 - Update ops/STATUS.md markers via tools/render_status.py (generated-only blocks only).
 
 Hub MUST NOT:
-- Write anything into external labs except <lab_root>/exports/brief/**.
+- Write anything into labs except <lab_root>/exports/brief/**.
 - Modify lab code/docs or any non-exports paths.
-- Write to external labs’ exports/progress/** in Standard Operating Mode.
+- Write to labs exports/progress/** in Standard Operating Mode.
 
 Labs MAY:
 - Append to their own progress log:
@@ -105,17 +106,18 @@ Allowed status vocabulary (lightweight):
 - exists/missing, valid/invalid (with validator output if used)
 
 ──────────────────────────────────────────────────────────────────────────────
-5) External Lab Roots Resolution (Path ambiguity elimination)
+5) Lab Roots Resolution (Monorepo)
 ──────────────────────────────────────────────────────────────────────────────
+Labs are now in-repo: modules/fitting, modules/garment.
 Hub resolves lab roots in this priority order:
 1) ENV:
    - FITTING_LAB_ROOT
    - GARMENT_LAB_ROOT
-2) ops/lab_roots.local.json  (LOCAL ONLY; gitignored)
+2) ops/lab_roots.local.json  (committed; default: modules/fitting, modules/garment)
 3) Otherwise N/A (must render warnings, but exit 0)
 
 Also keep:
-- ops/lab_roots.local.example.json (committable example)
+- ops/lab_roots.local.json.example (committable example, same as default)
 
 ──────────────────────────────────────────────────────────────────────────────
 6) Minimal Ops Automation (Current, authoritative)

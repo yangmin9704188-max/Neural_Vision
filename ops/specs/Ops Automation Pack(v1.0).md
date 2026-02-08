@@ -36,11 +36,11 @@ PASS/FAIL/임계값 기반 판정(금지; facts-only)
 2. 시스템 구성 요소
 2.1 작업 폴더(3개)
 
-Hub(Main Repo / Body 중심): C:\Users\caino\Desktop\AI_model
+Hub(Main Repo / Body 중심): C:\Users\caino\Desktop\Neural_Vision
 
-Fitting Lab: C:\Users\caino\Desktop\fitting_lab
+Fitting Lab: modules/fitting (모노레포 내부, 이전: C:\Users\caino\Desktop\fitting_lab)
 
-Garment Lab: C:\Users\caino\Desktop\garment_lab
+Garment Lab: modules/garment (모노레포 내부, 이전: C:\Users\caino\Desktop\garment_lab)
 
 2.2 계약(SSoT)
 

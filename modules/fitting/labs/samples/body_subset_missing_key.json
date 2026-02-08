@@ -1,0 +1,8 @@
+{
+  "unit": "m",
+  "pose_id": "PZ1",
+  "measurements": {
+    "BUST_CIRC_M": 0.9,
+    "WAIST_CIRC_M": 0.75
+  }
+}

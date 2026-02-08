@@ -1,20 +1,65 @@
-# Migration Round 1: raw/derived data never committed
+# ── Data & derived (never commit) ──
 data/**
 
-# Ops local config (use .example as template)
-ops/lab_roots.local.json
+# ── Ops local config ──
+# ops/lab_roots.local.json is now tracked (monorepo-relative paths)
 ops/notion.local.json
 ops/notion_sync_cursor.json
 ops/local/
 
-# Exports run outputs and generated briefs (generated-only)
+# ── Session shortcut folder (local-only) ──
+shortcut/
+
+# ── Hub exports (generated-only, root level) ──
 exports/runs/
 exports/brief/
 exports/progress/PROGRESS_LOG.jsonl
 exports/logs/
 
-# Python
+# ── Lab module exports & runs (generated-only) ──
+# Fitting
+modules/fitting/exports/runs/
+modules/fitting/exports/brief/
+modules/fitting/exports/progress/PROGRESS_LOG.jsonl
+modules/fitting/runs/
+modules/fitting/releases/
+modules/fitting/labs/outputs/
+modules/fitting/facts_summary.json
+# Garment
+modules/garment/exports/runs/
+modules/garment/exports/brief/
+modules/garment/exports/progress/PROGRESS_LOG.jsonl
+modules/garment/runs/
+modules/garment/output/
+
+# ── Python / caches ──
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ── Environments / secrets ──
 .env
+**/.env
+*.key
+*.pem
+**/credentials*.json
+
+# ── Binary / large model files ──
+*.npz
+*.pt
+*.onnx
+
+# ── OS / IDE ──
+.DS_Store
+Thumbs.db
 .obsidian/
+.idea/
+
+# ── Test artifacts (not code) ──
+modules/garment/stderr.txt
+modules/garment/test_output.txt

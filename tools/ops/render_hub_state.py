@@ -5,7 +5,7 @@ Inputs: contracts/master_plan_v1.json, ops/lab_roots.local.json (optional),
   ops/run_registry.jsonl (optional), lab exports/progress/PROGRESS_LOG.jsonl,
   exports/runs/** (main + each lab root).
 Outputs: ops/hub_state_v1.json, ops/hub_events_v1.jsonl (append-only newly_unlocked),
-  exports/brief/LLM_SYNC_*.txt, ops/DASHBOARD.md.
+  exports/brief/LLM_SYNC_*.txt, exports/brief/LLM_CONTEXT_*.md, ops/DASHBOARD.md.
 Unlock logic from master_plan only (and/or/not + artifact_observed). Warn-only; no FAIL.
 """
 from __future__ import annotations

@@ -1,0 +1,11 @@
+# Minimal invalid mesh for Hard Gate testing
+# v1, v2, v3 form a valid triangle (Area=0.5)
+# v1, v2, v4 are collinear (0,0,0), (1,0,0), (2,0,0) -> Area=0
+
+v 0.0 0.0 0.0
+v 1.0 0.0 0.0
+v 0.0 1.0 0.0
+v 2.0 0.0 0.0
+
+f 1 2 3
+f 1 2 4
