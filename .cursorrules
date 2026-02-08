@@ -113,7 +113,7 @@ Hub resolves lab roots in this priority order:
 1) ENV:
    - FITTING_LAB_ROOT
    - GARMENT_LAB_ROOT
-2) ops/lab_roots.local.json  (committed; default: modules/fitting, modules/garment)
+2) ops/lab_roots.local.json  (gitignored; default: modules/fitting, modules/garment)
 3) Otherwise N/A (must render warnings, but exit 0)
 
 Also keep:

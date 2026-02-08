@@ -1,8 +1,8 @@
 # ── Data & derived (never commit) ──
 data/**
 
-# ── Ops local config ──
-# ops/lab_roots.local.json is now tracked (monorepo-relative paths)
+# ── Ops local config (copy .example to create local) ──
+ops/lab_roots.local.json
 ops/notion.local.json
 ops/notion_sync_cursor.json
 ops/local/
