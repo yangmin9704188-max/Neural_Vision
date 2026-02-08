@@ -23,6 +23,7 @@ RUN_REGISTRY_PATH = REPO_ROOT / "ops" / "run_registry.jsonl"
 HUB_STATE_PATH = REPO_ROOT / "ops" / "hub_state_v1.json"
 HUB_EVENTS_PATH = REPO_ROOT / "ops" / "hub_events_v1.jsonl"
 DASHBOARD_PATH = REPO_ROOT / "ops" / "DASHBOARD.md"
+NOTION_SYNC_STATUS_PATH = REPO_ROOT / "ops" / "notion_sync_status.json"
 BRIEF_DIR = REPO_ROOT / "exports" / "brief"
 
 MODULES = ("body", "fitting", "garment")
@@ -322,6 +323,29 @@ def _module_status_summary(plan: dict, artifacts_observed: dict[str, bool], bloc
     return by_mod
 
 
+def _render_notion_sync_section() -> list[str]:
+    """Render Notion Sync status block for DASHBOARD top. Returns list of markdown lines."""
+    if not NOTION_SYNC_STATUS_PATH.exists():
+        return ["## 🔁 Notion Sync 상태", "", "Notion sync status: (no status file)", ""]
+    try:
+        with open(NOTION_SYNC_STATUS_PATH, encoding="utf-8") as f:
+            st = json.load(f)
+    except Exception:
+        return ["## 🔁 Notion Sync 상태", "", "Notion sync status: (no status file)", ""]
+    updated_at = st.get("updated_at", "?")
+    mode = st.get("mode", "?")
+    reason = st.get("reason", "?")
+    processed = st.get("processed", 0)
+    updated = st.get("updated", 0)
+    error_count = st.get("error_count", 0)
+    return [
+        "## 🔁 Notion Sync 상태",
+        "",
+        f"`{updated_at}` | mode={mode} | reason={reason} | processed={processed} updated={updated} error_count={error_count}",
+        "",
+    ]
+
+
 def _render_dashboard(plan: dict, artifacts_observed: dict[str, bool], unlocks: dict[str, bool],
                       newly_unlocked: list[str], warnings: list[str]) -> str:
     """Render ops/DASHBOARD.md (Korean, card-style top sections)."""
@@ -342,8 +366,13 @@ def _render_dashboard(plan: dict, artifacts_observed: dict[str, bool], unlocks: 
         "",
         "---",
         "",
-        "## ✅ 새로 언락됨 (지난 갱신 이후)",
     ]
+    lines.extend(_render_notion_sync_section())
+    lines.extend([
+        "---",
+        "",
+        "## ✅ 새로 언락됨 (지난 갱신 이후)",
+    ])
     unlocks_list = plan.get("unlocks") or []
     by_uid = {u["unlock_id"]: u for u in unlocks_list if u.get("unlock_id")}
     observed_set = set(k for k, v in artifacts_observed.items() if v)

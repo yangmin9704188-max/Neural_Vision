@@ -1,5 +1,11 @@
 # Neural Vision Dashboard
-업데이트: 2026-02-08 01:58 (+0900)
+업데이트: 2026-02-08 11:50 (+0900)
+
+---
+
+## 🔁 Notion Sync 상태
+
+`2026-02-08T11:49:52+0900` | mode=skipped | reason=missing_config | processed=0 updated=0 error_count=0
 
 ---
 
