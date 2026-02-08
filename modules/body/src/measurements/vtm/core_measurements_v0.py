@@ -1824,7 +1824,7 @@ def measure_hip_group_with_shared_slice(
         return results
     
     # HIP region (same as HIP_CIRC_M)
-    # Refine01: Shift band 0.50-0.80 -> 0.48-0.78; Refine02: override via _HIP_BAND_OVERRIDE
+    # Refine01: Shift band 0.50-0.80 -> 0.48-0.78; Refine02: B selected by sweep; override via _HIP_BAND_OVERRIDE
     override = _get_hip_band_config()
     if override is not None:
         y_start = y_min + override[0] * y_range
@@ -2145,7 +2145,7 @@ def measure_circumference_v0_with_metadata(
         landmark_confidence = "high"
         landmark_resolution = "direct"
     elif standard_key == "HIP_CIRC_M":
-        # Lower torso (hip maximum). Refine01: 0.48-0.78; Refine02: override via _HIP_BAND_OVERRIDE
+        # Lower torso (hip maximum). Refine01: 0.48-0.78; Refine02: B selected by sweep; override via _HIP_BAND_OVERRIDE
         override = _get_hip_band_config()
         if override is not None:
             y_start = y_min + override[0] * y_range
