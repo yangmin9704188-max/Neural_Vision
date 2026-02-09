@@ -1,20 +1,32 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 param (
-    [string]$garment_lab_root = "C:\Users\caino\Desktop\garment_lab",
+    [string]$garment_lab_root = "",
     [string]$smoke2_out_dir = ""
 )
+
+$script_dir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$fitting_module_root = Split-Path -Parent $script_dir
+
+if ([string]::IsNullOrWhiteSpace($garment_lab_root)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:GARMENT_LAB_ROOT)) {
+        $garment_lab_root = $env:GARMENT_LAB_ROOT
+    } else {
+        $repo_root = Split-Path -Parent (Split-Path -Parent $fitting_module_root)
+        $garment_lab_root = Join-Path (Split-Path -Parent $repo_root) "garment_lab"
+    }
+}
 
 Write-Host "=== Fitting Lab: E2E Smoke-2 Consumer Runner ===" -ForegroundColor Cyan
 Write-Host "Garment Root: $garment_lab_root"
 
 # 1. Run Garment Smoke-2 (Producer)
-# If smoke2_out_dir is NOT provided, we run the producer to generate a fresh one.
-# If provided, we assume we want to consume that specific existing run.
+# If smoke2_out_dir is NOT provided, run the producer for a fresh output.
+# If provided, consume that existing run.
 if ([string]::IsNullOrWhiteSpace($smoke2_out_dir)) {
     Write-Host "1. Running Garment Smoke-2 Producer..." -ForegroundColor Yellow
     $producer_script = Join-Path $garment_lab_root "scripts\run_smoke2_garment.ps1"
-    
+
     if (-not (Test-Path $producer_script)) {
         Write-Error "Producer script not found: $producer_script"
         exit 1
@@ -34,7 +46,7 @@ if ([string]::IsNullOrWhiteSpace($smoke2_out_dir)) {
         Write-Error "Smoke output dir not found: $smoke_base"
         exit 1
     }
-    
+
     $latest_run = Get-ChildItem -Path $smoke_base -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $latest_run) {
         Write-Error "No run directories found in $smoke_base"
@@ -48,11 +60,7 @@ if ([string]::IsNullOrWhiteSpace($smoke2_out_dir)) {
 Write-Host "Target Smoke-2 Output: $target_dir" -ForegroundColor Green
 
 # 2. Run Fitting Stub (Consumer)
-# Located in ../tools relative to this script, or absolute path in fitting_lab
-# We assume this script is in fitting_lab/scripts/
-$script_dir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$fitting_lab_root = Split-Path -Parent $script_dir
-$stub_tool = Join-Path $fitting_lab_root "tools\gen_fitting_facts_summary_stub.py"
+$stub_tool = Join-Path $fitting_module_root "tools\gen_fitting_facts_summary_stub.py"
 
 Write-Host "2. Running Fitting Stub..." -ForegroundColor Yellow
 Write-Host "Tool: $stub_tool"
