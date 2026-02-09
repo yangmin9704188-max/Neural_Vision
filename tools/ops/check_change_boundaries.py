@@ -31,10 +31,12 @@ BODY_REGIONS = [
 ]
 
 FITTING_REGIONS = [
-    "modules/fitting/",
 ]
 
 GARMENT_REGIONS = [
+]
+LEGACY_MIRROR_REGIONS = [
+    "modules/fitting/",
     "modules/garment/",
 ]
 
@@ -139,19 +141,22 @@ def classify_files(files: list[str]) -> dict[str, list[str]]:
     Classify files into categories.
 
     Returns:
-        dict with keys: allowlisted, body_triggering, fitting_triggering, garment_triggering, other
+        dict with keys: allowlisted, body_triggering, fitting_triggering, garment_triggering, legacy_mirror_triggering, other
     """
     result = {
         "allowlisted": [],
         "body_triggering": [],
         "fitting_triggering": [],
         "garment_triggering": [],
+        "legacy_mirror_triggering": [],
         "other": [],
     }
 
     for file in files:
         if is_allowlisted(file):
             result["allowlisted"].append(file)
+        elif any(normalize_path(file).startswith(prefix) for prefix in LEGACY_MIRROR_REGIONS):
+            result["legacy_mirror_triggering"].append(file)
         elif is_body_region(file):
             result["body_triggering"].append(file)
         elif is_fitting_region(file):
@@ -185,6 +190,11 @@ def print_diagnostics(classified: dict[str, list[str]]):
         for f in classified["garment_triggering"]:
             print(f"  - {f}")
 
+    if classified["legacy_mirror_triggering"]:
+        print(f"\n[LEGACY MIRROR] Deprecated in-repo fitting/garment paths ({len(classified['legacy_mirror_triggering'])}):")
+        for f in classified["legacy_mirror_triggering"]:
+            print(f"  - {f}")
+
     if classified["allowlisted"]:
         print(f"\n[OK] Allowlisted files ({len(classified['allowlisted'])}):")
         for f in classified["allowlisted"]:
@@ -206,9 +216,10 @@ def check_boundary_violation(classified: dict[str, list[str]]) -> bool:
     has_body = len(classified["body_triggering"]) > 0
     has_fitting = len(classified["fitting_triggering"]) > 0
     has_garment = len(classified["garment_triggering"]) > 0
+    has_legacy_mirror = len(classified["legacy_mirror_triggering"]) > 0
 
     # Body cannot be mixed with fitting or garment in the same PR
-    return has_body and (has_fitting or has_garment)
+    return has_legacy_mirror or (has_body and (has_fitting or has_garment))
 
 
 def suggest_action(classified: dict[str, list[str]]):
@@ -216,7 +227,10 @@ def suggest_action(classified: dict[str, list[str]]):
     print("\n" + "=" * 70)
     print("[FAIL] BOUNDARY VIOLATION DETECTED")
     print("=" * 70)
-    print("\nThis PR contains changes in BOTH Body (legacy) and Fitting regions.")
+    if classified["legacy_mirror_triggering"]:
+        print("\nThis PR touches deprecated in-repo fitting/garment mirror paths.")
+    else:
+        print("\nThis PR contains changes in BOTH Body and Fitting/Garment regions.")
     print("This violates Rule F0 which prevents parallel work collisions.\n")
 
     print("Suggested actions:")
@@ -227,6 +241,8 @@ def suggest_action(classified: dict[str, list[str]]):
     print("     - specs/** for schema/spec changes")
     print("     - docs/ops/rounds/roundXX_<module>_<agent>.md for round notes")
     print("  3. If changes are truly interdependent, request exception approval")
+    print("  4. Do not edit modules/fitting/** or modules/garment/** in this repo")
+    print("     (those modules are now external sibling repos)")
     print("\nAllowlisted paths (these don't trigger violations):")
     for allowed in ALLOWLIST:
         print(f"  - {allowed}")
@@ -244,8 +260,9 @@ Examples:
 
 Boundaries:
   Body region:    core/, verification/, modules/body/
-  Fitting region: modules/fitting/
-  Garment region: modules/garment/
+  Fitting region: external repo only
+  Garment region: external repo only
+  Deprecated in-repo mirrors: modules/fitting/, modules/garment/ (do not edit)
   Shared (allowlisted): tools/ops/, tools/render_*.py, specs/, .cursorrules, etc.
         """,
     )

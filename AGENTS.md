@@ -42,6 +42,10 @@
 - 그 외 경로에 대한 cross-folder write는 금지.
 - PROGRESS_LOG는 각 폴더가 자기 이벤트를 append하는 것이 원칙.
 - Lab roots 설정: env var(FITTING_LAB_ROOT/GARMENT_LAB_ROOT) 또는 `ops/lab_roots.local.json` 사용 (둘 중 하나만 있으면 OK).
+- Topology guard (2026-02-10):
+  - `modules/fitting/**`, `modules/garment/**` in this repo are deprecated legacy mirrors.
+  - Fitting/Garment implementation work must happen only in external sibling repos.
+  - Agents must resolve lab roots via ENV or `ops/lab_roots.local.json`; do not assume in-repo module paths.
 
 ### 3.3 Generated-only / Append-only
 - `exports/brief/**` : generated-only (수동 편집 금지)
@@ -182,3 +186,6 @@ fitting_facts_summary.json 최소 필드(요약):
 ## Codex Config Default
 - This repo uses `.codex/config.toml` for Codex project defaults.
 - `approval_policy` is conservative by default (`on-request`).
+
+## Topology Policy (2026-02-10)
+- Canonical policy: `docs/ops/LAB_TOPOLOGY_POLICY_20260210.md`

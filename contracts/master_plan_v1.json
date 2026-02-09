@@ -7,6 +7,15 @@
     "common_step_execution": "hub_only",
     "rule": "C* steps are appended only by body main orchestrator"
   },
+  "module_repo_policy": {
+    "body": "in_repo",
+    "fitting": "external_repo",
+    "garment": "external_repo",
+    "deprecated_in_repo_mirrors": [
+      "modules/fitting/**",
+      "modules/garment/**"
+    ]
+  },
   "steps": [
     {
       "step_id": "C00",

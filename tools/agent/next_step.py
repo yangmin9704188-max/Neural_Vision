@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -20,6 +21,11 @@ M1_SIGNAL_TO_STEP = {
     "body": "B10_M1_PUBLISH",
     "garment": "G10_M1_PUBLISH",
     "fitting": "F10_M1_E2E",
+}
+LAB_ROOTS_CONFIG_REL = Path("ops") / "lab_roots.local.json"
+LEGACY_IN_REPO_LAB_ROOTS = {
+    "fitting": "modules/fitting",
+    "garment": "modules/garment",
 }
 
 
@@ -123,20 +129,82 @@ def _scan_one_log(
         warnings.append(f"WARN: failed to read {log_path}: {exc}")
 
 
-def scan_progress_logs(repo_root: Path) -> Tuple[Dict[str, str], Dict[str, int], List[str]]:
+def _load_lab_roots_cfg(repo_root: Path, warnings: List[str]) -> Dict[str, str]:
+    cfg_path = repo_root / LAB_ROOTS_CONFIG_REL
+    if not cfg_path.is_file():
+        return {}
+    try:
+        with open(cfg_path, encoding="utf-8-sig") as f:
+            payload = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        warnings.append(f"WARN: failed to parse {cfg_path}: {exc}")
+        return {}
+    if not isinstance(payload, dict):
+        warnings.append(f"WARN: invalid lab roots payload in {cfg_path}")
+        return {}
+    out: Dict[str, str] = {}
+    for key in ("FITTING_LAB_ROOT", "GARMENT_LAB_ROOT"):
+        val = payload.get(key)
+        if isinstance(val, str) and val.strip():
+            out[key] = val.strip()
+    return out
+
+
+def _resolve_lab_root(
+    repo_root: Path,
+    module: str,
+    cfg: Dict[str, str],
+    warnings: List[str],
+) -> Optional[Path]:
+    env_key = "FITTING_LAB_ROOT" if module == "fitting" else "GARMENT_LAB_ROOT"
+    raw = os.environ.get(env_key, "").strip() or cfg.get(env_key, "").strip()
+    if not raw:
+        warnings.append(f"WARN: {env_key} is not configured (env or ops/lab_roots.local.json)")
+        return None
+    root = Path(raw)
+    if not root.is_absolute():
+        root = (repo_root / root).resolve()
+    else:
+        root = root.resolve()
+    legacy_rel = LEGACY_IN_REPO_LAB_ROOTS[module]
+    if root == (repo_root / legacy_rel).resolve():
+        warnings.append(
+            f"WARN: {env_key} points to legacy in-repo mirror ({legacy_rel}); use external lab repo path"
+        )
+    if not root.is_dir():
+        warnings.append(f"WARN: {env_key} directory not found: {root}")
+    return root
+
+
+def _progress_log_candidates(repo_root: Path, warnings: List[str]) -> List[Tuple[Path, str]]:
+    candidates: List[Tuple[Path, str]] = [
+        (
+            repo_root / "exports" / "progress" / "PROGRESS_LOG.jsonl",
+            "exports/progress/PROGRESS_LOG.jsonl",
+        ),
+    ]
+    cfg = _load_lab_roots_cfg(repo_root, warnings)
+    for module in ("fitting", "garment"):
+        root = _resolve_lab_root(repo_root, module, cfg, warnings)
+        if root is None:
+            continue
+        path = root / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+        candidates.append((path, str(path)))
+    return candidates
+
+
+def scan_progress_logs(
+    repo_root: Path,
+) -> Tuple[Dict[str, str], Dict[str, int], List[str], List[str]]:
     """Scan PROGRESS_LOG.jsonl files, return (done_levels_map, lifecycle_levels, warnings)."""
     done_levels: Dict[str, str] = {}
     lifecycle_levels: Dict[str, int] = {}
     warnings: List[str] = []
-    candidates = [
-        repo_root / "exports" / "progress" / "PROGRESS_LOG.jsonl",
-        repo_root / "modules" / "body" / "exports" / "progress" / "PROGRESS_LOG.jsonl",
-        repo_root / "modules" / "garment" / "exports" / "progress" / "PROGRESS_LOG.jsonl",
-        repo_root / "modules" / "fitting" / "exports" / "progress" / "PROGRESS_LOG.jsonl",
-    ]
-    for log_path in candidates:
+    candidates = _progress_log_candidates(repo_root, warnings)
+    for log_path, _ in candidates:
         _scan_one_log(log_path, done_levels, lifecycle_levels, warnings)
-    return done_levels, lifecycle_levels, warnings
+    scanned = [label for _, label in candidates]
+    return done_levels, lifecycle_levels, warnings, scanned
 
 
 def _scan_m1_signals(repo_root: Path, done_levels: Dict[str, str], warnings: List[str]) -> None:
@@ -294,7 +362,12 @@ def compute_state(
     }
 
 
-def recommend_next(state: Dict[str, Any], module_filter: str, top: int) -> List[Dict[str, Any]]:
+def recommend_next(
+    state: Dict[str, Any],
+    module_filter: str,
+    top: int,
+    module_repo_policy: Dict[str, str],
+) -> List[Dict[str, Any]]:
     ready_ids = state["ready"]
     step_map = state["step_map"]
     candidates: List[Dict[str, Any]] = []
@@ -322,6 +395,9 @@ def recommend_next(state: Dict[str, Any], module_filter: str, top: int) -> List[
                 req_evidence.append(f"Closure spec required: {cpath}")
 
         commands = step.get("commands", [])
+        suggested = commands[0] if commands else "N/A"
+        if module_repo_policy.get(mod) == "external_repo" and suggested != "N/A":
+            suggested = f"[external repo:{mod}] {suggested}"
         candidates.append({
             "step_id": sid,
             "module": mod,
@@ -329,7 +405,7 @@ def recommend_next(state: Dict[str, Any], module_filter: str, top: int) -> List[
             "title": step.get("title", ""),
             "reason_ready": "All dependencies met",
             "required_evidence": req_evidence,
-            "suggested_command": commands[0] if commands else "N/A",
+            "suggested_command": suggested,
         })
     candidates.sort(key=lambda x: (x["phase"], x["step_id"]))
     return candidates[:top]
@@ -474,18 +550,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         _safe_print(f"ERROR: Failed to load plan: {exc}")
         return 1
 
-    done_levels, lifecycle_levels, progress_warnings = scan_progress_logs(repo_root)
+    done_levels, lifecycle_levels, progress_warnings, scanned_logs = scan_progress_logs(repo_root)
     _scan_m1_signals(repo_root, done_levels, progress_warnings)
     state = compute_state(plan_data, done_levels, lifecycle_levels)
-    next_steps = recommend_next(state, args.module, args.top)
+    raw_repo_policy = plan_data.get("module_repo_policy")
+    module_repo_policy = raw_repo_policy if isinstance(raw_repo_policy, dict) else {}
+    next_steps = recommend_next(state, args.module, args.top, module_repo_policy)
     blockers = list_blockers(state, args.module, args.top)
-
-    scanned_logs = [
-        "exports/progress/PROGRESS_LOG.jsonl",
-        "modules/body/exports/progress/PROGRESS_LOG.jsonl",
-        "modules/garment/exports/progress/PROGRESS_LOG.jsonl",
-        "modules/fitting/exports/progress/PROGRESS_LOG.jsonl",
-    ]
 
     if args.json_output:
         print_json(state, next_steps, blockers, plan_path, progress_warnings, repo_root, scanned_logs)

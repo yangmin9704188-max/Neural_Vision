@@ -14,7 +14,7 @@
 | run_registry | `ops/run_registry.jsonl` | ROUND_END에서 추출한 run 레코드 | ✅ |
 | master_plan | `contracts/master_plan_v1.json` | SSoT: unlocks, plan_items, artifacts | ❌ |
 
-- **lab_root**: Body = repo root; Fitting = `modules/fitting`; Garment = `modules/garment`. 경로 해석: `ops/lab_roots.local.json`의 `FITTING_LAB_ROOT`/`GARMENT_LAB_ROOT` (또는 환경변수).
+- **lab_root**: Body = repo root; Fitting/Garment = external sibling repos resolved via `FITTING_LAB_ROOT`/`GARMENT_LAB_ROOT` (env or `ops/lab_roots.local.json`). In-repo `modules/fitting` and `modules/garment` are deprecated legacy mirrors.
 - **PROGRESS_LOG**: Body는 `REPO_ROOT/exports/progress/PROGRESS_LOG.jsonl`; Fitting/Garment는 각 lab root 하위.
 
 ---

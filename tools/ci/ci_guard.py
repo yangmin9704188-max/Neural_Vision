@@ -17,10 +17,8 @@ FAIL = "FAIL"
 FORBIDDEN_PATHS = ["data/", "exports/"]
 PROGRESS_LOG_PATHS = [
     "exports/progress/PROGRESS_LOG.jsonl",
-    "modules/body/exports/progress/PROGRESS_LOG.jsonl",
-    "modules/garment/exports/progress/PROGRESS_LOG.jsonl",
-    "modules/fitting/exports/progress/PROGRESS_LOG.jsonl",
 ]
+LEGACY_MIRROR_PREFIXES = ["modules/garment/", "modules/fitting/"]
 STATUS_PATHS = ["ops/STATUS.md", "STATUS.md"]
 SIGNALS_PREFIX = "ops/signals/"
 ABS_WIN_RE = re.compile(r"[A-Za-z]:\\")
@@ -184,6 +182,42 @@ def check_status_generated(changed_files: List[str]) -> List[CheckResult]:
     return results
 
 
+def check_legacy_mirror_changes(repo_root: Path, changed_files: List[str]) -> List[CheckResult]:
+    """Fail on edits under legacy in-repo garment/fitting mirrors; allow deletions for cleanup."""
+    results: List[CheckResult] = []
+    touched = [p for p in changed_files if any(p.startswith(prefix) for prefix in LEGACY_MIRROR_PREFIXES)]
+    if not touched:
+        results.append(CheckResult(PASS, "legacy_mirror", "No legacy mirror changes"))
+        return results
+
+    still_present = [p for p in touched if (repo_root / p).exists()]
+    removed = [p for p in touched if not (repo_root / p).exists()]
+
+    if still_present:
+        sample = ", ".join(still_present[:5])
+        if len(still_present) > 5:
+            sample += ", ..."
+        results.append(
+            CheckResult(
+                FAIL,
+                "legacy_mirror",
+                (
+                    "In-repo garment/fitting mirrors are deprecated; edit external lab repos instead "
+                    f"(changed present paths: {sample})"
+                ),
+            )
+        )
+    if removed:
+        results.append(
+            CheckResult(
+                WARN,
+                "legacy_mirror",
+                f"Legacy mirror cleanup detected (removed paths: {len(removed)})",
+            )
+        )
+    return results
+
+
 def check_signals_no_abs_windows_paths(repo_root: Path, changed_files: List[str]) -> List[CheckResult]:
     """Fail if tracked ops/signals files contain Windows absolute path patterns."""
     results: List[CheckResult] = []
@@ -280,6 +314,7 @@ def print_results(all_results: List[CheckResult], base_ref: str, head_ref: str) 
     _safe_print("  C) Root loose copies modification prevention")
     _safe_print("  D) STATUS.md generated-only warning")
     _safe_print("  E) ops/signals/** absolute Windows path guardrail")
+    _safe_print("  F) In-repo garment/fitting legacy mirror edit prevention")
     _safe_print()
 
     if worst == FAIL:
@@ -319,6 +354,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     all_results.extend(check_progress_log_append_only(repo_root, changed_files, args.base, args.head))
     all_results.extend(check_loose_copies(changed_files, loose_copies, canonical_changed))
     all_results.extend(check_status_generated(changed_files))
+    all_results.extend(check_legacy_mirror_changes(repo_root, changed_files))
     all_results.extend(check_signals_no_abs_windows_paths(repo_root, changed_files))
 
     return print_results(all_results, args.base, args.head)

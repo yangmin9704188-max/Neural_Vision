@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""doctor.py — Neural Vision repo bootstrap / health checker.
+﻿#!/usr/bin/env python3
+"""doctor.py ??Neural Vision repo bootstrap / health checker.
 
 Read-only by default.  With --fix, creates missing (empty) directories
 and placeholder PROGRESS_LOG.jsonl files so that the ops pipeline can run.
@@ -18,12 +18,12 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # Constants
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 REQUIRED_BOOT_FILES: List[Tuple[str, List[str]]] = [
-    # (label, candidate_paths — first existing wins)
+    # (label, candidate_paths ??first existing wins)
     ("HUB", ["HUB.md", "ops/HUB.md"]),
     ("STATUS", ["STATUS.md", "ops/STATUS.md"]),
     ("project_map", ["project_map.md"]),
@@ -40,18 +40,21 @@ REQUIRED_SCRIPTS: List[str] = [
 
 PROGRESS_LOG_LOCATIONS: List[str] = [
     "exports/progress/PROGRESS_LOG.jsonl",
-    "modules/fitting/exports/progress/PROGRESS_LOG.jsonl",
-    "modules/garment/exports/progress/PROGRESS_LOG.jsonl",
 ]
+LAB_ROOTS_CFG_REL = "ops/lab_roots.local.json"
+LEGACY_IN_REPO_LAB_ROOTS = {
+    "fitting": "modules/fitting",
+    "garment": "modules/garment",
+}
 
 GITIGNORE_EXPECTED_PATTERNS: List[str] = [
     "data/",
     "exports/",
 ]
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # Severity helpers
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 PASS = "PASS"
 WARN = "WARN"
@@ -79,9 +82,9 @@ class CheckResult:
         return d
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # 1) Repo root detection
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 def find_repo_root(start: Optional[Path] = None) -> Tuple[Optional[Path], CheckResult]:
     """Walk upward from *start* (default cwd) looking for .git/ or project_map.md."""
@@ -100,9 +103,9 @@ def find_repo_root(start: Optional[Path] = None) -> Tuple[Optional[Path], CheckR
                              "Could not locate repo root (.git/ or project_map.md)")
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # 2) Required boot files
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 def check_required_files(root: Path) -> List[CheckResult]:
     results: List[CheckResult] = []
@@ -121,9 +124,9 @@ def check_required_files(root: Path) -> List[CheckResult]:
     return results
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # 3) Required ops scripts
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 def check_required_scripts(root: Path) -> List[CheckResult]:
     results: List[CheckResult] = []
@@ -135,9 +138,9 @@ def check_required_scripts(root: Path) -> List[CheckResult]:
     return results
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # 4) Write-boundary / gitignore warnings
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 def check_gitignore_patterns(root: Path) -> List[CheckResult]:
     results: List[CheckResult] = []
@@ -163,6 +166,37 @@ def check_gitignore_patterns(root: Path) -> List[CheckResult]:
     return results
 
 
+def _load_lab_roots_cfg(root: Path) -> Dict[str, str]:
+    cfg_path = root / LAB_ROOTS_CFG_REL
+    if not cfg_path.is_file():
+        return {}
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8-sig", errors="ignore"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out: Dict[str, str] = {}
+    for key in ("FITTING_LAB_ROOT", "GARMENT_LAB_ROOT"):
+        val = data.get(key)
+        if isinstance(val, str) and val.strip():
+            out[key] = val.strip()
+    return out
+
+
+def _resolve_lab_root(root: Path, module: str, cfg: Dict[str, str]) -> Tuple[Optional[Path], str]:
+    env_key = "FITTING_LAB_ROOT" if module == "fitting" else "GARMENT_LAB_ROOT"
+    raw = os.environ.get(env_key, "").strip() or cfg.get(env_key, "").strip()
+    if not raw:
+        return None, env_key
+    path = Path(raw)
+    if not path.is_absolute():
+        path = (root / path).resolve()
+    else:
+        path = path.resolve()
+    return path, env_key
+
+
 def check_progress_logs(root: Path, *, fix: bool = False) -> List[CheckResult]:
     results: List[CheckResult] = []
     for loc in PROGRESS_LOG_LOCATIONS:
@@ -174,21 +208,56 @@ def check_progress_logs(root: Path, *, fix: bool = False) -> List[CheckResult]:
             if fix:
                 full.parent.mkdir(parents=True, exist_ok=True)
                 full.write_text("", encoding="utf-8")
-                msg += " → created (empty)"
+                msg += " -> created (empty)"
             results.append(CheckResult(WARN, f"progress_log:{loc}", msg))
+
+    cfg = _load_lab_roots_cfg(root)
+    for module in ("fitting", "garment"):
+        resolved, key = _resolve_lab_root(root, module, cfg)
+        if resolved is None:
+            results.append(
+                CheckResult(
+                    WARN,
+                    f"progress_log:{module}",
+                    f"{key} not configured (env or {LAB_ROOTS_CFG_REL})",
+                )
+            )
+            continue
+
+        legacy_rel = LEGACY_IN_REPO_LAB_ROOTS[module]
+        if resolved == (root / legacy_rel).resolve():
+            results.append(
+                CheckResult(
+                    WARN,
+                    f"progress_log:{module}",
+                    f"{key} points to legacy in-repo mirror ({legacy_rel}); use external lab repo path",
+                )
+            )
+
+        log_path = resolved / "exports" / "progress" / "PROGRESS_LOG.jsonl"
+        label = f"progress_log:{module}:{log_path}"
+        if log_path.is_file():
+            results.append(CheckResult(PASS, label, "Exists"))
+        else:
+            msg = f"Missing: {log_path}"
+            if fix and resolved.is_dir():
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text("", encoding="utf-8")
+                msg += " -> created (empty)"
+            results.append(CheckResult(WARN, label, msg))
     return results
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # 5) Root loose files (copies)
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 _LOOSE_BLOCK_RE = re.compile(
-    r"##\s*Root\s+루즈\s+파일\s*\(정리\s*대상\).*?```(.*?)```",
-    re.DOTALL,
+    r"##\s*Root\s+.*?```(.*?)```",
+    re.DOTALL | re.IGNORECASE,
 )
 _LOOSE_LINE_RE = re.compile(
-    r"[├└]──\s+(\S+)\s+#\s*→\s*(.+?)(?:\s+의\s+사본)?$",
+    r"[-*]\s+(\S+)\s+#\s*(.+?)$",
 )
 
 
@@ -207,13 +276,14 @@ def _parse_loose_map(root: Path) -> Optional[List[Tuple[str, str]]]:
     
     # Find the section header
     section_match = re.search(
-        r"##\s*Root\s+루즈\s+파일\s*\(정리\s*대상\)(.*?)(?=^##|\Z)",
-        text, re.MULTILINE | re.DOTALL
+        r"##\s*Root\s+.*?(?=^##|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
     if not section_match:
         return None
     
-    section_content = section_match.group(1)
+    section_content = section_match.group(0)
     
     # Check for "Status: NONE" or "Round 06 cleaned" indicating no active loose files
     if re.search(r"Status.*?NONE|cleaned|Round\s*0?6", section_content, re.IGNORECASE):
@@ -239,7 +309,7 @@ def check_loose_files(root: Path) -> List[CheckResult]:
     if mapping is None:
         results.append(CheckResult(
             WARN, "loose_files",
-            "project_map.md에 'Root 루즈 파일 (정리 대상)' 섹션을 찾지 못함"))
+            "project_map.md??'Root 猷⑥쫰 ?뚯씪 (?뺣━ ???' ?뱀뀡??李얠? 紐삵븿"))
         return results
 
     found_any = False
@@ -255,9 +325,9 @@ def check_loose_files(root: Path) -> List[CheckResult]:
     return results
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # 6) Lab roots config
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 def check_lab_roots(root: Path) -> List[CheckResult]:
     results: List[CheckResult] = []
@@ -272,22 +342,28 @@ def check_lab_roots(root: Path) -> List[CheckResult]:
             "ops/lab_roots.local.json not found (optional - use .example to create)"))
     else:
         try:
-            data = json.loads(lr_path.read_text(encoding="utf-8", errors="ignore"))
+            data = json.loads(lr_path.read_text(encoding="utf-8-sig", errors="ignore"))
             results.append(CheckResult(PASS, "lab_roots:file",
                                        "ops/lab_roots.local.json parsed OK"))
             for key in ("FITTING_LAB_ROOT", "GARMENT_LAB_ROOT"):
                 val = data.get(key)
                 if val:
-                    resolved = (root / val).resolve()
+                    path_val = Path(str(val))
+                    resolved = ((root / path_val).resolve() if not path_val.is_absolute() else path_val.resolve())
                     if resolved.is_dir():
                         results.append(CheckResult(
                             PASS, f"lab_roots:{key}",
-                            f"{key}={val} → exists"))
+                            f"{key}={val} ??exists"))
                         local_config_valid[key] = True
+                        legacy_rel = LEGACY_IN_REPO_LAB_ROOTS["fitting" if key.startswith("FITTING") else "garment"]
+                        if resolved == (root / legacy_rel).resolve():
+                            results.append(CheckResult(
+                                WARN, f"lab_roots:{key}:legacy",
+                                f"{key} points to legacy in-repo mirror ({legacy_rel}); use external lab repo"))
                     else:
                         results.append(CheckResult(
                             WARN, f"lab_roots:{key}",
-                            f"{key}={val} → directory not found"))
+                            f"{key}={val} ??directory not found"))
                 else:
                     results.append(CheckResult(
                         WARN, f"lab_roots:{key}",
@@ -301,8 +377,14 @@ def check_lab_roots(root: Path) -> List[CheckResult]:
     for env_key in ("FITTING_LAB_ROOT", "GARMENT_LAB_ROOT"):
         val = os.environ.get(env_key)
         if val:
+            env_path = Path(val).resolve()
             results.append(CheckResult(
-                PASS, f"env:{env_key}", f"Set → {val}"))
+                PASS, f"env:{env_key}", f"Set ??{val}"))
+            legacy_rel = LEGACY_IN_REPO_LAB_ROOTS["fitting" if env_key.startswith("FITTING") else "garment"]
+            if env_path == (root / legacy_rel).resolve():
+                results.append(CheckResult(
+                    WARN, f"env:{env_key}:legacy",
+                    f"{env_key} points to legacy in-repo mirror ({legacy_rel}); use external lab repo"))
         else:
             # If local config is valid, downgrade to PASS with info message
             if local_config_valid[env_key]:
@@ -316,9 +398,9 @@ def check_lab_roots(root: Path) -> List[CheckResult]:
     return results
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # Aggregation & output
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 def _severity_rank(s: str) -> int:
     return {PASS: 0, WARN: 1, FAIL: 2}.get(s, 0)
@@ -411,9 +493,9 @@ def print_json(results: List[CheckResult], repo_root: Optional[Path]) -> None:
     _safe_print(json.dumps(out, indent=2, ensure_ascii=False))
 
 
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 # CLI entry
-# ──────────────────────────────────────────────────────────────────────
+# ??????????????????????????????????????????????????????????????????????
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
@@ -426,7 +508,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="Create missing dirs / empty PROGRESS_LOG.jsonl (safe)")
     args = parser.parse_args(argv)
 
-    # ── 1) Repo root ──
+    # ?? 1) Repo root ??
     start = Path(args.repo_root) if args.repo_root else None
     repo_root, root_result = find_repo_root(start)
     results: List[CheckResult] = [root_result]
@@ -439,23 +521,23 @@ def main(argv: Optional[List[str]] = None) -> int:
             print_human(results, repo_root)
         return 1
 
-    # ── 2) Required boot files ──
+    # ?? 2) Required boot files ??
     results.extend(check_required_files(repo_root))
 
-    # ── 3) Required scripts ──
+    # ?? 3) Required scripts ??
     results.extend(check_required_scripts(repo_root))
 
-    # ── 4) Gitignore patterns + PROGRESS_LOG ──
+    # ?? 4) Gitignore patterns + PROGRESS_LOG ??
     results.extend(check_gitignore_patterns(repo_root))
     results.extend(check_progress_logs(repo_root, fix=args.fix))
 
-    # ── 5) Loose files ──
+    # ?? 5) Loose files ??
     results.extend(check_loose_files(repo_root))
 
-    # ── 6) Lab roots ──
+    # ?? 6) Lab roots ??
     results.extend(check_lab_roots(repo_root))
 
-    # ── Output ──
+    # ?? Output ??
     if args.json_output:
         print_json(results, repo_root)
     else:
@@ -467,3 +549,4 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

@@ -1,1 +1,0 @@
-﻿{"schema_version":"fitting_manifest.v0","inputs":{"units":"m","body_source":{"body_measurements_path":"labs/samples/body.json"},"garment_source":{"garment_measurements_path":"labs/samples/garment.json"}},"outputs":{"out_dir":"runs/smoke_meas"},"provenance":{"schema_version":"fitting_manifest.v0","code_fingerprint":"lab"}}

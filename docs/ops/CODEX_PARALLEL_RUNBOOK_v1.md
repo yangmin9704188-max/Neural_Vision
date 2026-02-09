@@ -2,14 +2,15 @@
 
 ## 1) Directory Map
 - Main worktree: `C:\Users\caino\Desktop\Neural_Vision`
-- Body worktree: `C:\Users\caino\Desktop\NV_wt_body`
-- Garment worktree: `C:\Users\caino\Desktop\NV_wt_garment`
-- Fitting worktree: `C:\Users\caino\Desktop\NV_wt_fitting`
+- Body worktree: `C:\Users\caino\Desktop\Neural_Vision` (main/hub)
+- Garment lab repo: configured by `GARMENT_LAB_ROOT` (example: `C:\Users\caino\Desktop\garment_lab`)
+- Fitting lab repo: configured by `FITTING_LAB_ROOT` (example: `C:\Users\caino\Desktop\fitting_lab`)
 
 ## 2) Touched Paths Rule
 - Body agent: only `modules/body/**` (tests under `modules/body/**` if needed).
-- Garment agent: only `modules/garment/**`.
-- Fitting agent: only `modules/fitting/**`.
+- Garment agent: only `GARMENT_LAB_ROOT/**` in garment repo.
+- Fitting agent: only `FITTING_LAB_ROOT/**` in fitting repo.
+- Deprecated in this repo: `modules/garment/**`, `modules/fitting/**` (legacy mirror; do not edit).
 - Common lane only: any change to `contracts/**`, `tools/validate/**`, `tools/ops/**`, `ops/HUB.md`.
 
 ## 3) Standard Operating Loop (Per Worktree)
@@ -70,7 +71,7 @@ ROLE
 - Worktree: C:\Users\caino\Desktop\NV_wt_garment
 
 TOUCH RULE
-- Allowed touched paths: modules/garment/** only.
+- Allowed touched paths: GARMENT_LAB_ROOT/** only (garment external repo).
 - Do not touch contracts/**, tools/validate/**, tools/ops/**, ops/HUB.md (common lane only).
 
 END COMMANDS (required)
@@ -92,7 +93,7 @@ ROLE
 - Worktree: C:\Users\caino\Desktop\NV_wt_fitting
 
 TOUCH RULE
-- Allowed touched paths: modules/fitting/** only.
+- Allowed touched paths: FITTING_LAB_ROOT/** only (fitting external repo).
 - Do not touch contracts/**, tools/validate/**, tools/ops/**, ops/HUB.md (common lane only).
 
 END COMMANDS (required)
