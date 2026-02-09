@@ -61,17 +61,42 @@ def _b2_unlock_rules_match(unlock_path: Path) -> bool:
         return False
 
 
-def _run_b2_unlock_readiness() -> None:
-    """Discover latest beta_fit_v0 run; generate unlock_signal + optionally append progress. Never raises."""
-    if str(REPO_ROOT) not in sys.path:
-        sys.path.insert(0, str(REPO_ROOT))
-    try:
-        from tools.ops.find_latest_beta_fit_run import find_latest_beta_fit_run
-    except ImportError:
-        print("[B2 unlock] skip: find_latest_beta_fit_run not importable")
+def _resolve_b2_run_dir_input(raw_value: str | None) -> Path | None:
+    if not isinstance(raw_value, str):
+        return None
+    val = raw_value.strip()
+    if not val:
+        return None
+    p = Path(val)
+    if not p.is_absolute():
+        p = (REPO_ROOT / p).resolve()
+    else:
+        p = p.resolve()
+    return p
+
+
+def _run_b2_unlock_readiness(explicit_run_dir: Path | None, allow_latest_infer: bool) -> None:
+    """Generate B2 unlock signal with explicit run_dir by default. latest inference is legacy opt-in."""
+    run_dir = explicit_run_dir
+    if run_dir is not None and not run_dir.exists():
+        print(f"[B2 unlock] skip: explicit run_dir not found: {run_dir}")
         return
 
-    run_dir = find_latest_beta_fit_run(REPO_ROOT)
+    inferred = False
+    if run_dir is None:
+        if not allow_latest_infer:
+            print("[B2 unlock] skip: explicit run_dir required (set --b2-run-dir or B2_RUN_DIR)")
+            return
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        try:
+            from tools.ops.find_latest_beta_fit_run import find_latest_beta_fit_run
+        except ImportError:
+            print("[B2 unlock] skip: find_latest_beta_fit_run not importable")
+            return
+        run_dir = find_latest_beta_fit_run(REPO_ROOT)
+        inferred = True
+
     if run_dir is None:
         try:
             subprocess.run(
@@ -93,6 +118,13 @@ def _run_b2_unlock_readiness() -> None:
         print("[B2 unlock] skip: no beta_fit_v0 run_dir found")
         return
 
+    if not run_dir.exists():
+        print(f"[B2 unlock] skip: run_dir not found: {run_dir}")
+        return
+
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+
     unlock_path = run_dir / "unlock_signal.json"
     rules_match = _b2_unlock_rules_match(unlock_path)
     log_progress = not rules_match
@@ -113,7 +145,8 @@ def _run_b2_unlock_readiness() -> None:
     if r.returncode != 0:
         print(f"[B2 unlock] generator exit {r.returncode}: {run_dir}")
         return
-    print(f"[B2 unlock] run_dir={run_dir} log_progress={log_progress} rules_match={rules_match}")
+    origin = "inferred_latest" if inferred else "explicit"
+    print(f"[B2 unlock] run_dir={run_dir} origin={origin} log_progress={log_progress} rules_match={rules_match}")
 
 
 def _git_status_porcelain(repo_root: Path):
@@ -195,6 +228,10 @@ def main() -> int:
                         help="(legacy) Fitting step ID override")
     parser.add_argument("--garment-step-id", type=str, default=None,
                         help="(legacy) Garment step ID override")
+    parser.add_argument("--b2-run-dir", type=str, default=None,
+                        help="Explicit beta_fit_v0 run_dir for B2 unlock signal")
+    parser.add_argument("--allow-b2-latest-infer", action="store_true",
+                        help="(legacy) Allow implicit latest beta_fit_v0 run_dir selection")
     args, _unknown = parser.parse_known_args()
 
     strict = args.strict_clean
@@ -270,8 +307,13 @@ def main() -> int:
         if r.returncode != 0:
             warnings += 1
 
+    b2_run_dir_raw = (args.b2_run_dir or os.environ.get("B2_RUN_DIR", "")).strip()
+    b2_run_dir = _resolve_b2_run_dir_input(b2_run_dir_raw)
     try:
-        _run_b2_unlock_readiness()
+        _run_b2_unlock_readiness(
+            explicit_run_dir=b2_run_dir,
+            allow_latest_infer=bool(args.allow_b2_latest_infer),
+        )
     except Exception as e:
         print(f"[B2 unlock] warning: {e}")
         warnings += 1

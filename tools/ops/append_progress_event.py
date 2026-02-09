@@ -157,7 +157,6 @@ def main() -> int:
         "run_id": args.run_id,
         "status": args.status,
         "m_level": args.m_level,
-        "lifecycle_state": args.lifecycle_state,
         "dod_done_delta": args.dod_done_delta,
         "note": args.note,
         "evidence": args.evidence or [],
@@ -165,6 +164,8 @@ def main() -> int:
         "validation_report_ref": args.validation_report_ref or None,
         "warnings": warnings + [f"[{g}]" for g in args.gate_code],
     }
+    if args.lifecycle_state:
+        ev["lifecycle_state"] = args.lifecycle_state
 
     line = json.dumps(ev, ensure_ascii=False) + "\n"
 

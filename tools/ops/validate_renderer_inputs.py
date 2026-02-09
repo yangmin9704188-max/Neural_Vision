@@ -135,6 +135,10 @@ def _validate_progress_log(log_path: Path) -> tuple[list[str], int]:
         except json.JSONDecodeError as e:
             warns.append(_warn("PROGRESS_LOG_PARSE_FAIL", f"line {line_no}: {e}", str(log_path)))
             continue
+        # Legacy compatibility: treat explicit null lifecycle_state as missing key.
+        if isinstance(ev, dict) and ev.get("lifecycle_state", "__MISSING__") is None:
+            ev = dict(ev)
+            ev.pop("lifecycle_state", None)
         if schema:
             try:
                 import jsonschema
@@ -177,8 +181,11 @@ def _validate_master_plan() -> list[str]:
     except json.JSONDecodeError as e:
         warns.append(_warn("MASTER_PLAN_INVALID", str(e), str(MASTER_PLAN_PATH)))
         return warns
-    if plan.get("schema_version") != "master_plan.v1":
-        warns.append(_warn("MASTER_PLAN_SCHEMA", "expected schema_version master_plan.v1", "N/A"))
+    plan_version = plan.get("schema_version")
+    if not isinstance(plan_version, str) or not plan_version.strip():
+        plan_version = plan.get("plan_version")
+    if plan_version != "master_plan.v1":
+        warns.append(_warn("MASTER_PLAN_SCHEMA", "expected plan_version master_plan.v1", "N/A"))
     return warns
 
 

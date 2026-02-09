@@ -746,6 +746,8 @@ def _read_smoke_status_summary(root: Path) -> dict:
         "updated_at": "N/A",
         "overall": "N/A",
         "updated_at_utc": "N/A",
+        "smoke2_out_dir": "N/A",
+        "smoke2_proxy_asset_present": "N/A",
         "fitting_facts_summary_path": "N/A",
         "garment_input_path_used": "N/A",
         "early_exit": "N/A",
@@ -772,6 +774,15 @@ def _read_smoke_status_summary(root: Path) -> dict:
 
         smoke2 = data.get("smoke2") if isinstance(data.get("smoke2"), dict) else {}
         evidence = smoke2.get("evidence") if isinstance(smoke2.get("evidence"), dict) else {}
+        smoke2_out_dir = _first_non_empty_str(smoke2.get("out_dir"), evidence.get("out_dir"))
+        if smoke2_out_dir:
+            out["smoke2_out_dir"] = smoke2_out_dir
+        smoke2_out_dir_resolved = _resolve_smoke_out_dir(smoke2_out_dir, root)
+        proxy_asset_present = False
+        if smoke2_out_dir_resolved is not None:
+            proxy_asset_present = _run_dir_has_proxy_assets(smoke2_out_dir_resolved)
+            out["smoke2_proxy_asset_present"] = proxy_asset_present
+
         facts_path_value = _first_non_empty_str(
             evidence.get("fitting_facts_summary"),
             evidence.get("fitting_facts_summary_path"),
@@ -822,8 +833,22 @@ def _read_smoke_status_summary(root: Path) -> dict:
         out["early_exit"] = early_exit if early_exit is not None else "N/A"
         out["early_exit_reason"] = early_exit_reason or "N/A"
         out["warning_codes"] = uniq_codes
-        out["hard_gate_artifact_only_ok"] = bool((input_used or "").lower() == "unknown" and early_exit is True)
-        if "GARMENT_ASSET_MISSING" in seen_codes:
+        input_used_lower = (input_used or "").lower()
+        has_asset_missing = "GARMENT_ASSET_MISSING" in seen_codes
+        if input_used_lower == "unknown":
+            if proxy_asset_present:
+                out["hard_gate_artifact_only_ok"] = False
+                out["warning_classification"] = "GARMENT_INPUT_PATH_UNKNOWN_INVALID_WITH_PROXY"
+            elif early_exit is True and has_asset_missing:
+                out["hard_gate_artifact_only_ok"] = True
+                out["warning_classification"] = "GARMENT_ASSET_MISSING:non_blocker"
+            elif has_asset_missing:
+                out["hard_gate_artifact_only_ok"] = False
+                out["warning_classification"] = "GARMENT_ASSET_MISSING:non_blocker"
+            else:
+                out["hard_gate_artifact_only_ok"] = False
+                out["warning_classification"] = "GARMENT_INPUT_PATH_UNKNOWN_REVIEW"
+        elif has_asset_missing:
             out["warning_classification"] = "GARMENT_ASSET_MISSING:non_blocker"
     except Exception:
         return out
@@ -971,6 +996,42 @@ def _resolve_summary_path(path_value: str, root: Path) -> Path | None:
     return None
 
 
+def _resolve_smoke_out_dir(path_value: str | None, root: Path) -> Path | None:
+    if not isinstance(path_value, str):
+        return None
+    raw = path_value.strip()
+    if not raw:
+        return None
+    p = Path(raw)
+    cands = []
+    if p.is_absolute():
+        cands.append(p)
+    else:
+        cands.extend([root / p, root / "runs" / p, root / "exports" / "runs" / p])
+    for cand in cands:
+        if cand.exists() and cand.is_dir():
+            return cand
+    return None
+
+
+def _run_dir_has_proxy_assets(run_dir: Path) -> bool:
+    direct = (
+        run_dir / "garment_proxy.npz",
+        run_dir / "garment_proxy_mesh.glb",
+    )
+    if any(p.is_file() for p in direct):
+        return True
+    # Legacy/nested output layout guard.
+    nested = (
+        "garment_proxy.npz",
+        "garment_proxy_mesh.glb",
+    )
+    for name in nested:
+        if any(run_dir.rglob(name)):
+            return True
+    return False
+
+
 def _status_signal_recency(status_selected: dict, signal: dict) -> str:
     """Compare status-source timestamp vs signal timestamp (signal is readiness-only)."""
     status_dt = _parse_any_ts(status_selected.get("updated_at_utc"))
@@ -982,6 +1043,17 @@ def _status_signal_recency(status_selected: dict, signal: dict) -> str:
     if signal_dt > status_dt:
         return "signal_newer_readiness_only"
     return "same_timestamp"
+
+
+def _format_status_signal_policy(policy: dict) -> str:
+    cfg = policy.get("status_vs_signal_policy") or {}
+    status_only = cfg.get("status_selection_sources_only")
+    if not isinstance(status_only, list) or not status_only:
+        status_only = ["work_brief_progress_log", "smoke_status_summary"]
+    signal_role = str(cfg.get("signal_role") or "readiness_only")
+    signal_id = str(cfg.get("signal_source") or "m1_latest_signal")
+    joins = ",".join(str(x) for x in status_only)
+    return f"status_sources_only({joins}); signal={signal_role}({signal_id})"
 
 
 def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
@@ -1002,7 +1074,7 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
         "signal": {"path": "N/A", "created_at_utc": "N/A", "run_id": "N/A", "run_dir_rel": "N/A", "_dt": None},
         "status_selected": {"id": "N/A", "updated_at_utc": "N/A", "value": "N/A"},
         "status_policy_version": str(policy.get("policy_version") or "N/A"),
-        "status_signal_policy": "status_sources_only(work_brief_progress_log,smoke_status_summary); signal=readiness_only",
+        "status_signal_policy": _format_status_signal_policy(policy),
         "status_vs_signal_recency": "N/A",
         "status_sla_version": str(sla.get("sla_version") or "N/A"),
         "status_sla_max_age_min": None,
@@ -1109,8 +1181,14 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycl
     smoke_ok = bool(smoke.get("hard_gate_artifact_only_ok"))
     if selected_id == "smoke_status_summary" and str(smoke.get("overall", "")).upper() not in {"PASS", "OK"} and not smoke_ok:
         soft.append("SMOKE_OVERALL_NOT_PASS")
-    if module == "GARMENT" and str(smoke.get("warning_classification", "N/A")) != "N/A":
-        soft.append("GARMENT_ASSET_MISSING_CLASS_WARN")
+    if module == "GARMENT":
+        smoke_class = str(smoke.get("warning_classification", "N/A"))
+        if smoke_class == "GARMENT_ASSET_MISSING:non_blocker":
+            soft.append("GARMENT_ASSET_MISSING_CLASS_WARN")
+        elif smoke_class == "GARMENT_INPUT_PATH_UNKNOWN_INVALID_WITH_PROXY":
+            soft.append("GARMENT_INPUT_PATH_UNKNOWN_INVALID")
+        elif smoke_class != "N/A":
+            soft.append("GARMENT_SMOKE2_CLASSIFIED")
     soft_warns = [_warn(c, "observed", "N/A") for c in soft]
     all_w = warnings + soft_warns
     nw = len(all_w)
@@ -1168,6 +1246,8 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycl
     lines.append(f"- smoke2_early_exit_reason: {smoke.get('early_exit_reason', 'N/A')}")
     lines.append(f"- smoke2_hard_gate_artifact_only_ok: {str(bool(smoke.get('hard_gate_artifact_only_ok'))).lower()}")
     lines.append(f"- smoke2_warning_classification: {smoke.get('warning_classification', 'N/A')}")
+    lines.append(f"- smoke2_out_dir: {smoke.get('smoke2_out_dir', 'N/A')}")
+    lines.append(f"- smoke2_proxy_asset_present: {smoke.get('smoke2_proxy_asset_present', 'N/A')}")
     lines.append(f"- smoke_summary_path: {smoke_path}")
     lines.append(f"- smoke_summary_updated_at_utc: {smoke.get('updated_at_utc', 'N/A')}")
     lines.append(f"- smoke_summary_overall: {smoke.get('overall', 'N/A')}")

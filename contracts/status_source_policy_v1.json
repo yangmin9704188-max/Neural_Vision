@@ -16,6 +16,21 @@
     "type": "latest_updated_at",
     "fallback_order": ["work_brief_progress_log", "smoke_status_summary"]
   },
+  "status_vs_signal_policy": {
+    "status_selection_sources_only": ["work_brief_progress_log", "smoke_status_summary"],
+    "signal_source": "m1_latest_signal",
+    "signal_role": "readiness_only",
+    "signal_participates_in_status_selection": false,
+    "tie_breaker_on_same_timestamp": "fallback_order"
+  },
+  "step_id_missing_aggregation_policy": {
+    "scope": "module_local",
+    "missing_condition": "step_id == UNSPECIFIED",
+    "backfill_condition": "STEP_ID_BACKFILLED in gate_codes|gate_code|warnings",
+    "net_formula": "max(0, missing_count - backfilled_count)",
+    "status_blockers_window_events": 50,
+    "work_brief_last_step_excludes": ["UNSPECIFIED"]
+  },
   "signal_sources": [
     {
       "id": "m1_latest_signal",
