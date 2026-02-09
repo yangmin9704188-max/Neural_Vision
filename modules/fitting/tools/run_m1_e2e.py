@@ -15,6 +15,25 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 BODY_SIGNAL = REPO_ROOT / "ops" / "signals" / "m1" / "body" / "LATEST.json"
 GARMENT_SIGNAL = REPO_ROOT / "ops" / "signals" / "m1" / "garment" / "LATEST.json"
 FITTING_SIGNAL = REPO_ROOT / "ops" / "signals" / "m1" / "fitting" / "LATEST.json"
+MAX_RETRY = 2
+ITER_MAX_PER_ATTEMPT = 100
+CAMERA_PRESET_ID = "fixed_camera_preset_v1"
+CAMERA_PARAMS = {
+    "fov_deg": 45.0,
+    "camera_distance_m": 2.0,
+    "yaw_deg": 0.0,
+    "pitch_deg": -10.0,
+    "roll_deg": 0.0,
+    "near_m": 0.1,
+    "far_m": 10.0,
+    "image_resolution_w": 1920,
+    "image_resolution_h": 1080,
+}
+FIT_SIGNAL_WEIGHTS = {
+    "score_clipping": 0.6,
+    "score_fit_signal": 0.25,
+    "score_smoothness": 0.15,
+}
 
 
 def _utc_now_z() -> str:
@@ -82,6 +101,170 @@ def _derive_early_exit(garment_signal: dict) -> tuple[bool, str | None]:
     return False, None
 
 
+def _build_retry_regen_telemetry(early_exit: bool, early_exit_reason: str | None) -> dict:
+    if early_exit:
+        return {
+            "policy_version": "regen_loop.v1",
+            "max_retry": MAX_RETRY,
+            "iter_max_per_attempt": ITER_MAX_PER_ATTEMPT,
+            "attempt_count": 0,
+            "retries_used": 0,
+            "retry_budget_remaining": MAX_RETRY,
+            "regen_triggered": False,
+            "termination_reason": "early_exit_no_retry",
+            "early_exit_reason": early_exit_reason,
+            "attempts": [],
+        }
+    return {
+        "policy_version": "regen_loop.v1",
+        "max_retry": MAX_RETRY,
+        "iter_max_per_attempt": ITER_MAX_PER_ATTEMPT,
+        "attempt_count": 1,
+        "retries_used": 0,
+        "retry_budget_remaining": MAX_RETRY,
+        "regen_triggered": False,
+        "termination_reason": "completed",
+        "early_exit_reason": None,
+        "attempts": [
+            {
+                "attempt_index": 1,
+                "trigger": "initial_run",
+                "constraint_strength_scale": 1.0,
+                "memory_cleared": True,
+                "iter_limit": ITER_MAX_PER_ATTEMPT,
+                "iter_used": 0,
+                "wall_ms": 1,
+                "outcome": "completed",
+            }
+        ],
+    }
+
+
+def _build_fit_signal(
+    *,
+    body_rel: str,
+    garment_rel: str,
+    garment_used: str,
+    early_exit: bool,
+    early_exit_reason: str | None,
+    degraded_state: str,
+    warnings_summary: list[str],
+    retry_regen_telemetry: dict,
+    created_at: str,
+    version_keys: dict,
+) -> dict:
+    score = 0.25 if early_exit else 1.0
+    score_total = (
+        FIT_SIGNAL_WEIGHTS["score_clipping"] * score
+        + FIT_SIGNAL_WEIGHTS["score_fit_signal"] * score
+        + FIT_SIGNAL_WEIGHTS["score_smoothness"] * score
+    )
+    warnings = []
+    for code in warnings_summary:
+        warnings.append(
+            {
+                "code": code,
+                "severity": "warning",
+                "message": f"{code} observed while consuming M1 inputs",
+            }
+        )
+    return {
+        "schema_version": "fit_signal.v0",
+        "created_at": created_at,
+        "input_refs": {
+            "body_subset_path": f"{body_rel}/body_measurements_subset.json",
+            "garment_ref": f"{garment_rel}/geometry_manifest.json",
+            "resolved_paths": {
+                "body_subset_path_resolved": f"{body_rel}/body_measurements_subset.json",
+                "garment_ref_resolved": f"{garment_rel}/geometry_manifest.json",
+            },
+        },
+        "solver": {
+            "solver_id": "fitting_m1_signal_consumer",
+            "solver_version": "1.1",
+            "notes": "metadata_only_solver_stub",
+        },
+        "timing": {"wall_ms": 1, "notes": "m1_e2e_signal_consumer"},
+        "quality_scores": {
+            "clipping_score": score,
+            "penetration_score": score,
+            "constraint_violation_score": score,
+        },
+        "flags": {"early_exit": early_exit, "degraded": degraded_state != "none"},
+        "camera": {
+            "camera_preset_id": CAMERA_PRESET_ID,
+            "params": CAMERA_PARAMS,
+        },
+        "regen_telemetry": retry_regen_telemetry,
+        "version_keys": version_keys,
+        "explainability": {
+            "weights": FIT_SIGNAL_WEIGHTS,
+            "score_components": {
+                "score_clipping": score,
+                "score_fit_signal": score,
+                "score_smoothness": score,
+            },
+            "score_total": round(score_total, 6),
+            "decision_trace": {
+                "garment_input_path_used": garment_used,
+                "degraded_state": degraded_state,
+                "early_exit_reason": early_exit_reason,
+                "warning_codes": warnings_summary,
+            },
+        },
+        "warnings": warnings,
+    }
+
+
+def _build_provenance(
+    *,
+    body_signal: dict,
+    garment_signal: dict,
+    body_rel: str,
+    garment_rel: str,
+    run_id: str,
+    run_dir_rel: str,
+    version_keys: dict,
+    retry_regen_telemetry: dict,
+    created_at: str,
+) -> dict:
+    cache_key_src = f"{body_rel}|{garment_rel}|{run_id}".encode("utf-8")
+    return {
+        "schema_version": "fitting_provenance.v1",
+        "created_at": created_at,
+        "solver": {
+            "solver_id": "fitting_m1_signal_consumer",
+            "solver_version": "1.1",
+            "max_retry": MAX_RETRY,
+            "iter_max_per_attempt": ITER_MAX_PER_ATTEMPT,
+        },
+        "camera": {
+            "camera_preset_id": CAMERA_PRESET_ID,
+            "params": CAMERA_PARAMS,
+        },
+        "cache": {
+            "cache_policy_version": "cache_policy.v1",
+            "cache_namespace": "fitting_m1",
+            "cache_key": hashlib.sha256(cache_key_src).hexdigest(),
+            "cache_hit": False,
+        },
+        "version_keys": version_keys,
+        "inputs": {
+            "body_run_id": body_signal.get("run_id"),
+            "garment_run_id": garment_signal.get("run_id"),
+            "body_run_dir_rel": body_rel,
+            "garment_run_dir_rel": garment_rel,
+        },
+        "outputs": {
+            "run_id": run_id,
+            "run_dir_rel": run_dir_rel,
+            "fit_signal_path": "fit_signal.json",
+            "provenance_path": "provenance.json",
+        },
+        "retry_regen_telemetry": retry_regen_telemetry,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run fitting M1 E2E from Body/Garment M1 signals.")
     parser.add_argument("--body-signal", type=Path, default=BODY_SIGNAL)
@@ -115,23 +298,50 @@ def main() -> int:
     early_exit, early_exit_reason = _derive_early_exit(garment_signal)
     degraded_state = "high_warning_degraded" if early_exit else "none"
     warnings_summary = ["M1_GARMENT_HARD_GATE"] if early_exit else []
+    retry_regen_telemetry = _build_retry_regen_telemetry(early_exit, early_exit_reason)
 
     fingerprint_src = f"{body_rel}|{garment_rel}|{run_id}".encode("utf-8")
+    version_keys = {
+        "snapshot_version": "m1",
+        "semantic_version": "0.1.0",
+        "geometry_impl_version": "run_m1_e2e.v2",
+        "dataset_version": "none",
+    }
+    created_at = _utc_now_z()
     geometry_manifest = {
         "schema_version": "geometry_manifest.v1",
         "module_name": "fitting",
         "contract_version": "contract.v1",
-        "created_at": _utc_now_z(),
+        "created_at": created_at,
         "inputs_fingerprint": hashlib.sha256(fingerprint_src).hexdigest(),
-        "version_keys": {
-            "snapshot_version": "m1",
-            "semantic_version": "0.1.0",
-            "geometry_impl_version": "run_m1_e2e.v1",
-            "dataset_version": "none",
-        },
+        "version_keys": version_keys,
         "artifacts": artifacts,
         "warnings": warnings,
     }
+    fit_signal = _build_fit_signal(
+        body_rel=body_rel,
+        garment_rel=garment_rel,
+        garment_used=garment_used,
+        early_exit=early_exit,
+        early_exit_reason=early_exit_reason,
+        degraded_state=degraded_state,
+        warnings_summary=warnings_summary,
+        retry_regen_telemetry=retry_regen_telemetry,
+        created_at=created_at,
+        version_keys=version_keys,
+    )
+    provenance = _build_provenance(
+        body_signal=body_signal,
+        garment_signal=garment_signal,
+        body_rel=body_rel,
+        garment_rel=garment_rel,
+        run_id=run_id,
+        run_dir_rel=run_dir_rel,
+        version_keys=version_keys,
+        retry_regen_telemetry=retry_regen_telemetry,
+        created_at=created_at,
+    )
+    artifacts.extend(["fit_signal.json", "provenance.json"])
     fitting_facts_summary = {
         "schema_version": "fitting_facts_summary.v1",
         "garment_input_path_used": garment_used,
@@ -139,10 +349,16 @@ def main() -> int:
         "early_exit_reason": early_exit_reason,
         "warnings_summary": warnings_summary,
         "degraded_state": degraded_state,
+        "camera_preset_id": CAMERA_PRESET_ID,
+        "fit_signal_path": "fit_signal.json",
+        "provenance_path": "provenance.json",
+        "retry_regen_telemetry": retry_regen_telemetry,
     }
 
     _write_json(run_dir_abs / "geometry_manifest.json", geometry_manifest)
     _write_json(run_dir_abs / "fitting_facts_summary.json", fitting_facts_summary)
+    _write_json(run_dir_abs / "fit_signal.json", fit_signal)
+    _write_json(run_dir_abs / "provenance.json", provenance)
 
     fitting_signal = {
         "schema_version": "m1_signal.v1",
@@ -150,12 +366,25 @@ def main() -> int:
         "m_level": "M1",
         "run_id": run_id,
         "run_dir_rel": run_dir_rel,
-        "created_at_utc": _utc_now_z(),
+        "created_at_utc": created_at,
         "inputs": {
             "body_run_id": body_signal.get("run_id"),
             "garment_run_id": garment_signal.get("run_id"),
             "body_run_dir_rel": body_rel,
             "garment_run_dir_rel": garment_rel,
+        },
+        "camera_preset_id": CAMERA_PRESET_ID,
+        "outputs": {
+            "fit_signal_path": "fit_signal.json",
+            "provenance_path": "provenance.json",
+        },
+        "retry_regen_telemetry": {
+            "max_retry": retry_regen_telemetry.get("max_retry"),
+            "iter_max_per_attempt": retry_regen_telemetry.get("iter_max_per_attempt"),
+            "attempt_count": retry_regen_telemetry.get("attempt_count"),
+            "retries_used": retry_regen_telemetry.get("retries_used"),
+            "regen_triggered": retry_regen_telemetry.get("regen_triggered"),
+            "termination_reason": retry_regen_telemetry.get("termination_reason"),
         },
     }
     _write_json(args.fitting_signal, fitting_signal)
