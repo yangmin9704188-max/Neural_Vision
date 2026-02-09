@@ -22,5 +22,22 @@ py -m modules.body.src.runners.run_geo_v0_s1_facts --manifest data/golden/s1_mes
 - data/derived/curated_v0/<RUN_ID>/curated_v0.parquet
 - exports/runs/geo_v0_s1/<run_id>/
 
+## SMPL-X Path Contract
+- Base model directory (fixed): `data/external/smplx`
+- Expected files:
+  - `data/external/smplx/SMPLX_MALE.pkl`
+  - `data/external/smplx/SMPLX_FEMALE.pkl`
+  - `data/external/smplx/SMPLX_NEUTRAL.pkl`
+- `modules/body/src/utils/smart_mapper_v001.py` uses `ext="pkl"`.
+- For any mapper/tuning run, set `model_path` to `data/external/smplx` explicitly.
+- Tuned outputs path (local-only): `data/derived/body/smplx_tuned/<run_id>/`
+
+## Execution Guardrails
+- Do not treat `tools/fit_smplx_beta_v0.py` dummy provider output as final SMPL-X tuning completion.
+- Completion state must be recorded via lifecycle events:
+  - `IMPLEMENTED`
+  - `VALIDATED` (with `reports/validation/...` reference)
+  - `CLOSED` (with `contracts/closure_specs/...` reference)
+
 ## References
 - contracts/, ssot/, [ingest/README.md](src/pipeline/ingest/README.md)
