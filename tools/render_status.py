@@ -20,6 +20,7 @@ STATUS_REFRESH_SLA_PATH = REPO_ROOT / "contracts" / "status_refresh_sla_v1.json"
 PATH_PRIORITY = {"RUN_EVIDENCE": 0, "MANIFEST": 1, "OTHER": 2, "SAMPLE": 3}
 OPS_STATUS = REPO_ROOT / "ops" / "STATUS.md"
 LAB_ROOTS_PATH = REPO_ROOT / "ops" / "lab_roots.local.json"
+NON_BLOCKER_GATE_CODES = {"GARMENT_ASSET_MISSING"}
 
 # Warning format: [CODE] message | path=<path or N/A> OR expected=<hint_path>
 def _warn(code: str, message: str, path: str = "N/A") -> str:
@@ -598,7 +599,7 @@ def _aggregate_blockers_top_n(lab_roots: list[tuple[Path, str]], n: int = 5) -> 
             if has_backfill:
                 step_backfilled_by_mod[mod_key] = step_backfilled_by_mod.get(mod_key, 0) + 1
         for c in codes:
-            if c != "STEP_ID_MISSING":
+            if c != "STEP_ID_MISSING" and c not in NON_BLOCKER_GATE_CODES:
                 all_codes.append(c)
 
     net_step_missing = sum(max(0, step_missing_by_mod.get(m, 0) - step_backfilled_by_mod.get(m, 0)) for m in step_missing_by_mod)
@@ -745,6 +746,13 @@ def _read_smoke_status_summary(root: Path) -> dict:
         "updated_at": "N/A",
         "overall": "N/A",
         "updated_at_utc": "N/A",
+        "fitting_facts_summary_path": "N/A",
+        "garment_input_path_used": "N/A",
+        "early_exit": "N/A",
+        "early_exit_reason": "N/A",
+        "warning_codes": [],
+        "hard_gate_artifact_only_ok": False,
+        "warning_classification": "N/A",
         "_dt": None,
     }
     path = root / "exports" / "brief" / "SMOKE_STATUS_SUMMARY.json"
@@ -761,6 +769,62 @@ def _read_smoke_status_summary(root: Path) -> dict:
         dt = _parse_any_ts(out["updated_at"])
         out["_dt"] = dt
         out["updated_at_utc"] = _to_utc_iso(dt)
+
+        smoke2 = data.get("smoke2") if isinstance(data.get("smoke2"), dict) else {}
+        evidence = smoke2.get("evidence") if isinstance(smoke2.get("evidence"), dict) else {}
+        facts_path_value = _first_non_empty_str(
+            evidence.get("fitting_facts_summary"),
+            evidence.get("fitting_facts_summary_path"),
+            smoke2.get("fitting_facts_summary"),
+            smoke2.get("fitting_facts_summary_path"),
+        )
+        if facts_path_value:
+            out["fitting_facts_summary_path"] = facts_path_value
+
+        input_used = _first_non_empty_str(
+            smoke2.get("garment_input_path_used"),
+            evidence.get("garment_input_path_used"),
+        )
+        early_exit = _first_bool(smoke2.get("early_exit"), evidence.get("early_exit"))
+        early_exit_reason = _first_non_empty_str(
+            smoke2.get("early_exit_reason"),
+            evidence.get("early_exit_reason"),
+        )
+        warning_codes = []
+        for key in ("warnings", "warning_codes", "warnings_summary"):
+            warning_codes.extend(_normalize_warning_codes(smoke2.get(key)))
+            warning_codes.extend(_normalize_warning_codes(evidence.get(key)))
+
+        if facts_path_value:
+            facts_path = _resolve_summary_path(facts_path_value, root)
+            if facts_path:
+                try:
+                    with open(facts_path, encoding="utf-8") as f:
+                        facts = json.load(f)
+                    if isinstance(facts, dict):
+                        input_used = input_used or _first_non_empty_str(facts.get("garment_input_path_used"))
+                        if early_exit is None:
+                            early_exit = _first_bool(facts.get("early_exit"))
+                        early_exit_reason = early_exit_reason or _first_non_empty_str(facts.get("early_exit_reason"))
+                        warning_codes.extend(_normalize_warning_codes(facts.get("warnings")))
+                        warning_codes.extend(_normalize_warning_codes(facts.get("warnings_summary")))
+                except Exception:
+                    pass
+
+        uniq_codes = []
+        seen_codes = set()
+        for code in warning_codes:
+            if code not in seen_codes:
+                seen_codes.add(code)
+                uniq_codes.append(code)
+
+        out["garment_input_path_used"] = input_used or "N/A"
+        out["early_exit"] = early_exit if early_exit is not None else "N/A"
+        out["early_exit_reason"] = early_exit_reason or "N/A"
+        out["warning_codes"] = uniq_codes
+        out["hard_gate_artifact_only_ok"] = bool((input_used or "").lower() == "unknown" and early_exit is True)
+        if "GARMENT_ASSET_MISSING" in seen_codes:
+            out["warning_classification"] = "GARMENT_ASSET_MISSING:non_blocker"
     except Exception:
         return out
     return out
@@ -819,15 +883,23 @@ def _select_status_source(brief: dict, smoke: dict, policy: dict) -> dict:
     Rule: latest_updated_at among configured status sources.
     """
     cands = []
+    configured = []
+    for row in policy.get("status_sources") or []:
+        if isinstance(row, dict):
+            sid = str(row.get("id") or "").strip()
+            if sid:
+                configured.append(sid)
+    allowed = set(configured) if configured else {"work_brief_progress_log", "smoke_status_summary"}
+
     brief_dt = brief.get("_brief_dt")
-    if brief_dt:
+    if brief_dt and "work_brief_progress_log" in allowed:
         cands.append({
             "id": "work_brief_progress_log",
             "dt": brief_dt,
             "value": brief.get("brief_status") or "N/A",
         })
     smoke_dt = smoke.get("_dt")
-    if smoke_dt:
+    if smoke_dt and "smoke_status_summary" in allowed:
         cands.append({
             "id": "smoke_status_summary",
             "dt": smoke_dt,
@@ -837,13 +909,79 @@ def _select_status_source(brief: dict, smoke: dict, policy: dict) -> dict:
     if not cands:
         return {"id": "N/A", "updated_at_utc": "N/A", "value": "N/A"}
 
-    cands.sort(key=lambda x: x["dt"], reverse=True)
-    selected = cands[0]
+    fallback = ((policy.get("status_selection_rule") or {}).get("fallback_order") or configured)
+    fallback_rank = {sid: i for i, sid in enumerate(fallback)}
+    latest_dt = max(c["dt"] for c in cands)
+    latest = [c for c in cands if c["dt"] == latest_dt]
+    latest.sort(key=lambda c: fallback_rank.get(c["id"], 999))
+    selected = latest[0]
     return {
         "id": selected["id"],
         "updated_at_utc": _to_utc_iso(selected["dt"]),
         "value": selected["value"],
     }
+
+
+def _first_non_empty_str(*values) -> str | None:
+    for v in values:
+        if isinstance(v, str):
+            s = v.strip()
+            if s:
+                return s
+    return None
+
+
+def _first_bool(*values) -> bool | None:
+    for v in values:
+        if isinstance(v, bool):
+            return v
+    return None
+
+
+def _normalize_warning_codes(value) -> list[str]:
+    codes: list[str] = []
+    if isinstance(value, str):
+        code = value.strip()
+        if code:
+            codes.append(code)
+        return codes
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, str):
+                code = item.strip()
+                if code:
+                    codes.append(code)
+            elif isinstance(item, dict):
+                code = _first_non_empty_str(item.get("code"), item.get("gate_code"), item.get("id"))
+                if code:
+                    codes.append(code)
+    return codes
+
+
+def _resolve_summary_path(path_value: str, root: Path) -> Path | None:
+    p = Path(path_value)
+    cands = []
+    if p.is_absolute():
+        cands.append(p)
+    else:
+        cands.extend([root / p, root / "runs" / p, root / "exports" / "runs" / p])
+    for cand in cands:
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _status_signal_recency(status_selected: dict, signal: dict) -> str:
+    """Compare status-source timestamp vs signal timestamp (signal is readiness-only)."""
+    status_dt = _parse_any_ts(status_selected.get("updated_at_utc"))
+    signal_dt = _parse_any_ts(signal.get("created_at_utc"))
+    if not status_dt or not signal_dt:
+        return "N/A"
+    if status_dt > signal_dt:
+        return "status_newer"
+    if signal_dt > status_dt:
+        return "signal_newer_readiness_only"
+    return "same_timestamp"
 
 
 def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
@@ -864,6 +1002,8 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
         "signal": {"path": "N/A", "created_at_utc": "N/A", "run_id": "N/A", "run_dir_rel": "N/A", "_dt": None},
         "status_selected": {"id": "N/A", "updated_at_utc": "N/A", "value": "N/A"},
         "status_policy_version": str(policy.get("policy_version") or "N/A"),
+        "status_signal_policy": "status_sources_only(work_brief_progress_log,smoke_status_summary); signal=readiness_only",
+        "status_vs_signal_recency": "N/A",
         "status_sla_version": str(sla.get("sla_version") or "N/A"),
         "status_sla_max_age_min": None,
         "status_source_age_min": None,
@@ -893,6 +1033,7 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
     if not brief_path.exists():
         warnings.append(_warn("BRIEF_NOT_FOUND", "brief not found", str(brief_path)))
         out["status_selected"] = _select_status_source(out, out.get("smoke_summary") or {}, policy)
+        out["status_vs_signal_recency"] = _status_signal_recency(out["status_selected"], out["signal"])
         if out["status_selected"]["id"] == "N/A":
             warnings.append(_warn("STATUS_SOURCE_MISSING", "no status source available", str(root / "exports" / "brief")))
         return out, warnings
@@ -915,6 +1056,7 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
         warnings.append(_warn("BRIEF_READ_FAIL", str(e), str(brief_path)))
 
     out["status_selected"] = _select_status_source(out, out.get("smoke_summary") or {}, policy)
+    out["status_vs_signal_recency"] = _status_signal_recency(out["status_selected"], out["signal"])
     if out["status_selected"]["id"] == "smoke_status_summary":
         warnings.append(_warn("STATUS_SOURCE_SWITCHED", "newer smoke summary selected over work brief", out["smoke_summary"]["path"]))
     if out["status_selected"]["id"] == "N/A":
@@ -964,8 +1106,11 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycl
     selected = brief.get("status_selected") or {}
     selected_id = selected.get("id", "N/A")
     smoke = brief.get("smoke_summary") or {}
-    if selected_id == "smoke_status_summary" and str(smoke.get("overall", "")).upper() not in {"PASS", "OK"}:
+    smoke_ok = bool(smoke.get("hard_gate_artifact_only_ok"))
+    if selected_id == "smoke_status_summary" and str(smoke.get("overall", "")).upper() not in {"PASS", "OK"} and not smoke_ok:
         soft.append("SMOKE_OVERALL_NOT_PASS")
+    if module == "GARMENT" and str(smoke.get("warning_classification", "N/A")) != "N/A":
+        soft.append("GARMENT_ASSET_MISSING_CLASS_WARN")
     soft_warns = [_warn(c, "observed", "N/A") for c in soft]
     all_w = warnings + soft_warns
     nw = len(all_w)
@@ -988,6 +1133,8 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycl
     lines.append(f"- status_source_selected: {selected.get('id', 'N/A')}")
     lines.append(f"- status_source_updated_at_utc: {selected.get('updated_at_utc', 'N/A')}")
     lines.append(f"- status_source_value: {selected.get('value', 'N/A')}")
+    lines.append(f"- status_signal_policy: {brief.get('status_signal_policy', 'N/A')}")
+    lines.append(f"- status_vs_signal_recency: {brief.get('status_vs_signal_recency', 'N/A')}")
     lines.append(f"- status_sla_version: {brief.get('status_sla_version', 'N/A')}")
     lines.append(f"- status_sla_max_age_min: {brief.get('status_sla_max_age_min', 'N/A')}")
     lines.append(f"- status_source_age_min: {brief.get('status_source_age_min', 'N/A')}")
@@ -1011,6 +1158,16 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycl
     lines.append(f"- brief_mtime_local: {brief['brief_mtime']}")
     lines.append(f"- brief_mtime_utc: {brief.get('brief_mtime_utc', 'N/A')}")
     smoke_path = smoke.get("path", "N/A")
+    primary_evidence = smoke.get("fitting_facts_summary_path", "N/A")
+    if not isinstance(primary_evidence, str) or not primary_evidence.strip() or primary_evidence == "N/A":
+        primary_evidence = smoke_path
+    lines.append(f"- run_level_evidence_primary: {primary_evidence}")
+    lines.append(f"- fitting_facts_summary_path: {smoke.get('fitting_facts_summary_path', 'N/A')}")
+    lines.append(f"- smoke2_garment_input_path_used: {smoke.get('garment_input_path_used', 'N/A')}")
+    lines.append(f"- smoke2_early_exit: {smoke.get('early_exit', 'N/A')}")
+    lines.append(f"- smoke2_early_exit_reason: {smoke.get('early_exit_reason', 'N/A')}")
+    lines.append(f"- smoke2_hard_gate_artifact_only_ok: {str(bool(smoke.get('hard_gate_artifact_only_ok'))).lower()}")
+    lines.append(f"- smoke2_warning_classification: {smoke.get('warning_classification', 'N/A')}")
     lines.append(f"- smoke_summary_path: {smoke_path}")
     lines.append(f"- smoke_summary_updated_at_utc: {smoke.get('updated_at_utc', 'N/A')}")
     lines.append(f"- smoke_summary_overall: {smoke.get('overall', 'N/A')}")

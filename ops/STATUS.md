@@ -14,11 +14,18 @@
 ## BLOCKERS (generated)
 <!-- GENERATED:BEGIN:BLOCKERS -->
 - BLOCKERS Top 5:
-  - STEP_ID_BACKFILLED: 7
+  - STEP_ID_BACKFILLED: 15
   - SCHEMA_VIOLATION_BACKFILLED: 6
+  - STEP_ID_MISSING: 6
   - EVIDENCE_ONLY_SAMPLES: 1
 <!-- GENERATED:END:BLOCKERS -->
 
+## M1 Signals (generated)
+<!-- GENERATED:BEGIN:M1_SIGNALS -->
+- body: run_id=20260209_074047_body_m1; run_dir_rel=../NV_shared_data/shared_m1/body/20260209_074047_body_m1; created_at_utc=2026-02-09T07:41:00Z
+- garment: run_id=20260209_123816_garment_m1; run_dir_rel=../NV_shared_data/shared_m1/garment/20260209_123816_garment_m1; created_at_utc=2026-02-09T12:38:17Z
+- fitting: run_id=20260209_122811_fitting_m1; run_dir_rel=data/shared_m1/fitting/20260209_122811_fitting_m1; created_at_utc=2026-02-09T12:28:11Z
+<!-- GENERATED:END:M1_SIGNALS -->
 ---
 
 ## Body
@@ -44,9 +51,15 @@
 
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:BODY -->
-*Updated: 2026-02-08 20:50:35*
+*Updated: 2026-02-10 01:48:56*
 
 - health: OK (warnings=0)
+- lifecycle_total_steps: 9
+- lifecycle_implemented: 9
+- lifecycle_validated: 0
+- lifecycle_closed: 0
+- lifecycle_pending: 0
+- next_validate: B01, B02, B10_M1_PUBLISH, B20_M2_PLACEHOLDER, B30_M0_DOC_ALIGN
 
 ### Curated ingest
 - run_dir: data/derived/curated_v0/_smoke/round10_3_20260204_232023
@@ -60,9 +73,9 @@
   - duplicates=1, missing=0, sink=0
 
 ### Latest progress
-- [B04] 2026-02-08T12:00:41+09:00: B2 unlock signal: candidate=false, quality_p90=86.40, residual_p90_cm={BUST_CIRC_M:2.0820999999999996,HIP_CIRC_M:-5.31998,WAIST_CIRC_M:12.982859999999999}, failures=0, run_dir=exports\runs\facts\beta_fit_v0\determinism_subset_run2
-- [B04] 2026-02-08T12:01:23+09:00: B2 unlock signal: candidate=false, failures_count=0, residual_p90_cm={BUST_CIRC_M:2.0820999999999996,HIP_CIRC_M:-5.31998,WAIST_CIRC_M:12.982859999999999}, quality_p90=86.40, run_dir=exports\runs\facts\beta_fit_v0\determinism_subset_run2 | rec: residual_thr=1.2, score_thr=65, would_be_candidate_by_p90=false
-- [B04] 2026-02-08T12:05:29+09:00: B2 unlock signal: candidate=false, failures_count=0, residual_p90_cm={BUST_CIRC_M:2.0820999999999996,HIP_CIRC_M:-5.31998,WAIST_CIRC_M:12.982859999999999}, quality_p90=86.40, run_dir=exports\runs\facts\beta_fit_v0\determinism_subset_run2 | rec: residual_thr=1.2, score_thr=65, would_be_candidate_by_p90=false
+- [B40_M1_BUDGET_TELEMETRY_TRACK] 2026-02-09T21:26:24+09:00: Body M1 telemetry/budget track implemented: latency,gpu_time,vram_peak,cache_hit + violation policy output
+- [B50_M2_QUALITY_GATE_TRACK] 2026-02-09T21:42:04+09:00: Body M2 quality gate implemented: deterministic blocked/degraded/promotable exposure policy
+- [B51_M2_VERSIONING_TRACK] 2026-02-09T21:42:04+09:00: Body M2 versioning/invalidation hardened: null-free version keys and validated invalidation semantics
 
 <!-- GENERATED:END:BODY -->
 
@@ -90,25 +103,40 @@
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:FITTING -->
 - health: OK (warnings=0)
+- lifecycle_total_steps: 11
+- lifecycle_implemented: 9
+- lifecycle_validated: 2
+- lifecycle_closed: 2
+- lifecycle_pending: 2
+- next_validate: F01, F02, F03, F04, F10_M1_E2E
+- status_policy_version: status_source_policy.v1
+- status_source_selected: work_brief_progress_log
+- status_source_updated_at_utc: 2026-02-09T16:28:25Z
+- status_source_value: WARN
+- status_signal_policy: status_sources_only(work_brief_progress_log,smoke_status_summary); signal=readiness_only
+- status_vs_signal_recency: status_newer
+- status_sla_version: status_refresh_sla.v1
+- status_sla_max_age_min: 240
+- status_source_age_min: 20
+- status_sla_state: OK
+- signal_source: m1_latest_signal
+- signal_created_at_utc: 2026-02-09T12:28:11Z
+- signal_run_id: 20260209_122811_fitting_m1
+- signal_run_dir_rel: data/shared_m1/fitting/20260209_122811_fitting_m1
+- evidence_snapshot: total=30; run_evidence=8, manifest=4, sample=0, other=18
 - brief_path: C:\Users\caino\Desktop\Neural_Vision\modules\fitting\exports\brief\FITTING_WORK_BRIEF.md
-- brief_mtime: 2026-02-08 20:50:35
-- observed_paths:
-  - exports/runs/_smoke/20260206_164438/fitting_smoke_v1/geometry_manifest.json
-  - exports/runs/_smoke/20260206_170827/RUN_README.md
-  - exports/runs/_smoke/20260206_170827/facts_summary.json
-- brief_head:
-  # FITTING Work Brief
-  
-  <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
-  
-  module: fitting
-  updated_at: 2026-02-08 20:50:35 +0900
-  run_id: N/A
-  phase: N/A
-  status: OK
-  summary: last_step=F14 dod_done=1 | Smoke-3 E2E: minset, degraded_indicators recorded
-  artifacts: N/A
-  warnings: 0
+- brief_mtime_local: 2026-02-10 01:28:25
+- brief_mtime_utc: 2026-02-09T16:28:25Z
+- run_level_evidence_primary: N/A
+- fitting_facts_summary_path: N/A
+- smoke2_garment_input_path_used: N/A
+- smoke2_early_exit: N/A
+- smoke2_early_exit_reason: N/A
+- smoke2_hard_gate_artifact_only_ok: false
+- smoke2_warning_classification: N/A
+- smoke_summary_path: N/A
+- smoke_summary_updated_at_utc: N/A
+- smoke_summary_overall: N/A
 <!-- GENERATED:END:FITTING -->
 
 ---
@@ -135,23 +163,38 @@
 ### Dashboard (generated-only)
 <!-- GENERATED:BEGIN:GARMENT -->
 - health: OK (warnings=0)
+- lifecycle_total_steps: 9
+- lifecycle_implemented: 6
+- lifecycle_validated: 0
+- lifecycle_closed: 0
+- lifecycle_pending: 3
+- next_validate: G01, G02, G20_M2_PLACEHOLDER, G30_M0_DOC_ALIGN, G40_M1_INTAKE_GATE_TRACK
+- status_policy_version: status_source_policy.v1
+- status_source_selected: work_brief_progress_log
+- status_source_updated_at_utc: 2026-02-09T16:28:25Z
+- status_source_value: OK
+- status_signal_policy: status_sources_only(work_brief_progress_log,smoke_status_summary); signal=readiness_only
+- status_vs_signal_recency: status_newer
+- status_sla_version: status_refresh_sla.v1
+- status_sla_max_age_min: 240
+- status_source_age_min: 20
+- status_sla_state: OK
+- signal_source: m1_latest_signal
+- signal_created_at_utc: 2026-02-09T12:38:17Z
+- signal_run_id: 20260209_123816_garment_m1
+- signal_run_dir_rel: ../NV_shared_data/shared_m1/garment/20260209_123816_garment_m1
+- evidence_snapshot: total=21; run_evidence=8, manifest=2, sample=0, other=11
 - brief_path: C:\Users\caino\Desktop\Neural_Vision\modules\garment\exports\brief\GARMENT_WORK_BRIEF.md
-- brief_mtime: 2026-02-08 20:50:35
-- observed_paths:
-  - exports/runs/_smoke/20260206_171153/garment_smoke_v1/geometry_manifest.json
-  - exports/runs/_smoke/20260206_171153/geometry_manifest.json
-  - exports/runs/_smoke/20260206_171420/garment_proxy_meta.json
-- brief_head:
-  # GARMENT Work Brief
-  
-  <!-- generated-only: do not edit by hand. Rendered from PROGRESS_LOG.jsonl -->
-  
-  module: garment
-  updated_at: 2026-02-08 20:50:35 +0900
-  run_id: N/A
-  phase: N/A
-  status: OK
-  summary: last_step=G_BACKFILL dod_done=2 | Backfill: legacy event missing event_type/event; referenced_line=17; action=tomb
-  artifacts: N/A
-  warnings: 0
+- brief_mtime_local: 2026-02-10 01:28:25
+- brief_mtime_utc: 2026-02-09T16:28:25Z
+- run_level_evidence_primary: C:\Users\caino\Desktop\garment_lab\runs\smoke\smoke2\20260207_192649\fitting_facts_summary.json
+- fitting_facts_summary_path: C:\Users\caino\Desktop\garment_lab\runs\smoke\smoke2\20260207_192649\fitting_facts_summary.json
+- smoke2_garment_input_path_used: npz
+- smoke2_early_exit: True
+- smoke2_early_exit_reason: garment_hard_gate_violation: invalid_face_flag
+- smoke2_hard_gate_artifact_only_ok: false
+- smoke2_warning_classification: N/A
+- smoke_summary_path: C:\Users\caino\Desktop\Neural_Vision\modules\garment\exports\brief\SMOKE_STATUS_SUMMARY.json
+- smoke_summary_updated_at_utc: 2026-02-08T12:37:13Z
+- smoke_summary_overall: PASS
 <!-- GENERATED:END:GARMENT -->
