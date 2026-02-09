@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MASTER_PLAN_PATH = REPO_ROOT / "contracts" / "master_plan_v1.json"
 STATUS_SOURCE_POLICY_PATH = REPO_ROOT / "contracts" / "status_source_policy_v1.json"
+STATUS_REFRESH_SLA_PATH = REPO_ROOT / "contracts" / "status_refresh_sla_v1.json"
 
 # Path classification for observed_paths (priority order: lower = higher priority)
 PATH_PRIORITY = {"RUN_EVIDENCE": 0, "MANIFEST": 1, "OTHER": 2, "SAMPLE": 3}
@@ -79,6 +80,28 @@ def _load_status_source_policy() -> dict:
         return default
     try:
         with open(STATUS_SOURCE_POLICY_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            default.update(data)
+    except Exception:
+        pass
+    return default
+
+
+def _load_status_refresh_sla() -> dict:
+    default = {
+        "sla_version": "status_refresh_sla.v1",
+        "module_status_sla": {
+            "body": {"max_status_age_minutes": 240},
+            "fitting": {"max_status_age_minutes": 240},
+            "garment": {"max_status_age_minutes": 240},
+        },
+        "enforcement": {"stale_status": "warn"},
+    }
+    if not STATUS_REFRESH_SLA_PATH.exists():
+        return default
+    try:
+        with open(STATUS_REFRESH_SLA_PATH, encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict):
             default.update(data)
@@ -826,6 +849,7 @@ def _select_status_source(brief: dict, smoke: dict, policy: dict) -> dict:
 def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
     """Read brief from FITTING_LAB_ROOT or GARMENT_LAB_ROOT (ENV or lab_roots.local.json). Returns brief_path, mtime, head_12, observed_paths."""
     policy = _load_status_source_policy()
+    sla = _load_status_refresh_sla()
     out = {
         "brief_path": "N/A",
         "brief_mtime": "N/A",
@@ -840,6 +864,10 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
         "signal": {"path": "N/A", "created_at_utc": "N/A", "run_id": "N/A", "run_dir_rel": "N/A", "_dt": None},
         "status_selected": {"id": "N/A", "updated_at_utc": "N/A", "value": "N/A"},
         "status_policy_version": str(policy.get("policy_version") or "N/A"),
+        "status_sla_version": str(sla.get("sla_version") or "N/A"),
+        "status_sla_max_age_min": None,
+        "status_source_age_min": None,
+        "status_sla_state": "N/A",
     }
     warnings = []
     env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
@@ -892,6 +920,27 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
     if out["status_selected"]["id"] == "N/A":
         warnings.append(_warn("STATUS_SOURCE_MISSING", "no status source available", str(root / "exports" / "brief")))
 
+    # SLA freshness evaluation
+    mod = module.lower()
+    mod_sla = ((sla.get("module_status_sla") or {}).get(mod) or {})
+    max_age = mod_sla.get("max_status_age_minutes")
+    now = datetime.now(timezone.utc)
+    selected_dt = _parse_any_ts(out["status_selected"].get("updated_at_utc"))
+    out["status_sla_max_age_min"] = max_age if isinstance(max_age, int) else None
+    if selected_dt:
+        age_min = int((now - selected_dt.astimezone(timezone.utc)).total_seconds() // 60)
+        out["status_source_age_min"] = max(0, age_min)
+        if isinstance(max_age, int):
+            if age_min <= max_age:
+                out["status_sla_state"] = "OK"
+            else:
+                out["status_sla_state"] = "STALE"
+                warnings.append(_warn("STATUS_STALE", f"status source older than SLA ({age_min}m>{max_age}m)", str(root)))
+        else:
+            out["status_sla_state"] = "N/A"
+    else:
+        out["status_sla_state"] = "N/A"
+
     return out, warnings
 
 
@@ -939,6 +988,10 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycl
     lines.append(f"- status_source_selected: {selected.get('id', 'N/A')}")
     lines.append(f"- status_source_updated_at_utc: {selected.get('updated_at_utc', 'N/A')}")
     lines.append(f"- status_source_value: {selected.get('value', 'N/A')}")
+    lines.append(f"- status_sla_version: {brief.get('status_sla_version', 'N/A')}")
+    lines.append(f"- status_sla_max_age_min: {brief.get('status_sla_max_age_min', 'N/A')}")
+    lines.append(f"- status_source_age_min: {brief.get('status_source_age_min', 'N/A')}")
+    lines.append(f"- status_sla_state: {brief.get('status_sla_state', 'N/A')}")
     signal = brief.get("signal") or {}
     lines.append("- signal_source: m1_latest_signal")
     lines.append(f"- signal_created_at_utc: {signal.get('created_at_utc', 'N/A')}")

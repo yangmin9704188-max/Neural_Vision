@@ -10,5 +10,8 @@
 | feature closure protocol | [feature_closure_protocol_v1](feature_closure_protocol_v1.md) |
 | parallel execution policy | [parallel_execution_policy_v1.json](parallel_execution_policy_v1.json) |
 | status source policy | [status_source_policy_v1.json](status_source_policy_v1.json) |
+| status refresh SLA | [status_refresh_sla_v1.json](status_refresh_sla_v1.json) |
+| status surface schema | [status_surface_v1.schema.json](status_surface_v1.schema.json) |
+| cross-repo interface policy | [cross_repo_interface_policy_v1.json](cross_repo_interface_policy_v1.json) |
 | closure spec template | [closure_spec_template_v1](templates/closure_spec_template_v1.md) |
 | validation report template | [validation_report_template_v1](templates/validation_report_template_v1.md) |

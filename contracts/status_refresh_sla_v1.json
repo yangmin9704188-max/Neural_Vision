@@ -1,0 +1,34 @@
+{
+  "sla_version": "status_refresh_sla.v1",
+  "status_generation_triggers": [
+    {
+      "name": "before_pr",
+      "required_command": "py tools/ops/run_ops_loop.py --mode full",
+      "max_allowed_lag_minutes": 30
+    },
+    {
+      "name": "after_merge",
+      "required_command": "py tools/ops/run_ops_loop.py --mode quick",
+      "max_allowed_lag_minutes": 30
+    },
+    {
+      "name": "round_end",
+      "required_command": "py tools/ops/run_end_ops_hook.py",
+      "max_allowed_lag_minutes": 30
+    }
+  ],
+  "module_status_sla": {
+    "fitting": {
+      "max_status_age_minutes": 240
+    },
+    "garment": {
+      "max_status_age_minutes": 240
+    },
+    "body": {
+      "max_status_age_minutes": 240
+    }
+  },
+  "enforcement": {
+    "stale_status": "warn"
+  }
+}

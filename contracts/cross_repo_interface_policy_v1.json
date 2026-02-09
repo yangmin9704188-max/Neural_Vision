@@ -1,0 +1,54 @@
+{
+  "policy_version": "cross_repo_interface_policy.v1",
+  "intent": "Ban ad-hoc sibling-repo paths and enforce official interface paths.",
+  "official_interfaces": {
+    "lab_roots_resolution": [
+      "FITTING_LAB_ROOT env",
+      "GARMENT_LAB_ROOT env",
+      "ops/lab_roots.local.json"
+    ],
+    "read_interfaces": [
+      "ops/signals/m1/<module>/LATEST.json",
+      "<lab_root>/exports/progress/PROGRESS_LOG.jsonl",
+      "<lab_root>/exports/brief/*_WORK_BRIEF.md"
+    ],
+    "write_interfaces": [
+      "hub -> <lab_root>/exports/brief/** only",
+      "module -> own exports/progress/PROGRESS_LOG.jsonl append-only"
+    ]
+  },
+  "forbidden_path_patterns": [
+    "../fitting_lab/**",
+    "../garment_lab/**",
+    "C:/Users/*/fitting_lab/**",
+    "C:/Users/*/garment_lab/**",
+    "C:\\\\Users\\\\*\\\\fitting_lab\\\\**",
+    "C:\\\\Users\\\\*\\\\garment_lab\\\\**"
+  ],
+  "scan_scope": {
+    "include_globs": [
+      "modules/**/tools/**/*.py",
+      "modules/**/tools/*.py",
+      "modules/**/scripts/**/*.ps1",
+      "modules/**/scripts/*.ps1",
+      "modules/**/scripts/**/*.py",
+      "modules/**/scripts/*.py",
+      "tools/**/*.py",
+      "tools/*.py",
+      "scripts/**/*.ps1",
+      "scripts/*.ps1",
+      "scripts/**/*.py",
+      "scripts/*.py"
+    ],
+    "exclude_globs": [
+      "*/exports/**",
+      "*/runs/**",
+      "*/data/**",
+      "**/__pycache__/**",
+      "**/.venv/**"
+    ]
+  },
+  "enforcement": {
+    "mode": "warn"
+  }
+}

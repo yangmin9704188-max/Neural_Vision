@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://neural-vision/contracts/status_surface_v1.schema.json",
+  "title": "Status Surface v1",
+  "description": "Canonical status fields rendered in ops/STATUS generated module blocks.",
+  "type": "object",
+  "required": [
+    "status_policy_version",
+    "status_source_selected",
+    "status_source_updated_at_utc",
+    "status_source_value",
+    "signal_source",
+    "signal_created_at_utc",
+    "status_sla_version",
+    "status_sla_state",
+    "evidence_snapshot"
+  ],
+  "properties": {
+    "status_policy_version": { "type": "string" },
+    "status_source_selected": {
+      "type": "string",
+      "enum": ["work_brief_progress_log", "smoke_status_summary", "N/A"]
+    },
+    "status_source_updated_at_utc": { "type": "string" },
+    "status_source_value": { "type": "string" },
+    "signal_source": { "type": "string", "const": "m1_latest_signal" },
+    "signal_created_at_utc": { "type": "string" },
+    "signal_run_id": { "type": "string" },
+    "signal_run_dir_rel": { "type": "string" },
+    "status_sla_version": { "type": "string" },
+    "status_sla_max_age_min": { "type": ["integer", "null"] },
+    "status_source_age_min": { "type": ["integer", "null"] },
+    "status_sla_state": { "type": "string", "enum": ["OK", "STALE", "N/A"] },
+    "evidence_snapshot": {
+      "type": "object",
+      "required": ["total", "counts"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "counts": {
+          "type": "object",
+          "required": ["RUN_EVIDENCE", "MANIFEST", "SAMPLE", "OTHER"],
+          "properties": {
+            "RUN_EVIDENCE": { "type": "integer", "minimum": 0 },
+            "MANIFEST": { "type": "integer", "minimum": 0 },
+            "SAMPLE": { "type": "integer", "minimum": 0 },
+            "OTHER": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

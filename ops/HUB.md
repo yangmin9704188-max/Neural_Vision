@@ -119,3 +119,21 @@ One-liner run:
 - Dashboard noise policy:
   - hide raw run paths in STATUS generated block
   - show evidence class counts only
+
+## Status Refresh SLA (v1)
+- Contract: `contracts/status_refresh_sla_v1.json`
+- Trigger commands:
+  - before PR: `py tools/ops/run_ops_loop.py --mode full`
+  - after merge: `py tools/ops/run_ops_loop.py --mode quick`
+  - round end: `py tools/ops/run_end_ops_hook.py`
+- Module status freshness is evaluated in `render_status.py` and surfaced as:
+  - `status_sla_max_age_min`
+  - `status_source_age_min`
+  - `status_sla_state`
+
+## Cross-Repo Interface Policy (v1)
+- Contract: `contracts/cross_repo_interface_policy_v1.json`
+- Rule:
+  - sibling-repo literals like `../fitting_lab`, `../garment_lab` are forbidden in executable scripts.
+  - official interfaces only: ENV lab roots, `ops/lab_roots.local.json`, `ops/signals/m1/*/LATEST.json`.
+- Validator: `py tools/ops/validate_cross_repo_refs.py` (wired into `run_ops_loop`).
