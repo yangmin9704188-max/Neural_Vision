@@ -164,3 +164,7 @@ fitting_facts_summary.json 최소 필드(요약):
   - 스키마/검증기/스모크/E2E/PROGRESS_LOG 증거
 - 변경은 항상 최소 touched paths로 제한한다.
 - Git 추적 영역을 오염시키지 않는다(data/**, exports/** 커밋 금지).
+
+## Codex Config Default
+- This repo uses `.codex/config.toml` for Codex project defaults.
+- `approval_policy` is conservative by default (`on-request`).
