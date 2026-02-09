@@ -156,9 +156,11 @@ def _lint_step(step: Any, idx: int, seen: Set[str], all_ids: Set[str],
         results.append(CheckResult(FAIL, f"{label}:phase",
                                    f"Invalid: {phase!r} (expected P0|P1|P2|P3)"))
 
-    # m_level (optional, default=M0)
-    m_level = step.get("m_level", "M0")
-    if m_level in VALID_M_LEVELS:
+    # m_level (optional, implicit default=M0)
+    m_level = step.get("m_level")
+    if m_level is None:
+        results.append(CheckResult(PASS, f"{label}:m_level", "implicit M0"))
+    elif m_level in VALID_M_LEVELS:
         results.append(CheckResult(PASS, f"{label}:m_level", str(m_level)))
     else:
         results.append(CheckResult(FAIL, f"{label}:m_level",

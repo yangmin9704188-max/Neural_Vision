@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -23,7 +24,7 @@ PROGRESS_LOG_PATHS = [
 STATUS_PATHS = ["ops/STATUS.md", "STATUS.md"]
 SIGNALS_PREFIX = "ops/signals/"
 ABS_WIN_RE = re.compile(r"[A-Za-z]:\\")
-ABS_USERS_RE = re.compile(r":\\Users\\", re.IGNORECASE)
+ABS_USERS_RE = re.compile(r"\\\\Users\\\\", re.IGNORECASE)
 
 
 class CheckResult:
@@ -203,6 +204,26 @@ def check_signals_no_abs_windows_paths(repo_root: Path, changed_files: List[str]
             continue
         if ABS_WIN_RE.search(content) or ABS_USERS_RE.search(content):
             violations.append((rel, "windows absolute path pattern detected"))
+            continue
+
+        # If this is JSON and has run_dir_rel, enforce relative path safety.
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            continue
+
+        if isinstance(payload, dict):
+            run_dir_rel = payload.get("run_dir_rel")
+            if isinstance(run_dir_rel, str):
+                if ":" in run_dir_rel:
+                    violations.append((rel, "run_dir_rel must not contain ':'"))
+                    continue
+                if run_dir_rel.startswith("\\"):
+                    violations.append((rel, "run_dir_rel must not start with '\\\\'"))
+                    continue
+                if "\\" in run_dir_rel:
+                    violations.append((rel, "run_dir_rel must not contain '\\\\'"))
+                    continue
 
     if violations:
         for rel, msg in violations:
