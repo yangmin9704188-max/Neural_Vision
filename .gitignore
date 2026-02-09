@@ -69,3 +69,6 @@ Thumbs.db
 # ── Test artifacts (not code) ──
 modules/garment/stderr.txt
 modules/garment/test_output.txt
+
+# Codex local-only
+.codex/config.toml
