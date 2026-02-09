@@ -32,7 +32,15 @@
 - Push branch and open PR.
 - Merge only when CI is green and user approves merge timing.
 
-## 5) Codex Starter Prompts
+## 5) Round/Level Contract (R10+)
+- Plan contract now supports `rounds[]`, step `round_id`, step `m_level` (`M0|M1|M2`), and optional `consumes[].min_level`.
+- Backward compatibility defaults:
+- missing step `m_level` => treated as `M0`
+- missing dependency `min_level` => treated as `M0`
+- Progress events may include `m_level` (`append_progress_event.py --m-level`), and `next_step.py` computes per-step `done_levels`.
+- `next_step --json` now exposes level-aware blockers when dependency level is below required minimum.
+
+## 6) Codex Starter Prompts
 ### Body
 ```text
 ROLE

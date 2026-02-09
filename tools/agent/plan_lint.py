@@ -4,10 +4,14 @@
 Checks:
   - plan_version exists and valid
   - steps array exists
+  - rounds array optional, but validated if present
   - step_id unique across all steps
   - module enum valid (body|garment|fitting|common)
   - depends_on references existing step_ids only
   - phase enum valid (P0|P1|P2|P3)
+  - m_level enum valid if present (M0|M1|M2)
+  - round_id must exist in top-level rounds if present (or LEGACY)
+  - consumes[].min_level enum valid if present
   - commands is array (empty OK)
   - dod/evidence optional but type-checked if present
 
@@ -29,6 +33,7 @@ FAIL = "FAIL"
 
 VALID_MODULES = {"body", "garment", "fitting", "common"}
 VALID_PHASES = {"P0", "P1", "P2", "P3"}
+VALID_M_LEVELS = {"M0", "M1", "M2"}
 
 
 class CheckResult:
@@ -70,6 +75,29 @@ def lint_plan(plan_path: Path) -> List[CheckResult]:
     else:
         results.append(CheckResult(PASS, "plan_version", pv))
 
+    # rounds array (optional but validated)
+    rounds = data.get("rounds")
+    valid_round_ids: Set[str] = set()
+    if rounds is None:
+        results.append(CheckResult(WARN, "rounds", "Missing (legacy default mode)"))
+    elif not isinstance(rounds, list):
+        results.append(CheckResult(FAIL, "rounds", "Present but not an array"))
+    else:
+        for i, rd in enumerate(rounds):
+            if not isinstance(rd, dict):
+                results.append(CheckResult(FAIL, f"rounds[{i}]", "Not an object"))
+                continue
+            rid = rd.get("round_id")
+            if not isinstance(rid, str) or not rid:
+                results.append(CheckResult(FAIL, f"rounds[{i}]:round_id", "Missing or invalid"))
+                continue
+            if rid in valid_round_ids:
+                results.append(CheckResult(FAIL, f"rounds[{i}]:round_id", f"Duplicate round_id: {rid!r}"))
+            else:
+                valid_round_ids.add(rid)
+        if not any(r.severity == FAIL and r.label.startswith("rounds[") for r in results):
+            results.append(CheckResult(PASS, "rounds", f"Array with {len(rounds)} items"))
+
     # steps array
     steps = data.get("steps")
     if not isinstance(steps, list):
@@ -83,7 +111,7 @@ def lint_plan(plan_path: Path) -> List[CheckResult]:
     all_step_ids: Set[str] = {s.get("step_id") for s in steps if isinstance(s.get("step_id"), str)}
 
     for i, step in enumerate(steps):
-        _lint_step(step, i, step_ids_seen, all_step_ids, results)
+        _lint_step(step, i, step_ids_seen, all_step_ids, valid_round_ids, results)
         sid = step.get("step_id")
         if isinstance(sid, str):
             step_ids_seen.add(sid)
@@ -92,6 +120,7 @@ def lint_plan(plan_path: Path) -> List[CheckResult]:
 
 
 def _lint_step(step: Any, idx: int, seen: Set[str], all_ids: Set[str],
+               valid_round_ids: Set[str],
                results: List[CheckResult]) -> None:
     """Lint a single step."""
     if not isinstance(step, dict):
@@ -127,6 +156,28 @@ def _lint_step(step: Any, idx: int, seen: Set[str], all_ids: Set[str],
         results.append(CheckResult(FAIL, f"{label}:phase",
                                    f"Invalid: {phase!r} (expected P0|P1|P2|P3)"))
 
+    # m_level (optional, implicit default=M0)
+    m_level = step.get("m_level")
+    if m_level is None:
+        results.append(CheckResult(PASS, f"{label}:m_level", "implicit M0"))
+    elif m_level in VALID_M_LEVELS:
+        results.append(CheckResult(PASS, f"{label}:m_level", str(m_level)))
+    else:
+        results.append(CheckResult(FAIL, f"{label}:m_level",
+                                   f"Invalid: {m_level!r} (expected M0|M1|M2)"))
+
+    # round_id (optional, default legacy)
+    round_id = step.get("round_id")
+    if round_id is None:
+        results.append(CheckResult(WARN, f"{label}:round_id", "Missing (legacy default)"))
+    elif round_id == "LEGACY":
+        results.append(CheckResult(PASS, f"{label}:round_id", "LEGACY"))
+    elif isinstance(round_id, str) and round_id in valid_round_ids:
+        results.append(CheckResult(PASS, f"{label}:round_id", round_id))
+    else:
+        results.append(CheckResult(FAIL, f"{label}:round_id",
+                                   f"Unknown: {round_id!r} (must be in top-level rounds or LEGACY)"))
+
     # depends_on
     deps = step.get("depends_on")
     if not isinstance(deps, list):
@@ -142,6 +193,43 @@ def _lint_step(step: Any, idx: int, seen: Set[str], all_ids: Set[str],
         if all(isinstance(d, str) and d in all_ids for d in deps):
             results.append(CheckResult(PASS, f"{label}:depends_on",
                                        f"{len(deps)} deps, all valid"))
+
+    # consumes (optional)
+    consumes = step.get("consumes")
+    if consumes is not None:
+        if not isinstance(consumes, list):
+            results.append(CheckResult(FAIL, f"{label}:consumes", "Present but not an array"))
+        else:
+            bad = 0
+            for ci, dep_obj in enumerate(consumes):
+                if not isinstance(dep_obj, dict):
+                    bad += 1
+                    results.append(CheckResult(FAIL, f"{label}:consumes[{ci}]", "Not an object"))
+                    continue
+                from_step = dep_obj.get("from_step")
+                if not isinstance(from_step, str) or from_step not in all_ids:
+                    bad += 1
+                    results.append(CheckResult(
+                        FAIL, f"{label}:consumes[{ci}]:from_step",
+                        f"Invalid or unknown from_step: {from_step!r}"
+                    ))
+                min_level = dep_obj.get("min_level", "M0")
+                if min_level not in VALID_M_LEVELS:
+                    bad += 1
+                    results.append(CheckResult(
+                        FAIL, f"{label}:consumes[{ci}]:min_level",
+                        f"Invalid: {min_level!r} (expected M0|M1|M2)"
+                    ))
+            if bad == 0:
+                results.append(CheckResult(PASS, f"{label}:consumes", f"{len(consumes)} entries"))
+
+    # produces (optional)
+    produces = step.get("produces")
+    if produces is not None:
+        if isinstance(produces, list):
+            results.append(CheckResult(PASS, f"{label}:produces", f"{len(produces)} entries"))
+        else:
+            results.append(CheckResult(WARN, f"{label}:produces", "Present but not an array"))
 
     # unlock (optional but if present, check structure)
     unlock = step.get("unlock")

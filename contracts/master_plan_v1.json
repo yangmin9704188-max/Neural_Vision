@@ -13,204 +13,609 @@
         "requires_u1": false,
         "requires_u2": false
       },
-      "touched_paths": ["tools/ops/doctor.py", "unlock_conditions_u1_u2.md", "phase_plan_unlock_driven.md"],
-      "commands": ["py tools/ops/doctor.py"],
-      "dod": ["doctor_fail_0", "file_exists: unlock_conditions_u1_u2.md", "file_exists: phase_plan_unlock_driven.md"],
+      "touched_paths": [
+        "tools/ops/doctor.py",
+        "unlock_conditions_u1_u2.md",
+        "phase_plan_unlock_driven.md"
+      ],
+      "commands": [
+        "py tools/ops/doctor.py"
+      ],
+      "dod": [
+        "doctor_fail_0",
+        "file_exists: unlock_conditions_u1_u2.md",
+        "file_exists: phase_plan_unlock_driven.md"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "C00", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "C00",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
     },
     {
       "step_id": "C01",
       "module": "common",
       "phase": "P0",
       "title": "Common: U1 schemas + validators created",
-      "depends_on": ["C00"],
+      "depends_on": [
+        "C00"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": false
       },
-      "touched_paths": ["contracts/schemas/**", "tools/validate/**"],
+      "touched_paths": [
+        "contracts/schemas/**",
+        "tools/validate/**"
+      ],
       "commands": [
         "py tools/validate/validate_geometry_manifest.py --run-dir <RUN_DIR>",
         "py tools/validate/validate_u1_body.py --run-dir <RUN_DIR>",
         "py tools/validate/validate_u1_garment.py --run-dir <RUN_DIR>",
         "py tools/validate/validate_u1_fitting.py --run-dir <RUN_DIR>"
       ],
-      "dod": ["validator_exists: validate_u1_body", "validator_exists: validate_u1_garment", "validator_exists: validate_u1_fitting", "schema_exists: geometry_manifest.v1.schema.json"],
+      "dod": [
+        "validator_exists: validate_u1_body",
+        "validator_exists: validate_u1_garment",
+        "validator_exists: validate_u1_fitting",
+        "schema_exists: geometry_manifest.v1.schema.json"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "C01", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "C01",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
     },
     {
       "step_id": "C02",
       "module": "common",
       "phase": "P0",
       "title": "Common: U2 smoke fixtures + harness created",
-      "depends_on": ["C01"],
+      "depends_on": [
+        "C01"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": true
       },
-      "touched_paths": ["tools/smoke/**", "tests/fixtures/u2_smokes/**"],
-      "commands": ["py tools/smoke/run_u2_smokes.py"],
-      "dod": ["smoke_fail_0", "fixture_exists: tests/fixtures/u2_smokes/smoke1_ok", "fixture_exists: tests/fixtures/u2_smokes/smoke2_hardgate", "fixture_exists: tests/fixtures/u2_smokes/smoke3_degraded"],
+      "touched_paths": [
+        "tools/smoke/**",
+        "tests/fixtures/u2_smokes/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py"
+      ],
+      "dod": [
+        "smoke_fail_0",
+        "fixture_exists: tests/fixtures/u2_smokes/smoke1_ok",
+        "fixture_exists: tests/fixtures/u2_smokes/smoke2_hardgate",
+        "fixture_exists: tests/fixtures/u2_smokes/smoke3_degraded"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "C02", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "C02",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
     },
     {
       "step_id": "B01",
       "module": "body",
       "phase": "P0",
       "title": "Body: U1 validators pass on body output",
-      "depends_on": ["C01"],
+      "depends_on": [
+        "C01"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": false
       },
-      "touched_paths": ["modules/body/src/**", "modules/body/runners/**"],
-      "commands": ["py tools/validate/validate_u1_body.py --run-dir <BODY_RUN_DIR>"],
-      "dod": ["validator_fail_0: validate_u1_body", "artifact_exists: geometry_manifest.json", "artifact_exists: body_measurements_subset.json"],
+      "touched_paths": [
+        "modules/body/src/**",
+        "modules/body/runners/**"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_body.py --run-dir <BODY_RUN_DIR>"
+      ],
+      "dod": [
+        "validator_fail_0: validate_u1_body",
+        "artifact_exists: geometry_manifest.json",
+        "artifact_exists: body_measurements_subset.json"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "B01", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "B01",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
+    },
+    {
+      "step_id": "B10_M1_PUBLISH",
+      "module": "body",
+      "phase": "P1",
+      "title": "Body publishes M1 run_dir to ../NV_shared_data/shared_m1/body + updates ops/signals/m1/body/LATEST.json",
+      "depends_on": [
+        "B01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ops/signals/m1/body/**"
+      ],
+      "commands": [
+        "py modules/body/tools/publish_m1.py"
+      ],
+      "dod": [
+        "LATEST.json updated; run_dir_rel points to ../NV_shared_data/shared_m1/body/<run_id>; absolute paths forbidden"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B10_M1_PUBLISH",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1"
     },
     {
       "step_id": "B02",
       "module": "body",
       "phase": "P1",
       "title": "Body: Smoke-3 (null 2+ keys) reproducible",
-      "depends_on": ["B01", "C02"],
+      "depends_on": [
+        "B01",
+        "C02"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": true
       },
-      "touched_paths": ["modules/body/src/**"],
-      "commands": ["py tools/smoke/run_u2_smokes.py --only smoke3_degraded"],
-      "dod": ["smoke_fail_0: smoke3_degraded", "null_count: >=2", "warnings: MISSINGNESS_HIGH_WARNING_DEGRADED"],
+      "touched_paths": [
+        "modules/body/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke3_degraded"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke3_degraded",
+        "null_count: >=2",
+        "warnings: MISSINGNESS_HIGH_WARNING_DEGRADED"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "B02", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "B02",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
     },
     {
       "step_id": "G01",
       "module": "garment",
       "phase": "P0",
       "title": "Garment: U1 validators pass on garment output",
-      "depends_on": ["C01"],
+      "depends_on": [
+        "C01"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": false
       },
-      "touched_paths": ["modules/garment/src/**", "modules/garment/runners/**"],
-      "commands": ["py tools/validate/validate_u1_garment.py --run-dir <GARMENT_RUN_DIR>"],
-      "dod": ["validator_fail_0: validate_u1_garment", "artifact_exists: geometry_manifest.json", "artifact_exists: garment_proxy_meta.json"],
+      "touched_paths": [
+        "modules/garment/src/**",
+        "modules/garment/runners/**"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_garment.py --run-dir <GARMENT_RUN_DIR>"
+      ],
+      "dod": [
+        "validator_fail_0: validate_u1_garment",
+        "artifact_exists: geometry_manifest.json",
+        "artifact_exists: garment_proxy_meta.json"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "G01", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "G01",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
+    },
+    {
+      "step_id": "G10_M1_PUBLISH",
+      "module": "garment",
+      "phase": "P1",
+      "title": "Garment publishes M1 run_dir to ../NV_shared_data/shared_m1/garment + updates ops/signals/m1/garment/LATEST.json",
+      "depends_on": [
+        "G01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ops/signals/m1/garment/**"
+      ],
+      "commands": [
+        "py modules/garment/tools/publish_m1.py"
+      ],
+      "dod": [
+        "LATEST.json updated; run_dir_rel points to ../NV_shared_data/shared_m1/garment/<run_id>; absolute paths forbidden"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G10_M1_PUBLISH",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1"
     },
     {
       "step_id": "G02",
       "module": "garment",
       "phase": "P1",
       "title": "Garment: Smoke-2 (hard gate) meta+manifest generated",
-      "depends_on": ["G01", "C02"],
+      "depends_on": [
+        "G01",
+        "C02"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": true
       },
-      "touched_paths": ["modules/garment/src/**"],
-      "commands": ["py tools/smoke/run_u2_smokes.py --only smoke2_hardgate"],
-      "dod": ["smoke_fail_0: smoke2_hardgate", "meta_flag: invalid_face_flag=true", "artifacts: meta+manifest present"],
+      "touched_paths": [
+        "modules/garment/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke2_hardgate"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke2_hardgate",
+        "meta_flag: invalid_face_flag=true",
+        "artifacts: meta+manifest present"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "G02", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "G02",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
     },
     {
       "step_id": "F01",
       "module": "fitting",
       "phase": "P0",
       "title": "Fitting: U1 validators pass on fitting output",
-      "depends_on": ["C01", "B01", "G01"],
+      "depends_on": [
+        "C01",
+        "B01",
+        "G01"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": false
       },
-      "touched_paths": ["modules/fitting/src/**", "modules/fitting/runners/**"],
-      "commands": ["py tools/validate/validate_u1_fitting.py --run-dir <FITTING_RUN_DIR>"],
-      "dod": ["validator_fail_0: validate_u1_fitting", "artifact_exists: geometry_manifest.json", "artifact_exists: fitting_facts_summary.json"],
+      "touched_paths": [
+        "modules/fitting/src/**",
+        "modules/fitting/runners/**"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_fitting.py --run-dir <FITTING_RUN_DIR>"
+      ],
+      "dod": [
+        "validator_fail_0: validate_u1_fitting",
+        "artifact_exists: geometry_manifest.json",
+        "artifact_exists: fitting_facts_summary.json"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "F01", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "F01",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
+    },
+    {
+      "step_id": "F10_M1_E2E",
+      "module": "fitting",
+      "phase": "P2",
+      "title": "Fitting consumes body+garment M1 by signal; publishes fitting M1 and updates ops/signals/m1/fitting/LATEST.json",
+      "depends_on": [
+        "B10_M1_PUBLISH",
+        "G10_M1_PUBLISH",
+        "F01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ops/signals/m1/fitting/**"
+      ],
+      "commands": [
+        "py modules/fitting/tools/consume_m1_and_run.py"
+      ],
+      "dod": [
+        "Consumes body+garment M1 by signal; publishes fitting M1 to ../NV_shared_data/shared_m1/fitting; updates LATEST.json"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F10_M1_E2E",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1"
     },
     {
       "step_id": "F02",
       "module": "fitting",
       "phase": "P2",
       "title": "Fitting: Smoke-1 (OK E2E) pass",
-      "depends_on": ["F01", "B01", "G01", "C02"],
+      "depends_on": [
+        "F01",
+        "B01",
+        "G01",
+        "C02"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": true
       },
-      "touched_paths": ["modules/fitting/src/**"],
-      "commands": ["py tools/smoke/run_u2_smokes.py --only smoke1_ok"],
-      "dod": ["smoke_fail_0: smoke1_ok", "early_exit: false", "degraded_state: none"],
+      "touched_paths": [
+        "modules/fitting/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke1_ok"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke1_ok",
+        "early_exit: false",
+        "degraded_state: none"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "F02", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "F02",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
     },
     {
       "step_id": "F03",
       "module": "fitting",
       "phase": "P2",
       "title": "Fitting: Smoke-2 (hard gate) early_exit=true",
-      "depends_on": ["F01", "G02", "C02"],
+      "depends_on": [
+        "F01",
+        "G02",
+        "C02"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": true
       },
-      "touched_paths": ["modules/fitting/src/**"],
-      "commands": ["py tools/smoke/run_u2_smokes.py --only smoke2_hardgate"],
-      "dod": ["smoke_fail_0: smoke2_hardgate", "early_exit: true", "early_exit_reason: not null"],
+      "touched_paths": [
+        "modules/fitting/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke2_hardgate"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke2_hardgate",
+        "early_exit: true",
+        "early_exit_reason: not null"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "F03", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "F03",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
     },
     {
       "step_id": "F04",
       "module": "fitting",
       "phase": "P2",
       "title": "Fitting: Smoke-3 (degraded) degraded_state surfaced",
-      "depends_on": ["F01", "B02", "C02"],
+      "depends_on": [
+        "F01",
+        "B02",
+        "C02"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": true
       },
-      "touched_paths": ["modules/fitting/src/**"],
-      "commands": ["py tools/smoke/run_u2_smokes.py --only smoke3_degraded"],
-      "dod": ["smoke_fail_0: smoke3_degraded", "degraded_state: high_warning_degraded"],
+      "touched_paths": [
+        "modules/fitting/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke3_degraded"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke3_degraded",
+        "degraded_state: high_warning_degraded"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "F04", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "F04",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
     },
     {
       "step_id": "P2_SEAL",
       "module": "common",
       "phase": "P2",
       "title": "P2 seal: All U2 smokes pass (U2 봉인)",
-      "depends_on": ["F02", "F03", "F04"],
+      "depends_on": [
+        "F02",
+        "F03",
+        "F04"
+      ],
       "unlock": {
         "requires_u1": true,
         "requires_u2": true
       },
       "touched_paths": [],
-      "commands": ["py tools/smoke/run_u2_smokes.py"],
-      "dod": ["smoke_fail_0: all", "smoke1_ok: PASS", "smoke2_hardgate: WARN", "smoke3_degraded: WARN"],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py"
+      ],
+      "dod": [
+        "smoke_fail_0: all",
+        "smoke1_ok: PASS",
+        "smoke2_hardgate: WARN",
+        "smoke3_degraded: WARN"
+      ],
       "evidence": {
-        "progress_event": {"step_id": "P2_SEAL", "status": "OK"}
-      }
+        "progress_event": {
+          "step_id": "P2_SEAL",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0"
+    },
+    {
+      "step_id": "B20_M2_PLACEHOLDER",
+      "module": "body",
+      "phase": "P3",
+      "title": "Body M2 upgrade placeholder (blocked until body M1 publish complete)",
+      "depends_on": [
+        "B10_M1_PUBLISH"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ops/signals/m1/body/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2"
+    },
+    {
+      "step_id": "G20_M2_PLACEHOLDER",
+      "module": "garment",
+      "phase": "P3",
+      "title": "Garment M2 upgrade placeholder (blocked until garment M1 publish complete)",
+      "depends_on": [
+        "G10_M1_PUBLISH"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ops/signals/m1/garment/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2"
+    },
+    {
+      "step_id": "F20_M2_PLACEHOLDER",
+      "module": "fitting",
+      "phase": "P3",
+      "title": "Fitting M2 upgrade placeholder (blocked until fitting M1 E2E complete)",
+      "depends_on": [
+        "F10_M1_E2E"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ops/signals/m1/fitting/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2"
+    }
+  ],
+  "rounds": [
+    {
+      "round_id": "R10",
+      "title": "Plan contract fields + lint compatibility",
+      "description": "Add rounds and level-aware optional step fields with backward compatibility."
+    },
+    {
+      "round_id": "R11",
+      "title": "next_step level interpreter",
+      "description": "Interpret step m_level and consumes.min_level using done_level from progress events."
+    },
+    {
+      "round_id": "R12",
+      "title": "M1 signals skeleton + guardrails",
+      "description": "Track minimal m1 signal templates and add path guardrails in CI guard."
+    },
+    {
+      "round_id": "R13",
+      "title": "M1 publish/consume explicit contract steps + signal readiness in STATUS",
+      "description": "Add explicit M1 publish steps for body/garment, fitting consume E2E, and surface M1 signal readiness."
+    },
+    {
+      "round_id": "R14",
+      "title": "M2 placeholder roadmap",
+      "description": "Add non-disruptive M2 placeholder steps for body/garment/fitting blocked by corresponding M1 completion."
     }
   ]
 }

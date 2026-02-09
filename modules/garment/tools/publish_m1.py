@@ -76,6 +76,10 @@ def _now_iso_local() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def _utc_now_z() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _read_json(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
@@ -343,19 +347,19 @@ def _write_latest_signal(
     source_dir: Path,
     run_dir: Path,
 ) -> None:
-    run_dir_rel = os.path.relpath(str(run_dir.resolve()), str(repo_root.resolve()))
-    source_dir_rel = os.path.relpath(str(source_dir.resolve()), str(repo_root.resolve()))
+    run_dir_rel = os.path.relpath(str(run_dir.resolve()), str(repo_root.resolve())).replace("\\", "/")
+    source_dir_rel = os.path.relpath(str(source_dir.resolve()), str(repo_root.resolve())).replace("\\", "/")
     optional_present = []
     for name in OPTIONAL_FILES + TRACKING_FILES:
         if (run_dir / name).exists():
             optional_present.append(name)
 
     signal = {
-        "schema_version": "m1_latest_signal.v1",
+        "schema_version": "m1_signal.v1",
         "module": "garment",
         "m_level": "M1",
         "status": "OK",
-        "updated_at": _now_iso_local(),
+        "created_at_utc": _utc_now_z(),
         "run_id": run_id,
         "run_dir_rel": run_dir_rel,
         "source_run_dir_rel": source_dir_rel,
