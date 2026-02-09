@@ -1,0 +1,10 @@
+{
+  "schema_version": "m1_signal.v1",
+  "module": "body",
+  "m_level": "M1",
+  "run_id": "YYYYMMDD_HHMMSS_body_m1",
+  "run_dir_rel": "data/shared_m1/body/YYYYMMDD_HHMMSS_body_m1",
+  "created_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+  "inputs_fingerprint": "optional",
+  "notes": "optional"
+}
