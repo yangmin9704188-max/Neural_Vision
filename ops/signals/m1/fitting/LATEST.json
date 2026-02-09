@@ -1,10 +1,12 @@
-﻿{
+{
   "schema_version": "m1_signal.v1",
   "module": "fitting",
   "m_level": "M1",
-  "status": "WAITING_INPUTS",
-  "run_id": null,
-  "run_dir_rel": null,
-  "updated_at": "1970-01-01T00:00:00Z",
-  "message": "Awaiting body+garment M1 signals."
+  "run_id": "fitting_m1_20260209_081438",
+  "run_dir_rel": "../NV_shared_data/shared_m1/fitting/fitting_m1_20260209_081438",
+  "created_at_utc": "2026-02-09T08:14:38Z",
+  "inputs": {
+    "body_run_dir_rel": "../NV_shared_data/shared_m1/body/20260209_074047_body_m1",
+    "garment_run_dir_rel": "../NV_shared_data/shared_m1/garment/20260209_081418_garment_m1"
+  }
 }

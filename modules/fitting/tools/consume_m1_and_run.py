@@ -1,20 +1,11 @@
 ﻿#!/usr/bin/env python3
-"""
-Consume M1 body/garment signals and run fitting publish flow.
-
-Behavior:
-1) Read ops/signals/m1/body/LATEST.json and ops/signals/m1/garment/LATEST.json.
-2) If one/both missing: exit 0 with message "M1 inputs not available; stay in M0".
-3) If both available: generate fitting outputs under data/shared_m1/fitting/<run_id>/.
-4) Validate output with tools/validate/validate_u1_fitting.py.
-5) Update ops/signals/m1/fitting/LATEST.json (repo-relative run_dir_rel only).
-6) If append_progress_event supports --m-level, append M1 OK event.
-"""
+"""Consume body+garment M1 signals, publish fitting M1 run into shared storage."""
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -27,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 BODY_SIGNAL = REPO_ROOT / "ops" / "signals" / "m1" / "body" / "LATEST.json"
 GARMENT_SIGNAL = REPO_ROOT / "ops" / "signals" / "m1" / "garment" / "LATEST.json"
 FITTING_SIGNAL = REPO_ROOT / "ops" / "signals" / "m1" / "fitting" / "LATEST.json"
-SHARED_ROOT = REPO_ROOT / "data" / "shared_m1" / "fitting"
+SHARED_ROOT = REPO_ROOT.parent / "NV_shared_data" / "shared_m1" / "fitting"
 
 
 def _utc_now_z() -> str:
@@ -51,7 +42,7 @@ def _is_safe_rel_path(raw: str) -> bool:
     if re.match(r"^[A-Za-z]:", s):
         return False
     p = Path(s)
-    if p.is_absolute() or ".." in p.parts:
+    if p.is_absolute():
         return False
     return True
 
@@ -71,11 +62,6 @@ def _resolve_from_signal(sig: dict, label: str) -> tuple[str | None, Path | None
         return None, None, f"{label} signal missing valid run_dir_rel"
 
     run_dir = (REPO_ROOT / run_dir_rel).resolve()
-    try:
-        run_dir.relative_to(REPO_ROOT)
-    except ValueError:
-        return None, None, f"{label} run_dir_rel escapes repo"
-
     if not run_dir.is_dir():
         return None, None, f"{label} run_dir does not exist: {run_dir_rel}"
 
@@ -130,50 +116,6 @@ def _validate_u1(run_dir: Path) -> tuple[bool, str]:
     return p.returncode == 0, output.strip()
 
 
-def _append_m1_progress(run_id: str, run_dir_rel: str) -> str:
-    script = REPO_ROOT / "tools" / "ops" / "append_progress_event.py"
-    if not script.is_file():
-        return "append_progress_event.py not found; skipped"
-
-    help_proc = subprocess.run(
-        [sys.executable, str(script), "--help"],
-        cwd=str(REPO_ROOT),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    help_text = (help_proc.stdout or "") + (help_proc.stderr or "")
-    if "--m-level" not in help_text:
-        return "--m-level not supported yet; skipped"
-
-    cmd = [
-        sys.executable,
-        str(script),
-        "--lab-root",
-        str(REPO_ROOT),
-        "--module",
-        "fitting",
-        "--step-id",
-        "F01",
-        "--event",
-        "m1_run_performed",
-        "--run-id",
-        run_id,
-        "--status",
-        "OK",
-        "--note",
-        "U1 fitting output valid / M1 run performed",
-        "--evidence",
-        run_dir_rel,
-        "--m-level",
-        "M1",
-    ]
-    proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=30)
-    if proc.returncode == 0:
-        return "progress event appended (m_level=M1)"
-    return f"append_progress_event failed (rc={proc.returncode})"
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description="Consume M1 signals and publish fitting M1 output.")
     ap.add_argument("--body-signal", type=Path, default=BODY_SIGNAL)
@@ -202,12 +144,6 @@ def main() -> int:
     run_id = _sanitize_run_id(args.run_id or _default_run_id())
     run_dir = (args.shared_root / run_id).resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        run_dir.relative_to(REPO_ROOT)
-    except ValueError:
-        print("refusing to write outside repo", file=sys.stderr)
-        return 1
 
     garment_used, garment_src = _garment_input_from_run(garment_dir)
     artifact_names: list[str] = ["fitting_facts_summary.json"]
@@ -263,15 +199,14 @@ def main() -> int:
         print(validation_out, file=sys.stderr)
         return 1
 
-    run_dir_rel = run_dir.relative_to(REPO_ROOT).as_posix()
+    run_dir_rel = os.path.relpath(run_dir, REPO_ROOT).replace("\\", "/")
     fitting_signal = {
         "schema_version": "m1_signal.v1",
         "module": "fitting",
         "m_level": "M1",
-        "status": "OK",
         "run_id": run_id,
         "run_dir_rel": run_dir_rel,
-        "updated_at": _utc_now_z(),
+        "created_at_utc": _utc_now_z(),
         "inputs": {
             "body_run_dir_rel": body_rel,
             "garment_run_dir_rel": garment_rel,
@@ -279,12 +214,10 @@ def main() -> int:
     }
     _write_json(args.fitting_signal, fitting_signal)
 
-    progress_msg = _append_m1_progress(run_id=run_id, run_dir_rel=run_dir_rel)
-
     print("M1 run completed")
     print(f"- run_dir_rel: {run_dir_rel}")
     print(f"- validate_u1_fitting: PASS/WARN (FAIL=0)")
-    print(f"- progress: {progress_msg}")
+    print("- progress: skipped (non-git exports policy)")
     return 0
 
 

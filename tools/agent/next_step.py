@@ -14,6 +14,11 @@ FAIL = "FAIL"
 
 VALID_MODULES = {"body", "garment", "fitting", "common", "all"}
 LEVELS = {"M0": 0, "M1": 1, "M2": 2}
+M1_SIGNAL_TO_STEP = {
+    "body": "B10_M1_PUBLISH",
+    "garment": "G10_M1_PUBLISH",
+    "fitting": "F10_M1_E2E",
+}
 
 
 def _safe_print(text: str = "") -> None:
@@ -93,6 +98,37 @@ def scan_progress_logs(repo_root: Path) -> Tuple[Dict[str, str], List[str]]:
     for log_path in candidates:
         _scan_one_log(log_path, done_levels, warnings)
     return done_levels, warnings
+
+
+def _scan_m1_signals(repo_root: Path, done_levels: Dict[str, str], warnings: List[str]) -> None:
+    """Augment done levels from ops/signals/m1/*/LATEST.json when run dir exists."""
+    for module, step_id in M1_SIGNAL_TO_STEP.items():
+        sig_path = repo_root / "ops" / "signals" / "m1" / module / "LATEST.json"
+        if not sig_path.is_file():
+            continue
+        try:
+            with open(sig_path, encoding="utf-8-sig") as f:
+                payload = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            warnings.append(f"WARN: failed to parse {sig_path}: {exc}")
+            continue
+        if not isinstance(payload, dict):
+            warnings.append(f"WARN: invalid payload in {sig_path}")
+            continue
+        run_dir_rel = payload.get("run_dir_rel")
+        if not isinstance(run_dir_rel, str) or not run_dir_rel.strip():
+            warnings.append(f"WARN: missing run_dir_rel in {sig_path}")
+            continue
+        run_dir = (repo_root / run_dir_rel).resolve()
+        if not run_dir.is_dir():
+            warnings.append(f"WARN: signal run_dir missing for {sig_path}: {run_dir_rel}")
+            continue
+        observed = payload.get("m_level")
+        lvl = observed if isinstance(observed, str) and observed in LEVELS else "M1"
+        if step_id in done_levels:
+            done_levels[step_id] = _level_max(done_levels[step_id], lvl)
+        else:
+            done_levels[step_id] = lvl
 
 
 def _step_required_level(step: Dict[str, Any]) -> str:
@@ -356,6 +392,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
     done_levels, progress_warnings = scan_progress_logs(repo_root)
+    _scan_m1_signals(repo_root, done_levels, progress_warnings)
     state = compute_state(plan_data, done_levels)
     next_steps = recommend_next(state, args.module, args.top)
     blockers = list_blockers(state, args.module, args.top)

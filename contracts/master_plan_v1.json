@@ -143,7 +143,7 @@
       "step_id": "B10_M1_PUBLISH",
       "module": "body",
       "phase": "P1",
-      "title": "Body publishes M1 run_dir to data/shared_m1/body + updates ops/signals/m1/body/LATEST.json",
+      "title": "Body publishes M1 run_dir to ../NV_shared_data/shared_m1/body + updates ops/signals/m1/body/LATEST.json",
       "depends_on": [
         "B01"
       ],
@@ -159,7 +159,7 @@
         "py modules/body/tools/publish_m1.py"
       ],
       "dod": [
-        "LATEST.json updated; run_dir_rel points to data/shared_m1/body/<run_id>; absolute paths forbidden"
+        "LATEST.json updated; run_dir_rel points to ../NV_shared_data/shared_m1/body/<run_id>; absolute paths forbidden"
       ],
       "evidence": {
         "progress_event": {
@@ -240,7 +240,7 @@
       "step_id": "G10_M1_PUBLISH",
       "module": "garment",
       "phase": "P1",
-      "title": "Garment publishes M1 run_dir to data/shared_m1/garment + updates ops/signals/m1/garment/LATEST.json",
+      "title": "Garment publishes M1 run_dir to ../NV_shared_data/shared_m1/garment + updates ops/signals/m1/garment/LATEST.json",
       "depends_on": [
         "G01"
       ],
@@ -256,7 +256,7 @@
         "py modules/garment/tools/publish_m1.py"
       ],
       "dod": [
-        "LATEST.json updated; run_dir_rel points to data/shared_m1/garment/<run_id>; absolute paths forbidden"
+        "LATEST.json updated; run_dir_rel points to ../NV_shared_data/shared_m1/garment/<run_id>; absolute paths forbidden"
       ],
       "evidence": {
         "progress_event": {
@@ -357,7 +357,7 @@
         "py modules/fitting/tools/consume_m1_and_run.py"
       ],
       "dod": [
-        "Consumes body+garment M1 by signal; publishes fitting M1 to data/shared_m1/fitting; updates LATEST.json"
+        "Consumes body+garment M1 by signal; publishes fitting M1 to ../NV_shared_data/shared_m1/fitting; updates LATEST.json"
       ],
       "evidence": {
         "progress_event": {
@@ -502,6 +502,93 @@
       },
       "round_id": "LEGACY",
       "m_level": "M0"
+    },
+    {
+      "step_id": "B20_M2_PLACEHOLDER",
+      "module": "body",
+      "phase": "P3",
+      "title": "Body M2 upgrade placeholder (blocked until body M1 publish complete)",
+      "depends_on": [
+        "B10_M1_PUBLISH"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ops/signals/m1/body/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2"
+    },
+    {
+      "step_id": "G20_M2_PLACEHOLDER",
+      "module": "garment",
+      "phase": "P3",
+      "title": "Garment M2 upgrade placeholder (blocked until garment M1 publish complete)",
+      "depends_on": [
+        "G10_M1_PUBLISH"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ops/signals/m1/garment/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2"
+    },
+    {
+      "step_id": "F20_M2_PLACEHOLDER",
+      "module": "fitting",
+      "phase": "P3",
+      "title": "Fitting M2 upgrade placeholder (blocked until fitting M1 E2E complete)",
+      "depends_on": [
+        "F10_M1_E2E"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ops/signals/m1/fitting/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2"
     }
   ],
   "rounds": [
@@ -524,6 +611,11 @@
       "round_id": "R13",
       "title": "M1 publish/consume explicit contract steps + signal readiness in STATUS",
       "description": "Add explicit M1 publish steps for body/garment, fitting consume E2E, and surface M1 signal readiness."
+    },
+    {
+      "round_id": "R14",
+      "title": "M2 placeholder roadmap",
+      "description": "Add non-disruptive M2 placeholder steps for body/garment/fitting blocked by corresponding M1 completion."
     }
   ]
 }
