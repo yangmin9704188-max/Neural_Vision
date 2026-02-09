@@ -1,17 +1,20 @@
-﻿{
-  "schema_version": "m1_latest_signal.v1",
-  "module": "garment",
+{
   "m_level": "M1",
-  "status": "OK",
-  "updated_at": "2026-02-09T19:36:20+09:00",
-  "run_id": "20260209_103620",
-  "run_dir_rel": "..\\NV_shared_data\\shared_m1\\garment\\20260209_103620",
-  "source_run_dir_rel": "..\\NV_shared_data\\shared_m1\\garment\\20260209_103548",
+  "module": "garment",
+  "optional_files_present": [
+    "garment_proxy_mesh.glb",
+    "intake_gatekeeper_metrics.json",
+    "fit_hint.json",
+    "latent_meta.json"
+  ],
   "required_files": [
     "geometry_manifest.json",
     "garment_proxy_meta.json"
   ],
-  "optional_files_present": [
-    "garment_proxy_mesh.glb"
-  ]
+  "run_dir_rel": "..\\NV_shared_data\\shared_m1\\garment\\20260209_103620",
+  "run_id": "20260209_103620",
+  "schema_version": "m1_latest_signal.v1",
+  "source_run_dir_rel": "..\\NV_shared_data\\shared_m1\\garment\\20260209_103548",
+  "status": "OK",
+  "updated_at": "2026-02-09T21:31:31+09:00"
 }
