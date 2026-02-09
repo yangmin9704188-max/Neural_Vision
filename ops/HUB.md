@@ -3,6 +3,7 @@
 ## Purpose
 - 운영 진입점: 링크/규칙/현재 상태 위치 안내
 - STATUS.md에서 모듈별 상태를 확인한다.
+- 병렬 실행 워크보드: `ops/PARALLEL_WORKBOARD_20260209.md`
 
 ## Global Rules (Do/Don't)
 - Do: evidence-first, 링크로만 참조, data/**/exports/**는 로컬 전용
@@ -35,6 +36,7 @@
 - `py tools/smoke/run_u2_smokes.py` — U2 스모크 3종 실행 (Freeze §3: OK/HardGate/Degraded)
 - `py tools/agent/plan_lint.py --plan contracts/master_plan_v1.json` — Plan 구조 검증
 - `py tools/agent/next_step.py --module all --top 5` — 다음 할 일 계산 (facts-only)
+- `py tools/ops/show_parallel_status.py` — body/garment/fitting 최신 진행상태 + m1 신호 스냅샷
 - `py tools/ci/ci_guard.py` — CI 경계 가드 (exports/data 커밋, PROGRESS_LOG append-only, 루트 사본 수정 차단)
 - `py tools/ops/run_end_ops_hook.py` — run 마무리 훅: progress append → render_work_briefs → render_status
 - `py tools/ops/append_progress_event.py` — PROGRESS_LOG.jsonl append (append-only)
@@ -107,3 +109,13 @@ One-liner run:
 - PR 직전:    `py tools/ops/run_ops_loop.py --mode full`
 - merge 직후: `py tools/ops/run_ops_loop.py --mode quick`
 - 라운드 종료: `py tools/ops/run_end_ops_hook.py`
+
+## Status Source Policy (v1)
+- Contract: `contracts/status_source_policy_v1.json`
+- Module status source selection:
+  - candidates: `*_WORK_BRIEF.md` (from PROGRESS_LOG), `SMOKE_STATUS_SUMMARY.json`
+  - rule: latest `updated_at` wins
+- M1 `ops/signals/m1/*/LATEST.json` is readiness signal only (not a status source).
+- Dashboard noise policy:
+  - hide raw run paths in STATUS generated block
+  - show evidence class counts only

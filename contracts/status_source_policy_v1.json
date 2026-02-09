@@ -1,0 +1,31 @@
+{
+  "policy_version": "status_source_policy.v1",
+  "status_sources": [
+    {
+      "id": "work_brief_progress_log",
+      "description": "Derived from PROGRESS_LOG via *_WORK_BRIEF.md",
+      "timestamp_field": "brief_mtime"
+    },
+    {
+      "id": "smoke_status_summary",
+      "description": "Module-local smoke aggregate summary",
+      "timestamp_field": "updated_at"
+    }
+  ],
+  "status_selection_rule": {
+    "type": "latest_updated_at",
+    "fallback_order": ["work_brief_progress_log", "smoke_status_summary"]
+  },
+  "signal_sources": [
+    {
+      "id": "m1_latest_signal",
+      "path_pattern": "ops/signals/m1/<module>/LATEST.json",
+      "timestamp_field": "created_at_utc",
+      "note": "Readiness signal only; not used as status source"
+    }
+  ],
+  "dashboard_noise_policy": {
+    "hide_raw_paths": true,
+    "show_path_class_counts": true
+  }
+}

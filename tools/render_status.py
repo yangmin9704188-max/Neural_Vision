@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MASTER_PLAN_PATH = REPO_ROOT / "contracts" / "master_plan_v1.json"
+STATUS_SOURCE_POLICY_PATH = REPO_ROOT / "contracts" / "status_source_policy_v1.json"
 
 # Path classification for observed_paths (priority order: lower = higher priority)
 PATH_PRIORITY = {"RUN_EVIDENCE": 0, "MANIFEST": 1, "OTHER": 2, "SAMPLE": 3}
@@ -59,6 +60,65 @@ def _normalize_line(line: str) -> str:
 
 def _normalize_lines(lines: list[str]) -> list[str]:
     return [_normalize_line(ln) for ln in lines]
+
+
+def _load_status_source_policy() -> dict:
+    """Load status source policy contract. Returns defaults on failure."""
+    default = {
+        "policy_version": "status_source_policy.v1",
+        "status_selection_rule": {
+            "type": "latest_updated_at",
+            "fallback_order": ["work_brief_progress_log", "smoke_status_summary"],
+        },
+        "dashboard_noise_policy": {
+            "hide_raw_paths": True,
+            "show_path_class_counts": True,
+        },
+    }
+    if not STATUS_SOURCE_POLICY_PATH.exists():
+        return default
+    try:
+        with open(STATUS_SOURCE_POLICY_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            default.update(data)
+    except Exception:
+        pass
+    return default
+
+
+def _parse_any_ts(ts_value: str | None) -> datetime | None:
+    """Parse timestamp variants used in briefs/summaries/signals into aware datetime."""
+    if not isinstance(ts_value, str) or not ts_value.strip():
+        return None
+    s = ts_value.strip()
+    # ISO forms, including trailing Z
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+    # Brief style: 2026-02-10 00:26:08 or with +0900
+    for fmt in ("%Y-%m-%d %H:%M:%S %z", "%Y-%m-%d %H:%M:%S"):
+        try:
+            dt = datetime.strptime(s, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone(timedelta(hours=9)))
+            return dt
+        except Exception:
+            continue
+    return None
+
+
+def _to_utc_iso(dt: datetime | None) -> str:
+    if not dt:
+        return "N/A"
+    try:
+        return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except Exception:
+        return "N/A"
 
 
 MARKERS = {
@@ -655,9 +715,132 @@ def _get_lab_root(module: str) -> str:
     return lab_root
 
 
+def _read_smoke_status_summary(root: Path) -> dict:
+    """Read optional SMOKE_STATUS_SUMMARY.json under lab brief folder."""
+    out = {
+        "path": "N/A",
+        "updated_at": "N/A",
+        "overall": "N/A",
+        "updated_at_utc": "N/A",
+        "_dt": None,
+    }
+    path = root / "exports" / "brief" / "SMOKE_STATUS_SUMMARY.json"
+    if not path.exists():
+        return out
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return out
+        out["path"] = str(path)
+        out["updated_at"] = str(data.get("updated_at") or "N/A")
+        out["overall"] = str(data.get("overall") or "N/A")
+        dt = _parse_any_ts(out["updated_at"])
+        out["_dt"] = dt
+        out["updated_at_utc"] = _to_utc_iso(dt)
+    except Exception:
+        return out
+    return out
+
+
+def _read_m1_signal(module: str) -> dict:
+    """Read ops/signals/m1/<module>/LATEST.json signal (readiness-only source)."""
+    out = {
+        "path": "N/A",
+        "created_at_utc": "N/A",
+        "run_id": "N/A",
+        "run_dir_rel": "N/A",
+        "_dt": None,
+    }
+    m = module.lower()
+    path = REPO_ROOT / "ops" / "signals" / "m1" / m / "LATEST.json"
+    if not path.exists():
+        return out
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return out
+        out["path"] = str(path)
+        out["created_at_utc"] = str(data.get("created_at_utc") or "N/A")
+        out["run_id"] = str(data.get("run_id") or "N/A")
+        out["run_dir_rel"] = str(data.get("run_dir_rel") or "N/A")
+        out["_dt"] = _parse_any_ts(out["created_at_utc"])
+    except Exception:
+        return out
+    return out
+
+
+def _parse_brief_head_status(brief_head: list[str]) -> str:
+    """Extract status token from brief head ('status: XXX')."""
+    for ln in brief_head or []:
+        s = ln.strip()
+        if s.lower().startswith("status:"):
+            return s.split(":", 1)[-1].strip() or "N/A"
+    return "N/A"
+
+
+def _summarize_observed_paths(raw_paths: list[str]) -> dict:
+    """Summarize observed paths by class to avoid noisy dashboard output."""
+    counts = {"RUN_EVIDENCE": 0, "MANIFEST": 0, "SAMPLE": 0, "OTHER": 0}
+    for p in raw_paths:
+        cat = _classify_path(p)
+        counts[cat] = counts.get(cat, 0) + 1
+    total = sum(counts.values())
+    return {"total": total, "counts": counts}
+
+
+def _select_status_source(brief: dict, smoke: dict, policy: dict) -> dict:
+    """
+    Select authoritative status source for module dashboard.
+    Rule: latest_updated_at among configured status sources.
+    """
+    cands = []
+    brief_dt = brief.get("_brief_dt")
+    if brief_dt:
+        cands.append({
+            "id": "work_brief_progress_log",
+            "dt": brief_dt,
+            "value": brief.get("brief_status") or "N/A",
+        })
+    smoke_dt = smoke.get("_dt")
+    if smoke_dt:
+        cands.append({
+            "id": "smoke_status_summary",
+            "dt": smoke_dt,
+            "value": smoke.get("overall") or "N/A",
+        })
+
+    if not cands:
+        return {"id": "N/A", "updated_at_utc": "N/A", "value": "N/A"}
+
+    cands.sort(key=lambda x: x["dt"], reverse=True)
+    selected = cands[0]
+    return {
+        "id": selected["id"],
+        "updated_at_utc": _to_utc_iso(selected["dt"]),
+        "value": selected["value"],
+    }
+
+
 def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
     """Read brief from FITTING_LAB_ROOT or GARMENT_LAB_ROOT (ENV or lab_roots.local.json). Returns brief_path, mtime, head_12, observed_paths."""
-    out = {"brief_path": "N/A", "brief_mtime": "N/A", "brief_head": [], "observed_paths": [], "path_hygiene": [], "progress_hygiene": []}
+    policy = _load_status_source_policy()
+    out = {
+        "brief_path": "N/A",
+        "brief_mtime": "N/A",
+        "brief_mtime_utc": "N/A",
+        "_brief_dt": None,
+        "brief_head": [],
+        "brief_status": "N/A",
+        "path_hygiene": [],
+        "progress_hygiene": [],
+        "evidence_snapshot": {"total": 0, "counts": {"RUN_EVIDENCE": 0, "MANIFEST": 0, "SAMPLE": 0, "OTHER": 0}},
+        "smoke_summary": {"path": "N/A", "updated_at": "N/A", "updated_at_utc": "N/A", "overall": "N/A", "_dt": None},
+        "signal": {"path": "N/A", "created_at_utc": "N/A", "run_id": "N/A", "run_dir_rel": "N/A", "_dt": None},
+        "status_selected": {"id": "N/A", "updated_at_utc": "N/A", "value": "N/A"},
+        "status_policy_version": str(policy.get("policy_version") or "N/A"),
+    }
     warnings = []
     env_key = "FITTING_LAB_ROOT" if module == "FITTING" else "GARMENT_LAB_ROOT"
     lab_root = _get_lab_root(module)
@@ -672,14 +855,19 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
 
     brief_name = f"{module}_WORK_BRIEF.md"
     brief_path = root / "exports" / "brief" / brief_name
-    if not brief_path.exists():
-        warnings.append(_warn("BRIEF_NOT_FOUND", "brief not found", str(brief_path)))
-        return out, warnings
-
-    observed_paths, path_hygiene = _extract_observed_paths(root, module, max_items=3)
-    out["observed_paths"] = observed_paths
+    raw_paths = _extract_raw_observed_paths(root, module, max_events=30)
+    out["evidence_snapshot"] = _summarize_observed_paths(raw_paths)
+    _observed_paths, path_hygiene = _extract_observed_paths(root, module, max_items=3)
     out["path_hygiene"] = path_hygiene
     out["progress_hygiene"] = _compute_progress_hygiene(root, module)
+    out["smoke_summary"] = _read_smoke_status_summary(root)
+    out["signal"] = _read_m1_signal(module.lower())
+    if not brief_path.exists():
+        warnings.append(_warn("BRIEF_NOT_FOUND", "brief not found", str(brief_path)))
+        out["status_selected"] = _select_status_source(out, out.get("smoke_summary") or {}, policy)
+        if out["status_selected"]["id"] == "N/A":
+            warnings.append(_warn("STATUS_SOURCE_MISSING", "no status source available", str(root / "exports" / "brief")))
+        return out, warnings
     try:
         out["brief_path"] = str(brief_path)
         mtime = brief_path.stat().st_mtime
@@ -688,12 +876,21 @@ def _read_lab_brief(module: str) -> tuple[dict, list[str]]:
             dt = datetime.fromtimestamp(mtime, tz=ZoneInfo("Asia/Seoul"))
         except ImportError:
             dt = datetime.fromtimestamp(mtime)
+        out["_brief_dt"] = dt
+        out["brief_mtime_utc"] = _to_utc_iso(dt)
         out["brief_mtime"] = dt.strftime("%Y-%m-%d %H:%M:%S")
         raw = brief_path.read_text(encoding="utf-8", errors="replace")
         lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
         out["brief_head"] = _normalize_lines(lines[:12])
+        out["brief_status"] = _parse_brief_head_status(out["brief_head"])
     except Exception as e:
         warnings.append(_warn("BRIEF_READ_FAIL", str(e), str(brief_path)))
+
+    out["status_selected"] = _select_status_source(out, out.get("smoke_summary") or {}, policy)
+    if out["status_selected"]["id"] == "smoke_status_summary":
+        warnings.append(_warn("STATUS_SOURCE_SWITCHED", "newer smoke summary selected over work brief", out["smoke_summary"]["path"]))
+    if out["status_selected"]["id"] == "N/A":
+        warnings.append(_warn("STATUS_SOURCE_MISSING", "no status source available", str(root / "exports" / "brief")))
 
     return out, warnings
 
@@ -715,6 +912,11 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycl
     soft.extend(brief.get("progress_hygiene") or [])
     brief_warn_codes = _parse_brief_head_warnings(brief.get("brief_head") or [])
     soft.extend(brief_warn_codes)
+    selected = brief.get("status_selected") or {}
+    selected_id = selected.get("id", "N/A")
+    smoke = brief.get("smoke_summary") or {}
+    if selected_id == "smoke_status_summary" and str(smoke.get("overall", "")).upper() not in {"PASS", "OK"}:
+        soft.append("SMOKE_OVERALL_NOT_PASS")
     soft_warns = [_warn(c, "observed", "N/A") for c in soft]
     all_w = warnings + soft_warns
     nw = len(all_w)
@@ -733,19 +935,32 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycl
             lines.append(f"- next_validate: {', '.join(lifecycle['next_validate'])}")
         if lifecycle.get("next_close"):
             lines.append(f"- next_close: {', '.join(lifecycle['next_close'])}")
+    lines.append(f"- status_policy_version: {brief.get('status_policy_version', 'N/A')}")
+    lines.append(f"- status_source_selected: {selected.get('id', 'N/A')}")
+    lines.append(f"- status_source_updated_at_utc: {selected.get('updated_at_utc', 'N/A')}")
+    lines.append(f"- status_source_value: {selected.get('value', 'N/A')}")
+    signal = brief.get("signal") or {}
+    lines.append("- signal_source: m1_latest_signal")
+    lines.append(f"- signal_created_at_utc: {signal.get('created_at_utc', 'N/A')}")
+    lines.append(f"- signal_run_id: {signal.get('run_id', 'N/A')}")
+    lines.append(f"- signal_run_dir_rel: {signal.get('run_dir_rel', 'N/A')}")
+    ev = brief.get("evidence_snapshot") or {}
+    evc = ev.get("counts") or {}
+    lines.append(
+        "- evidence_snapshot: "
+        f"total={ev.get('total', 0)}; "
+        f"run_evidence={evc.get('RUN_EVIDENCE', 0)}, "
+        f"manifest={evc.get('MANIFEST', 0)}, "
+        f"sample={evc.get('SAMPLE', 0)}, "
+        f"other={evc.get('OTHER', 0)}"
+    )
     lines.append(f"- brief_path: {brief['brief_path']}")
-    lines.append(f"- brief_mtime: {brief['brief_mtime']}")
-    paths = brief.get("observed_paths") or []
-    if paths:
-        lines.append("- observed_paths:")
-        for p in paths[:3]:
-            lines.append(f"  - {p}")
-    else:
-        lines.append("- observed_paths: N/A (no evidence paths observed in progress events yet)")
-    if brief["brief_head"]:
-        lines.append("- brief_head:")
-        for ln in brief["brief_head"]:
-            lines.append(f"  {ln}")
+    lines.append(f"- brief_mtime_local: {brief['brief_mtime']}")
+    lines.append(f"- brief_mtime_utc: {brief.get('brief_mtime_utc', 'N/A')}")
+    smoke_path = smoke.get("path", "N/A")
+    lines.append(f"- smoke_summary_path: {smoke_path}")
+    lines.append(f"- smoke_summary_updated_at_utc: {smoke.get('updated_at_utc', 'N/A')}")
+    lines.append(f"- smoke_summary_overall: {smoke.get('overall', 'N/A')}")
     if all_w:
         lines.append("- warnings:")
         for w in _sort_warnings(all_w):

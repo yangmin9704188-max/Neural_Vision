@@ -9,5 +9,6 @@
 | B2 unlock signal | [unlock_signal_b2_v0](unlock_signal_b2_v0.md) |
 | feature closure protocol | [feature_closure_protocol_v1](feature_closure_protocol_v1.md) |
 | parallel execution policy | [parallel_execution_policy_v1.json](parallel_execution_policy_v1.json) |
+| status source policy | [status_source_policy_v1.json](status_source_policy_v1.json) |
 | closure spec template | [closure_spec_template_v1](templates/closure_spec_template_v1.md) |
 | validation report template | [validation_report_template_v1](templates/validation_report_template_v1.md) |
