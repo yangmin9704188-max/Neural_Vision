@@ -1,0 +1,6 @@
+{
+  "schema_version": "m1_signal.v1",
+  "module": "garment",
+  "m_level": "M1",
+  "run_dir_rel": "data/shared_m1/garment/g11_m1_local_v1"
+}
