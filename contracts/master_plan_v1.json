@@ -1,1345 +1,1701 @@
 {
-    "plan_version":  "master_plan.v1",
-    "generated_at":  "2026-02-09T20:13:36Z",
-    "description":  "Neural Vision task graph ??P0 focused (U1 enforceable + U2 smoke harness)",
-    "governance":  {
-                       "common_step_owner_module":  "body",
-                       "common_step_execution":  "hub_only",
-                       "rule":  "C* steps are appended only by body main orchestrator"
-                   },
-    "steps":  [
-                  {
-                      "step_id":  "C00",
-                      "module":  "common",
-                      "phase":  "P0",
-                      "title":  "Common: doctor + unlock docs placed",
-                      "depends_on":  [
-
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  false,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "tools/ops/doctor.py",
-                                            "unlock_conditions_u1_u2.md",
-                                            "phase_plan_unlock_driven.md"
-                                        ],
-                      "commands":  [
-                                       "py tools/ops/doctor.py"
-                                   ],
-                      "dod":  [
-                                  "doctor_fail_0",
-                                  "file_exists: unlock_conditions_u1_u2.md",
-                                  "file_exists: phase_plan_unlock_driven.md"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "C00",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "C01",
-                      "module":  "common",
-                      "phase":  "P0",
-                      "title":  "Common: U1 schemas + validators created",
-                      "depends_on":  [
-                                         "C00"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "contracts/schemas/**",
-                                            "tools/validate/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/validate/validate_geometry_manifest.py --run-dir \u003cRUN_DIR\u003e",
-                                       "py tools/validate/validate_u1_body.py --run-dir \u003cRUN_DIR\u003e",
-                                       "py tools/validate/validate_u1_garment.py --run-dir \u003cRUN_DIR\u003e",
-                                       "py tools/validate/validate_u1_fitting.py --run-dir \u003cRUN_DIR\u003e"
-                                   ],
-                      "dod":  [
-                                  "validator_exists: validate_u1_body",
-                                  "validator_exists: validate_u1_garment",
-                                  "validator_exists: validate_u1_fitting",
-                                  "schema_exists: geometry_manifest.v1.schema.json"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "C01",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "C02",
-                      "module":  "common",
-                      "phase":  "P0",
-                      "title":  "Common: U2 smoke fixtures + harness created",
-                      "depends_on":  [
-                                         "C01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-                                            "tools/smoke/**",
-                                            "tests/fixtures/u2_smokes/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/smoke/run_u2_smokes.py"
-                                   ],
-                      "dod":  [
-                                  "smoke_fail_0",
-                                  "fixture_exists: tests/fixtures/u2_smokes/smoke1_ok",
-                                  "fixture_exists: tests/fixtures/u2_smokes/smoke2_hardgate",
-                                  "fixture_exists: tests/fixtures/u2_smokes/smoke3_degraded"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "C02",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "B01",
-                      "module":  "body",
-                      "phase":  "P0",
-                      "title":  "Body: U1 validators pass on body output",
-                      "depends_on":  [
-                                         "C01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/src/**",
-                                            "modules/body/runners/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/validate/validate_u1_body.py --run-dir \u003cBODY_RUN_DIR\u003e"
-                                   ],
-                      "dod":  [
-                                  "validator_fail_0: validate_u1_body",
-                                  "artifact_exists: geometry_manifest.json",
-                                  "artifact_exists: body_measurements_subset.json"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B01",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "B10_M1_PUBLISH",
-                      "module":  "body",
-                      "phase":  "P1",
-                      "title":  "Body publishes M1 run_dir to ../NV_shared_data/shared_m1/body + updates ops/signals/m1/body/LATEST.json",
-                      "depends_on":  [
-                                         "B01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/**",
-                                            "ops/signals/m1/body/**"
-                                        ],
-                      "commands":  [
-                                       "py modules/body/tools/publish_m1.py"
-                                   ],
-                      "dod":  [
-                                  "LATEST.json updated; run_dir_rel points to ../NV_shared_data/shared_m1/body/\u003crun_id\u003e; absolute paths forbidden"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B10_M1_PUBLISH",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R13",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "B02",
-                      "module":  "body",
-                      "phase":  "P1",
-                      "title":  "Body: Smoke-3 (null 2+ keys) reproducible",
-                      "depends_on":  [
-                                         "B01",
-                                         "C02"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/src/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/smoke/run_u2_smokes.py --only smoke3_degraded"
-                                   ],
-                      "dod":  [
-                                  "smoke_fail_0: smoke3_degraded",
-                                  "null_count: \u003e=2",
-                                  "warnings: MISSINGNESS_HIGH_WARNING_DEGRADED"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B02",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "G01",
-                      "module":  "garment",
-                      "phase":  "P0",
-                      "title":  "Garment: U1 validators pass on garment output",
-                      "depends_on":  [
-                                         "C01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/src/**",
-                                            "modules/garment/runners/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/validate/validate_u1_garment.py --run-dir \u003cGARMENT_RUN_DIR\u003e"
-                                   ],
-                      "dod":  [
-                                  "validator_fail_0: validate_u1_garment",
-                                  "artifact_exists: geometry_manifest.json",
-                                  "artifact_exists: garment_proxy_meta.json"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G01",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "G10_M1_PUBLISH",
-                      "module":  "garment",
-                      "phase":  "P1",
-                      "title":  "Garment publishes M1 run_dir to ../NV_shared_data/shared_m1/garment + updates ops/signals/m1/garment/LATEST.json",
-                      "depends_on":  [
-                                         "G01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/**",
-                                            "ops/signals/m1/garment/**"
-                                        ],
-                      "commands":  [
-                                       "py modules/garment/tools/publish_m1.py"
-                                   ],
-                      "dod":  [
-                                  "LATEST.json updated; run_dir_rel points to ../NV_shared_data/shared_m1/garment/\u003crun_id\u003e; absolute paths forbidden"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G10_M1_PUBLISH",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R13",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "G02",
-                      "module":  "garment",
-                      "phase":  "P1",
-                      "title":  "Garment: Smoke-2 (hard gate) meta+manifest generated",
-                      "depends_on":  [
-                                         "G01",
-                                         "C02"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/src/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/smoke/run_u2_smokes.py --only smoke2_hardgate"
-                                   ],
-                      "dod":  [
-                                  "smoke_fail_0: smoke2_hardgate",
-                                  "meta_flag: invalid_face_flag=true",
-                                  "artifacts: meta+manifest present"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G02",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "F01",
-                      "module":  "fitting",
-                      "phase":  "P0",
-                      "title":  "Fitting: U1 validators pass on fitting output",
-                      "depends_on":  [
-                                         "C01",
-                                         "B01",
-                                         "G01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/src/**",
-                                            "modules/fitting/runners/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/validate/validate_u1_fitting.py --run-dir \u003cFITTING_RUN_DIR\u003e"
-                                   ],
-                      "dod":  [
-                                  "validator_fail_0: validate_u1_fitting",
-                                  "artifact_exists: geometry_manifest.json",
-                                  "artifact_exists: fitting_facts_summary.json"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F01",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "F10_M1_E2E",
-                      "module":  "fitting",
-                      "phase":  "P2",
-                      "title":  "Fitting consumes body+garment M1 by signal; publishes fitting M1 and updates ops/signals/m1/fitting/LATEST.json",
-                      "depends_on":  [
-                                         "B10_M1_PUBLISH",
-                                         "G10_M1_PUBLISH",
-                                         "F01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/**",
-                                            "ops/signals/m1/fitting/**"
-                                        ],
-                      "commands":  [
-                                       "py modules/fitting/tools/consume_m1_and_run.py"
-                                   ],
-                      "dod":  [
-                                  "Consumes body+garment M1 by signal; publishes fitting M1 to ../NV_shared_data/shared_m1/fitting; updates LATEST.json"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F10_M1_E2E",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R13",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "F02",
-                      "module":  "fitting",
-                      "phase":  "P2",
-                      "title":  "Fitting: Smoke-1 (OK E2E) pass",
-                      "depends_on":  [
-                                         "F01",
-                                         "B01",
-                                         "G01",
-                                         "C02"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/src/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/smoke/run_u2_smokes.py --only smoke1_ok"
-                                   ],
-                      "dod":  [
-                                  "smoke_fail_0: smoke1_ok",
-                                  "early_exit: false",
-                                  "degraded_state: none"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F02",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "F03",
-                      "module":  "fitting",
-                      "phase":  "P2",
-                      "title":  "Fitting: Smoke-2 (hard gate) early_exit=true",
-                      "depends_on":  [
-                                         "F01",
-                                         "G02",
-                                         "C02"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/src/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/smoke/run_u2_smokes.py --only smoke2_hardgate"
-                                   ],
-                      "dod":  [
-                                  "smoke_fail_0: smoke2_hardgate",
-                                  "early_exit: true",
-                                  "early_exit_reason: not null"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F03",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "F04",
-                      "module":  "fitting",
-                      "phase":  "P2",
-                      "title":  "Fitting: Smoke-3 (degraded) degraded_state surfaced",
-                      "depends_on":  [
-                                         "F01",
-                                         "B02",
-                                         "C02"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/src/**"
-                                        ],
-                      "commands":  [
-                                       "py tools/smoke/run_u2_smokes.py --only smoke3_degraded"
-                                   ],
-                      "dod":  [
-                                  "smoke_fail_0: smoke3_degraded",
-                                  "degraded_state: high_warning_degraded"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F04",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "P2_SEAL",
-                      "module":  "common",
-                      "phase":  "P2",
-                      "title":  "P2 seal: All U2 smokes pass (U2 遊됱씤)",
-                      "depends_on":  [
-                                         "F02",
-                                         "F03",
-                                         "F04"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-
-                                        ],
-                      "commands":  [
-                                       "py tools/smoke/run_u2_smokes.py"
-                                   ],
-                      "dod":  [
-                                  "smoke_fail_0: all",
-                                  "smoke1_ok: PASS",
-                                  "smoke2_hardgate: WARN",
-                                  "smoke3_degraded: WARN"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "P2_SEAL",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "LEGACY",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "B20_M2_PLACEHOLDER",
-                      "module":  "body",
-                      "phase":  "P3",
-                      "title":  "Body M2 upgrade placeholder (blocked until body M1 publish complete)",
-                      "depends_on":  [
-                                         "B10_M1_PUBLISH"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/**",
-                                            "ops/signals/m1/body/**"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "M2 implementation intentionally deferred; placeholder only"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B20_M2_PLACEHOLDER",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R14",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "G20_M2_PLACEHOLDER",
-                      "module":  "garment",
-                      "phase":  "P3",
-                      "title":  "Garment M2 upgrade placeholder (blocked until garment M1 publish complete)",
-                      "depends_on":  [
-                                         "G10_M1_PUBLISH"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/**",
-                                            "ops/signals/m1/garment/**"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "M2 implementation intentionally deferred; placeholder only"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G20_M2_PLACEHOLDER",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R14",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "F20_M2_PLACEHOLDER",
-                      "module":  "fitting",
-                      "phase":  "P3",
-                      "title":  "Fitting M2 upgrade placeholder (blocked until fitting M1 E2E complete)",
-                      "depends_on":  [
-                                         "F10_M1_E2E"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/**",
-                                            "ops/signals/m1/fitting/**"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "M2 implementation intentionally deferred; placeholder only"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F20_M2_PLACEHOLDER",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R14",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "C10_PLAN_SOURCES_REGISTERED",
-                      "module":  "common",
-                      "phase":  "P0",
-                      "title":  "Register ssot module plans in executable master plan",
-                      "depends_on":  [
-                                         "C00"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  false,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "contracts/master_plan_v1.json",
-                                            "ssot/Body_Module_Plan_v1.md",
-                                            "ssot/fitting_module_plan_v1.md",
-                                            "ssot/garment_Product Contract v0.9-revC.md"
-                                        ],
-                      "commands":  [
-                                       "py tools/agent/plan_lint.py --plan contracts/master_plan_v1.json"
-                                   ],
-                      "dod":  [
-                                  "plan_sources_registered: body,fitting,garment",
-                                  "m0/m1/m2 tracks linked to module ssot docs"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "C10_PLAN_SOURCES_REGISTERED",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R17",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "B30_M0_DOC_ALIGN",
-                      "module":  "body",
-                      "phase":  "P0",
-                      "title":  "Body M0 alignment to U1 contract",
-                      "depends_on":  [
-                                         "C10_PLAN_SOURCES_REGISTERED",
-                                         "B10_M1_PUBLISH",
-                                         "C01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/**",
-                                            "contracts/master_plan_v1.json",
-                                            "ssot/Body_Module_Plan_v1.md"
-                                        ],
-                      "commands":  [
-                                       "py tools/validate/validate_u1_body.py --run-dir \u003cBODY_M1_RUN_DIR\u003e"
-                                   ],
-                      "dod":  [
-                                  "u1_required_artifacts_mapped: body_mesh.npz,body_measurements_subset.json,geometry_manifest.json",
-                                  "body m0 scope expressed with evidence-first steps"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B30_M0_DOC_ALIGN",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R17",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "G30_M0_DOC_ALIGN",
-                      "module":  "garment",
-                      "phase":  "P0",
-                      "title":  "Garment M0 alignment to U1 contract",
-                      "depends_on":  [
-                                         "C10_PLAN_SOURCES_REGISTERED",
-                                         "G10_M1_PUBLISH",
-                                         "C01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/**",
-                                            "contracts/master_plan_v1.json",
-                                            "ssot/garment_Product Contract v0.9-revC.md"
-                                        ],
-                      "commands":  [
-                                       "py tools/validate/validate_u1_garment.py --run-dir \u003cGARMENT_M1_RUN_DIR\u003e"
-                                   ],
-                      "dod":  [
-                                  "u1_required_artifacts_mapped: garment_proxy_mesh.glb,garment_proxy_meta.json,geometry_manifest.json",
-                                  "hard gate metadata path preserved for fitting early-exit"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G30_M0_DOC_ALIGN",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R17",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "F30_M0_DOC_ALIGN",
-                      "module":  "fitting",
-                      "phase":  "P0",
-                      "title":  "Fitting M0 alignment to U1 contract",
-                      "depends_on":  [
-                                         "C10_PLAN_SOURCES_REGISTERED",
-                                         "F10_M1_E2E",
-                                         "C01"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/**",
-                                            "contracts/master_plan_v1.json",
-                                            "ssot/fitting_module_plan_v1.md"
-                                        ],
-                      "commands":  [
-                                       "py tools/validate/validate_u1_fitting.py --run-dir \u003cFITTING_M1_RUN_DIR\u003e"
-                                   ],
-                      "dod":  [
-                                  "u1_required_artifacts_mapped: geometry_manifest.json,fitting_facts_summary.json",
-                                  "input priority preserved: npz first, glb fallback"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F30_M0_DOC_ALIGN",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R17",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "C11_U1_REVALIDATE_AFTER_DOC_ALIGN",
-                      "module":  "common",
-                      "phase":  "P1",
-                      "title":  "Re-validate U1 after module plan alignment",
-                      "depends_on":  [
-                                         "B30_M0_DOC_ALIGN",
-                                         "G30_M0_DOC_ALIGN",
-                                         "F30_M0_DOC_ALIGN"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "tools/validate/**",
-                                            "contracts/master_plan_v1.json"
-                                        ],
-                      "commands":  [
-                                       "py tools/validate/validate_u1_body.py --run-dir \u003cBODY_RUN_DIR\u003e",
-                                       "py tools/validate/validate_u1_garment.py --run-dir \u003cGARMENT_RUN_DIR\u003e",
-                                       "py tools/validate/validate_u1_fitting.py --run-dir \u003cFITTING_RUN_DIR\u003e"
-                                   ],
-                      "dod":  [
-                                  "validator_fail_0: validate_u1_body",
-                                  "validator_fail_0: validate_u1_garment",
-                                  "validator_fail_0: validate_u1_fitting"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "C11_U1_REVALIDATE_AFTER_DOC_ALIGN",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R17",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "C12_U2_RESEAL_AFTER_DOC_ALIGN",
-                      "module":  "common",
-                      "phase":  "P2",
-                      "title":  "Re-seal U2 smoke set after module plan alignment",
-                      "depends_on":  [
-                                         "C11_U1_REVALIDATE_AFTER_DOC_ALIGN",
-                                         "C02"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-                                            "tools/smoke/**",
-                                            "contracts/master_plan_v1.json"
-                                        ],
-                      "commands":  [
-                                       "py tools/smoke/run_u2_smokes.py"
-                                   ],
-                      "dod":  [
-                                  "smoke_fail_0: all",
-                                  "smoke1_ok: PASS",
-                                  "smoke2_hardgate: WARN",
-                                  "smoke3_degraded: WARN"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "C12_U2_RESEAL_AFTER_DOC_ALIGN",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R17",
-                      "m_level":  "M0"
-                  },
-                  {
-                      "step_id":  "B40_M1_BUDGET_TELEMETRY_TRACK",
-                      "module":  "body",
-                      "phase":  "P1",
-                      "title":  "Body M1 track: budget and telemetry alignment",
-                      "depends_on":  [
-                                         "C12_U2_RESEAL_AFTER_DOC_ALIGN",
-                                         "B30_M0_DOC_ALIGN"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/**",
-                                            "ssot/Body_Module_Plan_v1.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "telemetry fields include latency,gpu_time,vram_peak,cache_hit",
-                                  "budget violation behavior is defined and evidenced"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B40_M1_BUDGET_TELEMETRY_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R18",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "B41_M1_CACHE_KEY_POLICY",
-                      "module":  "body",
-                      "phase":  "P1",
-                      "title":  "Body M1 track: 2cm quant cache-key policy",
-                      "depends_on":  [
-                                         "B40_M1_BUDGET_TELEMETRY_TRACK"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/**",
-                                            "ssot/Body_Module_Plan_v1.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "cache_key: prototype_id,height_quant_2cm,pose_id",
-                                  "version-key change invalidates cache"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B41_M1_CACHE_KEY_POLICY",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R18",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "G40_M1_INTAKE_GATE_TRACK",
-                      "module":  "garment",
-                      "phase":  "P1",
-                      "title":  "Garment M1 track: intake and gatekeeper alignment",
-                      "depends_on":  [
-                                         "C12_U2_RESEAL_AFTER_DOC_ALIGN",
-                                         "G30_M0_DOC_ALIGN"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/**",
-                                            "ssot/garment_Product Contract v0.9-revC.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "gatekeeper metrics recorded",
-                                  "foreign_object detection outputs persisted"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G40_M1_INTAKE_GATE_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R18",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "G41_M1_PROXY_LATENT_TRACK",
-                      "module":  "garment",
-                      "phase":  "P1",
-                      "title":  "Garment M1 track: proxy-hint-latent contract alignment",
-                      "depends_on":  [
-                                         "G40_M1_INTAKE_GATE_TRACK"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/**",
-                                            "ssot/garment_Product Contract v0.9-revC.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "required outputs aligned: proxy/meta,fit_hint,latent/meta",
-                                  "thickness default policy tracked with warnings"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G41_M1_PROXY_LATENT_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R18",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "F40_M1_FIT_SIGNAL_TRACK",
-                      "module":  "fitting",
-                      "phase":  "P1",
-                      "title":  "Fitting M1 track: fit_signal and provenance alignment",
-                      "depends_on":  [
-                                         "C12_U2_RESEAL_AFTER_DOC_ALIGN",
-                                         "F30_M0_DOC_ALIGN"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/**",
-                                            "ssot/fitting_module_plan_v1.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "fit_signal explainability fields mapped",
-                                  "provenance contains solver/camera/cache/version keys"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F40_M1_FIT_SIGNAL_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R18",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "F41_M1_CAMERA_REGEN_TRACK",
-                      "module":  "fitting",
-                      "phase":  "P1",
-                      "title":  "Fitting M1 track: fixed camera and regen-loop telemetry alignment",
-                      "depends_on":  [
-                                         "F40_M1_FIT_SIGNAL_TRACK"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/**",
-                                            "ssot/fitting_module_plan_v1.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "fixed_camera_preset_v1 used consistently",
-                                  "retry loop constraints and audit fields preserved"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F41_M1_CAMERA_REGEN_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R18",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "C20_M1_PARALLEL_SEAL",
-                      "module":  "common",
-                      "phase":  "P2",
-                      "title":  "Seal M1 parallel tracks across body/garment/fitting",
-                      "depends_on":  [
-                                         "B41_M1_CACHE_KEY_POLICY",
-                                         "G41_M1_PROXY_LATENT_TRACK",
-                                         "F41_M1_CAMERA_REGEN_TRACK"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "contracts/master_plan_v1.json",
-                                            "ops/STATUS.md"
-                                        ],
-                      "commands":  [
-                                       "py tools/ops/run_ops_loop.py --mode quick"
-                                   ],
-                      "dod":  [
-                                  "m1 parallel track evidence exists for all three modules",
-                                  "status reflects m1 cross-module readiness"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "C20_M1_PARALLEL_SEAL",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R18",
-                      "m_level":  "M1"
-                  },
-                  {
-                      "step_id":  "B50_M2_QUALITY_GATE_TRACK",
-                      "module":  "body",
-                      "phase":  "P3",
-                      "title":  "Body M2 track: quality score gate hardening",
-                      "depends_on":  [
-                                         "B20_M2_PLACEHOLDER",
-                                         "B41_M1_CACHE_KEY_POLICY",
-                                         "C20_M1_PARALLEL_SEAL"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/**",
-                                            "ssot/Body_Module_Plan_v1.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "quality score gate behavior is deterministic",
-                                  "degrade/block exposure path is evidence-backed"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B50_M2_QUALITY_GATE_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R19",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "B51_M2_VERSIONING_TRACK",
-                      "module":  "body",
-                      "phase":  "P3",
-                      "title":  "Body M2 track: version-key and invalidation hardening",
-                      "depends_on":  [
-                                         "B50_M2_QUALITY_GATE_TRACK"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/body/**",
-                                            "contracts/master_plan_v1.json"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "version key set is null-free and traceable",
-                                  "cache invalidation semantics validated"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "B51_M2_VERSIONING_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R19",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "G50_M2_SWATCH_GATEKEEPER_TRACK",
-                      "module":  "garment",
-                      "phase":  "P3",
-                      "title":  "Garment M2 track: swatch gatekeeper hardening",
-                      "depends_on":  [
-                                         "G20_M2_PLACEHOLDER",
-                                         "G41_M1_PROXY_LATENT_TRACK",
-                                         "C20_M1_PARALLEL_SEAL"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/**",
-                                            "ssot/garment_Product Contract v0.9-revC.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "hard/soft gate outcomes are deterministic",
-                                  "mesh hard-gate flags are traceable"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G50_M2_SWATCH_GATEKEEPER_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R19",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "G51_M2_THICKNESS_POLICY_TRACK",
-                      "module":  "garment",
-                      "phase":  "P3",
-                      "title":  "Garment M2 track: thickness/stretch policy hardening",
-                      "depends_on":  [
-                                         "G50_M2_SWATCH_GATEKEEPER_TRACK"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/garment/**",
-                                            "ssot/garment_Product Contract v0.9-revC.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "thickness default and override policy are versioned",
-                                  "warning codes preserved with provenance"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "G51_M2_THICKNESS_POLICY_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R19",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "F50_M2_SENSOR_TRACK",
-                      "module":  "fitting",
-                      "phase":  "P3",
-                      "title":  "Fitting M2 track: distortion sensor suite hardening",
-                      "depends_on":  [
-                                         "F20_M2_PLACEHOLDER",
-                                         "F41_M1_CAMERA_REGEN_TRACK",
-                                         "C20_M1_PARALLEL_SEAL"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/**",
-                                            "ssot/fitting_module_plan_v1.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "sensor factors cover stretch/aspect/spike/center-shift",
-                                  "penalty to severity mapping is deterministic"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F50_M2_SENSOR_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R19",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "F51_M2_REGEN_POLICY_TRACK",
-                      "module":  "fitting",
-                      "phase":  "P3",
-                      "title":  "Fitting M2 track: regeneration policy hardening",
-                      "depends_on":  [
-                                         "F50_M2_SENSOR_TRACK"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  false
-                                 },
-                      "touched_paths":  [
-                                            "modules/fitting/**",
-                                            "ssot/fitting_module_plan_v1.md"
-                                        ],
-                      "commands":  [
-
-                                   ],
-                      "dod":  [
-                                  "retry constraints honor latency/memory budgets",
-                                  "early_exit reason codes preserved in facts"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "F51_M2_REGEN_POLICY_TRACK",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R19",
-                      "m_level":  "M2"
-                  },
-                  {
-                      "step_id":  "C30_M2_U1_U2_REGRESSION_SEAL",
-                      "module":  "common",
-                      "phase":  "P3",
-                      "title":  "Final M2 seal with U1/U2 regression checks",
-                      "depends_on":  [
-                                         "B51_M2_VERSIONING_TRACK",
-                                         "G51_M2_THICKNESS_POLICY_TRACK",
-                                         "F51_M2_REGEN_POLICY_TRACK"
-                                     ],
-                      "unlock":  {
-                                     "requires_u1":  true,
-                                     "requires_u2":  true
-                                 },
-                      "touched_paths":  [
-                                            "tools/validate/**",
-                                            "tools/smoke/**",
-                                            "contracts/master_plan_v1.json"
-                                        ],
-                      "commands":  [
-                                       "py tools/ops/run_ops_loop.py --mode full"
-                                   ],
-                      "dod":  [
-                                  "u1 validators fail_0 on latest outputs",
-                                  "u2 smokes fail_0: all",
-                                  "status/briefs rendered with latest evidence"
-                              ],
-                      "evidence":  {
-                                       "progress_event":  {
-                                                              "step_id":  "C30_M2_U1_U2_REGRESSION_SEAL",
-                                                              "status":  "OK"
-                                                          }
-                                   },
-                      "round_id":  "R19",
-                      "m_level":  "M2"
-                  }
-              ],
-    "rounds":  [
-                   {
-                       "round_id":  "R10",
-                       "title":  "Plan contract fields + lint compatibility",
-                       "description":  "Add rounds and level-aware optional step fields with backward compatibility."
-                   },
-                   {
-                       "round_id":  "R11",
-                       "title":  "next_step level interpreter",
-                       "description":  "Interpret step m_level and consumes.min_level using done_level from progress events."
-                   },
-                   {
-                       "round_id":  "R12",
-                       "title":  "M1 signals skeleton + guardrails",
-                       "description":  "Track minimal m1 signal templates and add path guardrails in CI guard."
-                   },
-                   {
-                       "round_id":  "R13",
-                       "title":  "M1 publish/consume explicit contract steps + signal readiness in STATUS",
-                       "description":  "Add explicit M1 publish steps for body/garment, fitting consume E2E, and surface M1 signal readiness."
-                   },
-                   {
-                       "round_id":  "R14",
-                       "title":  "M2 placeholder roadmap",
-                       "description":  "Add non-disruptive M2 placeholder steps for body/garment/fitting blocked by corresponding M1 completion."
-                   },
-                   {
-                       "round_id":  "R17",
-                       "title":  "SSoT module plans to executable M0/U1/U2 alignment",
-                       "description":  "Attach body/fitting/garment ssot plans into master plan and reseal U1/U2."
-                   },
-                   {
-                       "round_id":  "R18",
-                       "title":  "M1 parallel module tracks",
-                       "description":  "Execute body/garment/fitting M1 tracks in parallel and seal shared readiness."
-                   },
-                   {
-                       "round_id":  "R19",
-                       "title":  "M2 hardening with U1/U2 regression seal",
-                       "description":  "Run M2 tracks per module and finalize with U1 validators plus U2 smokes."
-                   }
-               ],
-    "plan_sources":  [
-                         {
-                             "module":  "body",
-                             "path":  "ssot/Body_Module_Plan_v1.md",
-                             "version":  "v1.0",
-                             "last_updated":  "2026-01-30"
-                         },
-                         {
-                             "module":  "fitting",
-                             "path":  "ssot/fitting_module_plan_v1.md",
-                             "version":  "v1.0",
-                             "last_updated":  "2026-01-30"
-                         },
-                         {
-                             "module":  "garment",
-                             "path":  "ssot/garment_Product Contract v0.9-revC.md",
-                             "version":  "v0.9-revC",
-                             "last_updated":  "2026-01-30"
-                         }
-                     ]
+  "plan_version": "master_plan.v1",
+  "generated_at": "2026-02-09T20:13:36Z",
+  "description": "Neural Vision task graph ??P0 focused (U1 enforceable + U2 smoke harness)",
+  "governance": {
+    "common_step_owner_module": "body",
+    "common_step_execution": "hub_only",
+    "rule": "C* steps are appended only by body main orchestrator"
+  },
+  "steps": [
+    {
+      "step_id": "C00",
+      "module": "common",
+      "phase": "P0",
+      "title": "Common: doctor + unlock docs placed",
+      "depends_on": [],
+      "unlock": {
+        "requires_u1": false,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "tools/ops/doctor.py",
+        "unlock_conditions_u1_u2.md",
+        "phase_plan_unlock_driven.md"
+      ],
+      "commands": [
+        "py tools/ops/doctor.py"
+      ],
+      "dod": [
+        "doctor_fail_0",
+        "file_exists: unlock_conditions_u1_u2.md",
+        "file_exists: phase_plan_unlock_driven.md"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "C00",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "common.c00",
+        "closure_spec_path": "contracts/closure_specs/common/C00.closure_spec.md",
+        "validation_report_path": "reports/validation/common/C00.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "C01",
+      "module": "common",
+      "phase": "P0",
+      "title": "Common: U1 schemas + validators created",
+      "depends_on": [
+        "C00"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "contracts/schemas/**",
+        "tools/validate/**"
+      ],
+      "commands": [
+        "py tools/validate/validate_geometry_manifest.py --run-dir <RUN_DIR>",
+        "py tools/validate/validate_u1_body.py --run-dir <RUN_DIR>",
+        "py tools/validate/validate_u1_garment.py --run-dir <RUN_DIR>",
+        "py tools/validate/validate_u1_fitting.py --run-dir <RUN_DIR>"
+      ],
+      "dod": [
+        "validator_exists: validate_u1_body",
+        "validator_exists: validate_u1_garment",
+        "validator_exists: validate_u1_fitting",
+        "schema_exists: geometry_manifest.v1.schema.json"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "C01",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "common.c01",
+        "closure_spec_path": "contracts/closure_specs/common/C01.closure_spec.md",
+        "validation_report_path": "reports/validation/common/C01.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "C02",
+      "module": "common",
+      "phase": "P0",
+      "title": "Common: U2 smoke fixtures + harness created",
+      "depends_on": [
+        "C01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [
+        "tools/smoke/**",
+        "tests/fixtures/u2_smokes/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py"
+      ],
+      "dod": [
+        "smoke_fail_0",
+        "fixture_exists: tests/fixtures/u2_smokes/smoke1_ok",
+        "fixture_exists: tests/fixtures/u2_smokes/smoke2_hardgate",
+        "fixture_exists: tests/fixtures/u2_smokes/smoke3_degraded"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "C02",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "common.c02",
+        "closure_spec_path": "contracts/closure_specs/common/C02.closure_spec.md",
+        "validation_report_path": "reports/validation/common/C02.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B01",
+      "module": "body",
+      "phase": "P0",
+      "title": "Body: U1 validators pass on body output",
+      "depends_on": [
+        "C01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/src/**",
+        "modules/body/runners/**"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_body.py --run-dir <BODY_RUN_DIR>"
+      ],
+      "dod": [
+        "validator_fail_0: validate_u1_body",
+        "artifact_exists: geometry_manifest.json",
+        "artifact_exists: body_measurements_subset.json"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B01",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "body.b01",
+        "closure_spec_path": "contracts/closure_specs/body/B01.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B01.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B10_M1_PUBLISH",
+      "module": "body",
+      "phase": "P1",
+      "title": "Body publishes M1 run_dir to ../NV_shared_data/shared_m1/body + updates ops/signals/m1/body/LATEST.json",
+      "depends_on": [
+        "B01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ops/signals/m1/body/**"
+      ],
+      "commands": [
+        "py modules/body/tools/publish_m1.py"
+      ],
+      "dod": [
+        "LATEST.json updated; run_dir_rel points to ../NV_shared_data/shared_m1/body/<run_id>; absolute paths forbidden"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B10_M1_PUBLISH",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "body.b10_m1_publish",
+        "closure_spec_path": "contracts/closure_specs/body/B10_M1_PUBLISH.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B10_M1_PUBLISH.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B02",
+      "module": "body",
+      "phase": "P1",
+      "title": "Body: Smoke-3 (null 2+ keys) reproducible",
+      "depends_on": [
+        "B01",
+        "C02"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [
+        "modules/body/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke3_degraded"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke3_degraded",
+        "null_count: >=2",
+        "warnings: MISSINGNESS_HIGH_WARNING_DEGRADED"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B02",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "body.b02",
+        "closure_spec_path": "contracts/closure_specs/body/B02.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B02.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G01",
+      "module": "garment",
+      "phase": "P0",
+      "title": "Garment: U1 validators pass on garment output",
+      "depends_on": [
+        "C01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/src/**",
+        "modules/garment/runners/**"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_garment.py --run-dir <GARMENT_RUN_DIR>"
+      ],
+      "dod": [
+        "validator_fail_0: validate_u1_garment",
+        "artifact_exists: geometry_manifest.json",
+        "artifact_exists: garment_proxy_meta.json"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G01",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "garment.g01",
+        "closure_spec_path": "contracts/closure_specs/garment/G01.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G01.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G10_M1_PUBLISH",
+      "module": "garment",
+      "phase": "P1",
+      "title": "Garment publishes M1 run_dir to ../NV_shared_data/shared_m1/garment + updates ops/signals/m1/garment/LATEST.json",
+      "depends_on": [
+        "G01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ops/signals/m1/garment/**"
+      ],
+      "commands": [
+        "py modules/garment/tools/publish_m1.py"
+      ],
+      "dod": [
+        "LATEST.json updated; run_dir_rel points to ../NV_shared_data/shared_m1/garment/<run_id>; absolute paths forbidden"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G10_M1_PUBLISH",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "garment.g10_m1_publish",
+        "closure_spec_path": "contracts/closure_specs/garment/G10_M1_PUBLISH.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G10_M1_PUBLISH.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G02",
+      "module": "garment",
+      "phase": "P1",
+      "title": "Garment: Smoke-2 (hard gate) meta+manifest generated",
+      "depends_on": [
+        "G01",
+        "C02"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [
+        "modules/garment/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke2_hardgate"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke2_hardgate",
+        "meta_flag: invalid_face_flag=true",
+        "artifacts: meta+manifest present"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G02",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "garment.g02",
+        "closure_spec_path": "contracts/closure_specs/garment/G02.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G02.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F01",
+      "module": "fitting",
+      "phase": "P0",
+      "title": "Fitting: U1 validators pass on fitting output",
+      "depends_on": [
+        "C01",
+        "B01",
+        "G01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/src/**",
+        "modules/fitting/runners/**"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_fitting.py --run-dir <FITTING_RUN_DIR>"
+      ],
+      "dod": [
+        "validator_fail_0: validate_u1_fitting",
+        "artifact_exists: geometry_manifest.json",
+        "artifact_exists: fitting_facts_summary.json"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F01",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "fitting.f01",
+        "closure_spec_path": "contracts/closure_specs/fitting/F01.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F01.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F10_M1_E2E",
+      "module": "fitting",
+      "phase": "P2",
+      "title": "Fitting consumes body+garment M1 by signal; publishes fitting M1 and updates ops/signals/m1/fitting/LATEST.json",
+      "depends_on": [
+        "B10_M1_PUBLISH",
+        "G10_M1_PUBLISH",
+        "F01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ops/signals/m1/fitting/**"
+      ],
+      "commands": [
+        "py modules/fitting/tools/consume_m1_and_run.py"
+      ],
+      "dod": [
+        "Consumes body+garment M1 by signal; publishes fitting M1 to ../NV_shared_data/shared_m1/fitting; updates LATEST.json"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F10_M1_E2E",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "fitting.f10_m1_e2e",
+        "closure_spec_path": "contracts/closure_specs/fitting/F10_M1_E2E.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F10_M1_E2E.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F02",
+      "module": "fitting",
+      "phase": "P2",
+      "title": "Fitting: Smoke-1 (OK E2E) pass",
+      "depends_on": [
+        "F01",
+        "B01",
+        "G01",
+        "C02"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [
+        "modules/fitting/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke1_ok"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke1_ok",
+        "early_exit: false",
+        "degraded_state: none"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F02",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "fitting.f02",
+        "closure_spec_path": "contracts/closure_specs/fitting/F02.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F02.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F03",
+      "module": "fitting",
+      "phase": "P2",
+      "title": "Fitting: Smoke-2 (hard gate) early_exit=true",
+      "depends_on": [
+        "F01",
+        "G02",
+        "C02"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [
+        "modules/fitting/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke2_hardgate"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke2_hardgate",
+        "early_exit: true",
+        "early_exit_reason: not null"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F03",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "fitting.f03",
+        "closure_spec_path": "contracts/closure_specs/fitting/F03.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F03.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F04",
+      "module": "fitting",
+      "phase": "P2",
+      "title": "Fitting: Smoke-3 (degraded) degraded_state surfaced",
+      "depends_on": [
+        "F01",
+        "B02",
+        "C02"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [
+        "modules/fitting/src/**"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py --only smoke3_degraded"
+      ],
+      "dod": [
+        "smoke_fail_0: smoke3_degraded",
+        "degraded_state: high_warning_degraded"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F04",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "fitting.f04",
+        "closure_spec_path": "contracts/closure_specs/fitting/F04.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F04.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "P2_SEAL",
+      "module": "common",
+      "phase": "P2",
+      "title": "P2 seal: All U2 smokes pass (U2 遊됱씤)",
+      "depends_on": [
+        "F02",
+        "F03",
+        "F04"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py"
+      ],
+      "dod": [
+        "smoke_fail_0: all",
+        "smoke1_ok: PASS",
+        "smoke2_hardgate: WARN",
+        "smoke3_degraded: WARN"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "P2_SEAL",
+          "status": "OK"
+        }
+      },
+      "round_id": "LEGACY",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "common.p2_seal",
+        "closure_spec_path": "contracts/closure_specs/common/P2_SEAL.closure_spec.md",
+        "validation_report_path": "reports/validation/common/P2_SEAL.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B20_M2_PLACEHOLDER",
+      "module": "body",
+      "phase": "P3",
+      "title": "Body M2 upgrade placeholder (blocked until body M1 publish complete)",
+      "depends_on": [
+        "B10_M1_PUBLISH"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ops/signals/m1/body/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "body.b20_m2_placeholder",
+        "closure_spec_path": "contracts/closure_specs/body/B20_M2_PLACEHOLDER.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B20_M2_PLACEHOLDER.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G20_M2_PLACEHOLDER",
+      "module": "garment",
+      "phase": "P3",
+      "title": "Garment M2 upgrade placeholder (blocked until garment M1 publish complete)",
+      "depends_on": [
+        "G10_M1_PUBLISH"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ops/signals/m1/garment/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "garment.g20_m2_placeholder",
+        "closure_spec_path": "contracts/closure_specs/garment/G20_M2_PLACEHOLDER.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G20_M2_PLACEHOLDER.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F20_M2_PLACEHOLDER",
+      "module": "fitting",
+      "phase": "P3",
+      "title": "Fitting M2 upgrade placeholder (blocked until fitting M1 E2E complete)",
+      "depends_on": [
+        "F10_M1_E2E"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ops/signals/m1/fitting/**"
+      ],
+      "commands": [],
+      "dod": [
+        "M2 implementation intentionally deferred; placeholder only"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F20_M2_PLACEHOLDER",
+          "status": "OK"
+        }
+      },
+      "round_id": "R14",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "fitting.f20_m2_placeholder",
+        "closure_spec_path": "contracts/closure_specs/fitting/F20_M2_PLACEHOLDER.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F20_M2_PLACEHOLDER.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "C10_PLAN_SOURCES_REGISTERED",
+      "module": "common",
+      "phase": "P0",
+      "title": "Register ssot module plans in executable master plan",
+      "depends_on": [
+        "C00"
+      ],
+      "unlock": {
+        "requires_u1": false,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "contracts/master_plan_v1.json",
+        "ssot/Body_Module_Plan_v1.md",
+        "ssot/fitting_module_plan_v1.md",
+        "ssot/garment_Product Contract v0.9-revC.md"
+      ],
+      "commands": [
+        "py tools/agent/plan_lint.py --plan contracts/master_plan_v1.json"
+      ],
+      "dod": [
+        "plan_sources_registered: body,fitting,garment",
+        "m0/m1/m2 tracks linked to module ssot docs"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "C10_PLAN_SOURCES_REGISTERED",
+          "status": "OK"
+        }
+      },
+      "round_id": "R17",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "common.c10_plan_sources_registered",
+        "closure_spec_path": "contracts/closure_specs/common/C10_PLAN_SOURCES_REGISTERED.closure_spec.md",
+        "validation_report_path": "reports/validation/common/C10_PLAN_SOURCES_REGISTERED.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B30_M0_DOC_ALIGN",
+      "module": "body",
+      "phase": "P0",
+      "title": "Body M0 alignment to U1 contract",
+      "depends_on": [
+        "C10_PLAN_SOURCES_REGISTERED",
+        "B10_M1_PUBLISH",
+        "C01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "contracts/master_plan_v1.json",
+        "ssot/Body_Module_Plan_v1.md"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_body.py --run-dir <BODY_M1_RUN_DIR>"
+      ],
+      "dod": [
+        "u1_required_artifacts_mapped: body_mesh.npz,body_measurements_subset.json,geometry_manifest.json",
+        "body m0 scope expressed with evidence-first steps"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B30_M0_DOC_ALIGN",
+          "status": "OK"
+        }
+      },
+      "round_id": "R17",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "body.b30_m0_doc_align",
+        "closure_spec_path": "contracts/closure_specs/body/B30_M0_DOC_ALIGN.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B30_M0_DOC_ALIGN.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G30_M0_DOC_ALIGN",
+      "module": "garment",
+      "phase": "P0",
+      "title": "Garment M0 alignment to U1 contract",
+      "depends_on": [
+        "C10_PLAN_SOURCES_REGISTERED",
+        "G10_M1_PUBLISH",
+        "C01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "contracts/master_plan_v1.json",
+        "ssot/garment_Product Contract v0.9-revC.md"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_garment.py --run-dir <GARMENT_M1_RUN_DIR>"
+      ],
+      "dod": [
+        "u1_required_artifacts_mapped: garment_proxy_mesh.glb,garment_proxy_meta.json,geometry_manifest.json",
+        "hard gate metadata path preserved for fitting early-exit"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G30_M0_DOC_ALIGN",
+          "status": "OK"
+        }
+      },
+      "round_id": "R17",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "garment.g30_m0_doc_align",
+        "closure_spec_path": "contracts/closure_specs/garment/G30_M0_DOC_ALIGN.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G30_M0_DOC_ALIGN.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F30_M0_DOC_ALIGN",
+      "module": "fitting",
+      "phase": "P0",
+      "title": "Fitting M0 alignment to U1 contract",
+      "depends_on": [
+        "C10_PLAN_SOURCES_REGISTERED",
+        "F10_M1_E2E",
+        "C01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "contracts/master_plan_v1.json",
+        "ssot/fitting_module_plan_v1.md"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_fitting.py --run-dir <FITTING_M1_RUN_DIR>"
+      ],
+      "dod": [
+        "u1_required_artifacts_mapped: geometry_manifest.json,fitting_facts_summary.json",
+        "input priority preserved: npz first, glb fallback"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F30_M0_DOC_ALIGN",
+          "status": "OK"
+        }
+      },
+      "round_id": "R17",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "fitting.f30_m0_doc_align",
+        "closure_spec_path": "contracts/closure_specs/fitting/F30_M0_DOC_ALIGN.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F30_M0_DOC_ALIGN.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "C11_U1_REVALIDATE_AFTER_DOC_ALIGN",
+      "module": "common",
+      "phase": "P1",
+      "title": "Re-validate U1 after module plan alignment",
+      "depends_on": [
+        "B30_M0_DOC_ALIGN",
+        "G30_M0_DOC_ALIGN",
+        "F30_M0_DOC_ALIGN"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "tools/validate/**",
+        "contracts/master_plan_v1.json"
+      ],
+      "commands": [
+        "py tools/validate/validate_u1_body.py --run-dir <BODY_RUN_DIR>",
+        "py tools/validate/validate_u1_garment.py --run-dir <GARMENT_RUN_DIR>",
+        "py tools/validate/validate_u1_fitting.py --run-dir <FITTING_RUN_DIR>"
+      ],
+      "dod": [
+        "validator_fail_0: validate_u1_body",
+        "validator_fail_0: validate_u1_garment",
+        "validator_fail_0: validate_u1_fitting"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "C11_U1_REVALIDATE_AFTER_DOC_ALIGN",
+          "status": "OK"
+        }
+      },
+      "round_id": "R17",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "common.c11_u1_revalidate_after_doc_align",
+        "closure_spec_path": "contracts/closure_specs/common/C11_U1_REVALIDATE_AFTER_DOC_ALIGN.closure_spec.md",
+        "validation_report_path": "reports/validation/common/C11_U1_REVALIDATE_AFTER_DOC_ALIGN.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "C12_U2_RESEAL_AFTER_DOC_ALIGN",
+      "module": "common",
+      "phase": "P2",
+      "title": "Re-seal U2 smoke set after module plan alignment",
+      "depends_on": [
+        "C11_U1_REVALIDATE_AFTER_DOC_ALIGN",
+        "C02"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [
+        "tools/smoke/**",
+        "contracts/master_plan_v1.json"
+      ],
+      "commands": [
+        "py tools/smoke/run_u2_smokes.py"
+      ],
+      "dod": [
+        "smoke_fail_0: all",
+        "smoke1_ok: PASS",
+        "smoke2_hardgate: WARN",
+        "smoke3_degraded: WARN"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "C12_U2_RESEAL_AFTER_DOC_ALIGN",
+          "status": "OK"
+        }
+      },
+      "round_id": "R17",
+      "m_level": "M0",
+      "closure": {
+        "feature_id": "common.c12_u2_reseal_after_doc_align",
+        "closure_spec_path": "contracts/closure_specs/common/C12_U2_RESEAL_AFTER_DOC_ALIGN.closure_spec.md",
+        "validation_report_path": "reports/validation/common/C12_U2_RESEAL_AFTER_DOC_ALIGN.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B40_M1_BUDGET_TELEMETRY_TRACK",
+      "module": "body",
+      "phase": "P1",
+      "title": "Body M1 track: budget and telemetry alignment",
+      "depends_on": [
+        "C12_U2_RESEAL_AFTER_DOC_ALIGN",
+        "B30_M0_DOC_ALIGN"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ssot/Body_Module_Plan_v1.md"
+      ],
+      "commands": [],
+      "dod": [
+        "telemetry fields include latency,gpu_time,vram_peak,cache_hit",
+        "budget violation behavior is defined and evidenced"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B40_M1_BUDGET_TELEMETRY_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R18",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "body.b40_m1_budget_telemetry_track",
+        "closure_spec_path": "contracts/closure_specs/body/B40_M1_BUDGET_TELEMETRY_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B40_M1_BUDGET_TELEMETRY_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B41_M1_CACHE_KEY_POLICY",
+      "module": "body",
+      "phase": "P1",
+      "title": "Body M1 track: 2cm quant cache-key policy",
+      "depends_on": [
+        "B40_M1_BUDGET_TELEMETRY_TRACK"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ssot/Body_Module_Plan_v1.md"
+      ],
+      "commands": [],
+      "dod": [
+        "cache_key: prototype_id,height_quant_2cm,pose_id",
+        "version-key change invalidates cache"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B41_M1_CACHE_KEY_POLICY",
+          "status": "OK"
+        }
+      },
+      "round_id": "R18",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "body.b41_m1_cache_key_policy",
+        "closure_spec_path": "contracts/closure_specs/body/B41_M1_CACHE_KEY_POLICY.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B41_M1_CACHE_KEY_POLICY.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G40_M1_INTAKE_GATE_TRACK",
+      "module": "garment",
+      "phase": "P1",
+      "title": "Garment M1 track: intake and gatekeeper alignment",
+      "depends_on": [
+        "C12_U2_RESEAL_AFTER_DOC_ALIGN",
+        "G30_M0_DOC_ALIGN"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ssot/garment_Product Contract v0.9-revC.md"
+      ],
+      "commands": [],
+      "dod": [
+        "gatekeeper metrics recorded",
+        "foreign_object detection outputs persisted"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G40_M1_INTAKE_GATE_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R18",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "garment.g40_m1_intake_gate_track",
+        "closure_spec_path": "contracts/closure_specs/garment/G40_M1_INTAKE_GATE_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G40_M1_INTAKE_GATE_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G41_M1_PROXY_LATENT_TRACK",
+      "module": "garment",
+      "phase": "P1",
+      "title": "Garment M1 track: proxy-hint-latent contract alignment",
+      "depends_on": [
+        "G40_M1_INTAKE_GATE_TRACK"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ssot/garment_Product Contract v0.9-revC.md"
+      ],
+      "commands": [],
+      "dod": [
+        "required outputs aligned: proxy/meta,fit_hint,latent/meta",
+        "thickness default policy tracked with warnings"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G41_M1_PROXY_LATENT_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R18",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "garment.g41_m1_proxy_latent_track",
+        "closure_spec_path": "contracts/closure_specs/garment/G41_M1_PROXY_LATENT_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G41_M1_PROXY_LATENT_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F40_M1_FIT_SIGNAL_TRACK",
+      "module": "fitting",
+      "phase": "P1",
+      "title": "Fitting M1 track: fit_signal and provenance alignment",
+      "depends_on": [
+        "C12_U2_RESEAL_AFTER_DOC_ALIGN",
+        "F30_M0_DOC_ALIGN"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ssot/fitting_module_plan_v1.md"
+      ],
+      "commands": [],
+      "dod": [
+        "fit_signal explainability fields mapped",
+        "provenance contains solver/camera/cache/version keys"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F40_M1_FIT_SIGNAL_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R18",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "fitting.f40_m1_fit_signal_track",
+        "closure_spec_path": "contracts/closure_specs/fitting/F40_M1_FIT_SIGNAL_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F40_M1_FIT_SIGNAL_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F41_M1_CAMERA_REGEN_TRACK",
+      "module": "fitting",
+      "phase": "P1",
+      "title": "Fitting M1 track: fixed camera and regen-loop telemetry alignment",
+      "depends_on": [
+        "F40_M1_FIT_SIGNAL_TRACK"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ssot/fitting_module_plan_v1.md"
+      ],
+      "commands": [],
+      "dod": [
+        "fixed_camera_preset_v1 used consistently",
+        "retry loop constraints and audit fields preserved"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F41_M1_CAMERA_REGEN_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R18",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "fitting.f41_m1_camera_regen_track",
+        "closure_spec_path": "contracts/closure_specs/fitting/F41_M1_CAMERA_REGEN_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F41_M1_CAMERA_REGEN_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "C20_M1_PARALLEL_SEAL",
+      "module": "common",
+      "phase": "P2",
+      "title": "Seal M1 parallel tracks across body/garment/fitting",
+      "depends_on": [
+        "B41_M1_CACHE_KEY_POLICY",
+        "G41_M1_PROXY_LATENT_TRACK",
+        "F41_M1_CAMERA_REGEN_TRACK"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "contracts/master_plan_v1.json",
+        "ops/STATUS.md"
+      ],
+      "commands": [
+        "py tools/ops/run_ops_loop.py --mode quick"
+      ],
+      "dod": [
+        "m1 parallel track evidence exists for all three modules",
+        "status reflects m1 cross-module readiness"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "C20_M1_PARALLEL_SEAL",
+          "status": "OK"
+        }
+      },
+      "round_id": "R18",
+      "m_level": "M1",
+      "closure": {
+        "feature_id": "common.c20_m1_parallel_seal",
+        "closure_spec_path": "contracts/closure_specs/common/C20_M1_PARALLEL_SEAL.closure_spec.md",
+        "validation_report_path": "reports/validation/common/C20_M1_PARALLEL_SEAL.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B50_M2_QUALITY_GATE_TRACK",
+      "module": "body",
+      "phase": "P3",
+      "title": "Body M2 track: quality score gate hardening",
+      "depends_on": [
+        "B20_M2_PLACEHOLDER",
+        "B41_M1_CACHE_KEY_POLICY",
+        "C20_M1_PARALLEL_SEAL"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ssot/Body_Module_Plan_v1.md"
+      ],
+      "commands": [],
+      "dod": [
+        "quality score gate behavior is deterministic",
+        "degrade/block exposure path is evidence-backed"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B50_M2_QUALITY_GATE_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R19",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "body.b50_m2_quality_gate_track",
+        "closure_spec_path": "contracts/closure_specs/body/B50_M2_QUALITY_GATE_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B50_M2_QUALITY_GATE_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "B51_M2_VERSIONING_TRACK",
+      "module": "body",
+      "phase": "P3",
+      "title": "Body M2 track: version-key and invalidation hardening",
+      "depends_on": [
+        "B50_M2_QUALITY_GATE_TRACK"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "contracts/master_plan_v1.json"
+      ],
+      "commands": [],
+      "dod": [
+        "version key set is null-free and traceable",
+        "cache invalidation semantics validated"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B51_M2_VERSIONING_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R19",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "body.b51_m2_versioning_track",
+        "closure_spec_path": "contracts/closure_specs/body/B51_M2_VERSIONING_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/body/B51_M2_VERSIONING_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G50_M2_SWATCH_GATEKEEPER_TRACK",
+      "module": "garment",
+      "phase": "P3",
+      "title": "Garment M2 track: swatch gatekeeper hardening",
+      "depends_on": [
+        "G20_M2_PLACEHOLDER",
+        "G41_M1_PROXY_LATENT_TRACK",
+        "C20_M1_PARALLEL_SEAL"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ssot/garment_Product Contract v0.9-revC.md"
+      ],
+      "commands": [],
+      "dod": [
+        "hard/soft gate outcomes are deterministic",
+        "mesh hard-gate flags are traceable"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G50_M2_SWATCH_GATEKEEPER_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R19",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "garment.g50_m2_swatch_gatekeeper_track",
+        "closure_spec_path": "contracts/closure_specs/garment/G50_M2_SWATCH_GATEKEEPER_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G50_M2_SWATCH_GATEKEEPER_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "G51_M2_THICKNESS_POLICY_TRACK",
+      "module": "garment",
+      "phase": "P3",
+      "title": "Garment M2 track: thickness/stretch policy hardening",
+      "depends_on": [
+        "G50_M2_SWATCH_GATEKEEPER_TRACK"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ssot/garment_Product Contract v0.9-revC.md"
+      ],
+      "commands": [],
+      "dod": [
+        "thickness default and override policy are versioned",
+        "warning codes preserved with provenance"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G51_M2_THICKNESS_POLICY_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R19",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "garment.g51_m2_thickness_policy_track",
+        "closure_spec_path": "contracts/closure_specs/garment/G51_M2_THICKNESS_POLICY_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/garment/G51_M2_THICKNESS_POLICY_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F50_M2_SENSOR_TRACK",
+      "module": "fitting",
+      "phase": "P3",
+      "title": "Fitting M2 track: distortion sensor suite hardening",
+      "depends_on": [
+        "F20_M2_PLACEHOLDER",
+        "F41_M1_CAMERA_REGEN_TRACK",
+        "C20_M1_PARALLEL_SEAL"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ssot/fitting_module_plan_v1.md"
+      ],
+      "commands": [],
+      "dod": [
+        "sensor factors cover stretch/aspect/spike/center-shift",
+        "penalty to severity mapping is deterministic"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F50_M2_SENSOR_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R19",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "fitting.f50_m2_sensor_track",
+        "closure_spec_path": "contracts/closure_specs/fitting/F50_M2_SENSOR_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F50_M2_SENSOR_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "F51_M2_REGEN_POLICY_TRACK",
+      "module": "fitting",
+      "phase": "P3",
+      "title": "Fitting M2 track: regeneration policy hardening",
+      "depends_on": [
+        "F50_M2_SENSOR_TRACK"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ssot/fitting_module_plan_v1.md"
+      ],
+      "commands": [],
+      "dod": [
+        "retry constraints honor latency/memory budgets",
+        "early_exit reason codes preserved in facts"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F51_M2_REGEN_POLICY_TRACK",
+          "status": "OK"
+        }
+      },
+      "round_id": "R19",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "fitting.f51_m2_regen_policy_track",
+        "closure_spec_path": "contracts/closure_specs/fitting/F51_M2_REGEN_POLICY_TRACK.closure_spec.md",
+        "validation_report_path": "reports/validation/fitting/F51_M2_REGEN_POLICY_TRACK.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    },
+    {
+      "step_id": "C30_M2_U1_U2_REGRESSION_SEAL",
+      "module": "common",
+      "phase": "P3",
+      "title": "Final M2 seal with U1/U2 regression checks",
+      "depends_on": [
+        "B51_M2_VERSIONING_TRACK",
+        "G51_M2_THICKNESS_POLICY_TRACK",
+        "F51_M2_REGEN_POLICY_TRACK"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": true
+      },
+      "touched_paths": [
+        "tools/validate/**",
+        "tools/smoke/**",
+        "contracts/master_plan_v1.json"
+      ],
+      "commands": [
+        "py tools/ops/run_ops_loop.py --mode full"
+      ],
+      "dod": [
+        "u1 validators fail_0 on latest outputs",
+        "u2 smokes fail_0: all",
+        "status/briefs rendered with latest evidence"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "C30_M2_U1_U2_REGRESSION_SEAL",
+          "status": "OK"
+        }
+      },
+      "round_id": "R19",
+      "m_level": "M2",
+      "closure": {
+        "feature_id": "common.c30_m2_u1_u2_regression_seal",
+        "closure_spec_path": "contracts/closure_specs/common/C30_M2_U1_U2_REGRESSION_SEAL.closure_spec.md",
+        "validation_report_path": "reports/validation/common/C30_M2_U1_U2_REGRESSION_SEAL.validation_report.md",
+        "lifecycle_states_required": [
+          "IMPLEMENTED",
+          "VALIDATED",
+          "CLOSED"
+        ]
+      }
+    }
+  ],
+  "rounds": [
+    {
+      "round_id": "R10",
+      "title": "Plan contract fields + lint compatibility",
+      "description": "Add rounds and level-aware optional step fields with backward compatibility."
+    },
+    {
+      "round_id": "R11",
+      "title": "next_step level interpreter",
+      "description": "Interpret step m_level and consumes.min_level using done_level from progress events."
+    },
+    {
+      "round_id": "R12",
+      "title": "M1 signals skeleton + guardrails",
+      "description": "Track minimal m1 signal templates and add path guardrails in CI guard."
+    },
+    {
+      "round_id": "R13",
+      "title": "M1 publish/consume explicit contract steps + signal readiness in STATUS",
+      "description": "Add explicit M1 publish steps for body/garment, fitting consume E2E, and surface M1 signal readiness."
+    },
+    {
+      "round_id": "R14",
+      "title": "M2 placeholder roadmap",
+      "description": "Add non-disruptive M2 placeholder steps for body/garment/fitting blocked by corresponding M1 completion."
+    },
+    {
+      "round_id": "R17",
+      "title": "SSoT module plans to executable M0/U1/U2 alignment",
+      "description": "Attach body/fitting/garment ssot plans into master plan and reseal U1/U2."
+    },
+    {
+      "round_id": "R18",
+      "title": "M1 parallel module tracks",
+      "description": "Execute body/garment/fitting M1 tracks in parallel and seal shared readiness."
+    },
+    {
+      "round_id": "R19",
+      "title": "M2 hardening with U1/U2 regression seal",
+      "description": "Run M2 tracks per module and finalize with U1 validators plus U2 smokes."
+    }
+  ],
+  "plan_sources": [
+    {
+      "module": "body",
+      "path": "ssot/Body_Module_Plan_v1.md",
+      "version": "v1.0",
+      "last_updated": "2026-01-30"
+    },
+    {
+      "module": "fitting",
+      "path": "ssot/fitting_module_plan_v1.md",
+      "version": "v1.0",
+      "last_updated": "2026-01-30"
+    },
+    {
+      "module": "garment",
+      "path": "ssot/garment_Product Contract v0.9-revC.md",
+      "version": "v0.9-revC",
+      "last_updated": "2026-01-30"
+    }
+  ],
+  "closure_policy_ref": "contracts/feature_closure_protocol_v1.md",
+  "step_completion_contract": {
+    "closure_required": true,
+    "validation_report_required": true,
+    "lifecycle_required": [
+      "IMPLEMENTED",
+      "VALIDATED",
+      "CLOSED"
+    ]
+  }
 }

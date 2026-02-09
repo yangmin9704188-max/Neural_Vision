@@ -14,6 +14,8 @@ FAIL = "FAIL"
 
 VALID_MODULES = {"body", "garment", "fitting", "common", "all"}
 LEVELS = {"M0": 0, "M1": 1, "M2": 2}
+LIFECYCLE_LEVELS = {"NONE": 0, "IMPLEMENTED": 1, "VALIDATED": 2, "CLOSED": 3}
+LIFECYCLE_LABELS = {v: k for k, v in LIFECYCLE_LEVELS.items()}
 M1_SIGNAL_TO_STEP = {
     "body": "B10_M1_PUBLISH",
     "garment": "G10_M1_PUBLISH",
@@ -58,7 +60,12 @@ def _level_max(a: str, b: str) -> str:
     return a if LEVELS.get(a, 0) >= LEVELS.get(b, 0) else b
 
 
-def _scan_one_log(log_path: Path, done_levels: Dict[str, str], warnings: List[str]) -> None:
+def _scan_one_log(
+    log_path: Path,
+    done_levels: Dict[str, str],
+    lifecycle_levels: Dict[str, int],
+    warnings: List[str],
+) -> None:
     if not log_path.is_file():
         return
     try:
@@ -73,21 +80,53 @@ def _scan_one_log(log_path: Path, done_levels: Dict[str, str], warnings: List[st
                     warnings.append(f"WARN: parse error in {log_path.name} line {line_num}")
                     continue
                 sid = obj.get("step_id")
-                status = obj.get("status")
-                if not isinstance(sid, str) or status != "OK":
+                status = str(obj.get("status") or "").upper()
+                if not isinstance(sid, str):
                     continue
-                lvl = _norm_level(obj.get("m_level", "M0"))
-                if sid in done_levels:
-                    done_levels[sid] = _level_max(done_levels[sid], lvl)
-                else:
-                    done_levels[sid] = lvl
+
+                if status == "OK":
+                    lvl = _norm_level(obj.get("m_level", "M0"))
+                    if sid in done_levels:
+                        done_levels[sid] = _level_max(done_levels[sid], lvl)
+                    else:
+                        done_levels[sid] = lvl
+
+                # lifecycle capture (closure protocol)
+                cur_lf = lifecycle_levels.get(sid, LIFECYCLE_LEVELS["NONE"])
+                explicit = str(obj.get("lifecycle_state") or "").upper()
+                if explicit in LIFECYCLE_LEVELS:
+                    cur_lf = max(cur_lf, LIFECYCLE_LEVELS[explicit])
+                if status in {"OK", "PASS"}:
+                    cur_lf = max(cur_lf, LIFECYCLE_LEVELS["IMPLEMENTED"])
+
+                report_ref = obj.get("validation_report_ref")
+                if isinstance(report_ref, str) and report_ref.strip():
+                    cur_lf = max(cur_lf, LIFECYCLE_LEVELS["VALIDATED"])
+                closure_ref = obj.get("closure_spec_ref")
+                if isinstance(closure_ref, str) and closure_ref.strip():
+                    cur_lf = max(cur_lf, LIFECYCLE_LEVELS["CLOSED"])
+
+                for key in ("evidence", "evidence_paths", "artifacts_touched"):
+                    vals = obj.get(key)
+                    if not isinstance(vals, list):
+                        continue
+                    for item in vals:
+                        if not isinstance(item, str):
+                            continue
+                        norm = item.replace("\\", "/")
+                        if norm.startswith("reports/validation/"):
+                            cur_lf = max(cur_lf, LIFECYCLE_LEVELS["VALIDATED"])
+                        if norm.startswith("contracts/closure_specs/"):
+                            cur_lf = max(cur_lf, LIFECYCLE_LEVELS["CLOSED"])
+                lifecycle_levels[sid] = cur_lf
     except OSError as exc:
         warnings.append(f"WARN: failed to read {log_path}: {exc}")
 
 
-def scan_progress_logs(repo_root: Path) -> Tuple[Dict[str, str], List[str]]:
-    """Scan PROGRESS_LOG.jsonl files, return (done_levels_map, warnings)."""
+def scan_progress_logs(repo_root: Path) -> Tuple[Dict[str, str], Dict[str, int], List[str]]:
+    """Scan PROGRESS_LOG.jsonl files, return (done_levels_map, lifecycle_levels, warnings)."""
     done_levels: Dict[str, str] = {}
+    lifecycle_levels: Dict[str, int] = {}
     warnings: List[str] = []
     candidates = [
         repo_root / "exports" / "progress" / "PROGRESS_LOG.jsonl",
@@ -96,8 +135,8 @@ def scan_progress_logs(repo_root: Path) -> Tuple[Dict[str, str], List[str]]:
         repo_root / "modules" / "fitting" / "exports" / "progress" / "PROGRESS_LOG.jsonl",
     ]
     for log_path in candidates:
-        _scan_one_log(log_path, done_levels, warnings)
-    return done_levels, warnings
+        _scan_one_log(log_path, done_levels, lifecycle_levels, warnings)
+    return done_levels, lifecycle_levels, warnings
 
 
 def _scan_m1_signals(repo_root: Path, done_levels: Dict[str, str], warnings: List[str]) -> None:
@@ -156,7 +195,32 @@ def _dependency_requirements(step: Dict[str, Any]) -> Dict[str, str]:
     return dep_reqs
 
 
-def compute_state(plan_data: Dict[str, Any], done_levels: Dict[str, str]) -> Dict[str, Any]:
+def _required_lifecycle_level(step: Dict[str, Any], plan_data: Dict[str, Any]) -> int:
+    """
+    Determine required lifecycle level for step completion.
+    If closure contract is enabled, default requirement is CLOSED.
+    """
+    completion = plan_data.get("step_completion_contract")
+    if not isinstance(completion, dict):
+        return LIFECYCLE_LEVELS["NONE"]
+    if completion.get("closure_required") is not True:
+        return LIFECYCLE_LEVELS["NONE"]
+
+    closure = step.get("closure")
+    if not isinstance(closure, dict):
+        return LIFECYCLE_LEVELS["CLOSED"]
+    states = closure.get("lifecycle_states_required")
+    if not isinstance(states, list) or not states:
+        return LIFECYCLE_LEVELS["CLOSED"]
+    levels = [LIFECYCLE_LEVELS.get(str(s).upper(), 0) for s in states]
+    return max(levels) if levels else LIFECYCLE_LEVELS["CLOSED"]
+
+
+def compute_state(
+    plan_data: Dict[str, Any],
+    done_levels: Dict[str, str],
+    lifecycle_levels: Dict[str, int],
+) -> Dict[str, Any]:
     """Compute done/ready/blocked sets + per-step state."""
     steps = plan_data.get("steps", [])
     if not isinstance(steps, list):
@@ -167,6 +231,7 @@ def compute_state(plan_data: Dict[str, Any], done_levels: Dict[str, str]) -> Dic
             "blocked": set(),
             "step_map": {},
             "done_levels": {},
+            "lifecycle_levels": {},
             "blocker_details": {},
         }
 
@@ -183,7 +248,9 @@ def compute_state(plan_data: Dict[str, Any], done_levels: Dict[str, str]) -> Dic
         if observed is None:
             continue
         required = _step_required_level(step_map[sid])
-        if _level_ge(observed, required):
+        required_lifecycle = _required_lifecycle_level(step_map[sid], plan_data)
+        observed_lifecycle = lifecycle_levels.get(sid, LIFECYCLE_LEVELS["NONE"])
+        if _level_ge(observed, required) and observed_lifecycle >= required_lifecycle:
             done_set.add(sid)
 
     ready_set: Set[str] = set()
@@ -197,12 +264,16 @@ def compute_state(plan_data: Dict[str, Any], done_levels: Dict[str, str]) -> Dic
         unmet: List[Dict[str, str]] = []
         for dep, req_level in dep_reqs.items():
             current_level = done_levels.get(dep, "NONE")
+            dep_required_lifecycle = _required_lifecycle_level(step_map.get(dep, {}), plan_data)
+            dep_current_lifecycle = lifecycle_levels.get(dep, LIFECYCLE_LEVELS["NONE"])
             dep_ok = dep in done_set and current_level != "NONE" and _level_ge(current_level, req_level)
             if not dep_ok:
                 unmet.append({
                     "from_step": dep,
                     "required_min_level": req_level,
                     "current_level": current_level,
+                    "required_lifecycle": LIFECYCLE_LABELS.get(dep_required_lifecycle, "NONE"),
+                    "current_lifecycle": LIFECYCLE_LABELS.get(dep_current_lifecycle, "NONE"),
                 })
         if unmet:
             blocked_set.add(sid)
@@ -218,6 +289,7 @@ def compute_state(plan_data: Dict[str, Any], done_levels: Dict[str, str]) -> Dic
         "ready": ready_set,
         "blocked": blocked_set,
         "done_levels": filtered_levels,
+        "lifecycle_levels": lifecycle_levels,
         "blocker_details": blocker_details,
     }
 
@@ -240,6 +312,14 @@ def recommend_next(state: Dict[str, Any], module_filter: str, top: int) -> List[
             req_evidence.append("U1 validators must pass")
         if req_u2:
             req_evidence.append("U2 smokes must pass")
+        closure = step.get("closure")
+        if isinstance(closure, dict):
+            vpath = closure.get("validation_report_path")
+            cpath = closure.get("closure_spec_path")
+            if isinstance(vpath, str) and vpath:
+                req_evidence.append(f"Validation report required: {vpath}")
+            if isinstance(cpath, str) and cpath:
+                req_evidence.append(f"Closure spec required: {cpath}")
 
         commands = step.get("commands", [])
         candidates.append({
@@ -327,7 +407,9 @@ def print_human(state: Dict[str, Any], next_steps: List[Dict[str, Any]],
                 for detail in blk["blocker_levels"]:
                     _safe_print(
                         "    Blocked by: "
-                        f"{detail['from_step']} (need>={detail['required_min_level']}, current={detail['current_level']})"
+                        f"{detail['from_step']} (need>={detail['required_min_level']}, current={detail['current_level']}; "
+                        f"need_lifecycle>={detail.get('required_lifecycle','NONE')}, "
+                        f"current_lifecycle={detail.get('current_lifecycle','NONE')})"
                     )
             else:
                 _safe_print(f"    Blocked by: {', '.join(blk['blockers'])}")
@@ -349,6 +431,7 @@ def print_json(state: Dict[str, Any], next_steps: List[Dict[str, Any]],
             "ready_steps": sorted(state["ready"]),
         },
         "done_levels": state["done_levels"],
+        "lifecycle_levels": state.get("lifecycle_levels", {}),
         "warnings": warnings,
         "recommended_next": next_steps,
         "blockers": blockers,
@@ -391,9 +474,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         _safe_print(f"ERROR: Failed to load plan: {exc}")
         return 1
 
-    done_levels, progress_warnings = scan_progress_logs(repo_root)
+    done_levels, lifecycle_levels, progress_warnings = scan_progress_logs(repo_root)
     _scan_m1_signals(repo_root, done_levels, progress_warnings)
-    state = compute_state(plan_data, done_levels)
+    state = compute_state(plan_data, done_levels, lifecycle_levels)
     next_steps = recommend_next(state, args.module, args.top)
     blockers = list_blockers(state, args.module, args.top)
 

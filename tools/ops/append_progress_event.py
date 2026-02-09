@@ -44,9 +44,17 @@ def main() -> int:
     parser.add_argument("--status", default="N/A", choices=("OK", "WARN", "FAIL", "N/A"))
     parser.add_argument("--m-level", default="M0", choices=("M0", "M1", "M2"),
                         help="Completion level for this event (default: M0)")
+    parser.add_argument(
+        "--lifecycle-state",
+        default=None,
+        choices=("IMPLEMENTED", "VALIDATED", "CLOSED"),
+        help="Lifecycle state for closure protocol"
+    )
     parser.add_argument("--note", default="")
     parser.add_argument("--dod-done-delta", type=int, default=0)
     parser.add_argument("--evidence", action="append", default=[])
+    parser.add_argument("--closure-spec-ref", default="", help="Repo-relative closure spec path")
+    parser.add_argument("--validation-report-ref", default="", help="Repo-relative validation report path")
     parser.add_argument("--gate-code", action="append", default=[], help="e.g. STEP_ID_MISSING")
     parser.add_argument("--soft-validate", action="store_true")
     parser.add_argument("--ts", default=None)
@@ -63,6 +71,23 @@ def main() -> int:
                 ep = lab_root / p
             if not ep.exists():
                 warnings.append(_warn("EVIDENCE_NOT_FOUND", "evidence path missing", str(p)))
+    if args.soft_validate and args.closure_spec_ref:
+        cp = Path(args.closure_spec_ref)
+        if not cp.is_absolute():
+            cp = Path.cwd() / cp
+        if not cp.exists():
+            warnings.append(_warn("CLOSURE_SPEC_NOT_FOUND", "closure spec path missing", args.closure_spec_ref))
+    if args.soft_validate and args.validation_report_ref:
+        vp = Path(args.validation_report_ref)
+        if not vp.is_absolute():
+            vp = Path.cwd() / vp
+        if not vp.exists():
+            warnings.append(_warn("VALIDATION_REPORT_NOT_FOUND", "validation report path missing", args.validation_report_ref))
+
+    if args.lifecycle_state == "VALIDATED" and not args.validation_report_ref:
+        warnings.append(_warn("VALIDATION_REPORT_REF_MISSING", "VALIDATED requires validation_report_ref"))
+    if args.lifecycle_state == "CLOSED" and not args.closure_spec_ref:
+        warnings.append(_warn("CLOSURE_SPEC_REF_MISSING", "CLOSED requires closure_spec_ref"))
 
     ev = {
         "ts": args.ts or _ts_now(),
@@ -72,9 +97,12 @@ def main() -> int:
         "run_id": args.run_id,
         "status": args.status,
         "m_level": args.m_level,
+        "lifecycle_state": args.lifecycle_state,
         "dod_done_delta": args.dod_done_delta,
         "note": args.note,
         "evidence": args.evidence or [],
+        "closure_spec_ref": args.closure_spec_ref or None,
+        "validation_report_ref": args.validation_report_ref or None,
         "warnings": warnings + [f"[{g}]" for g in args.gate_code],
     }
 

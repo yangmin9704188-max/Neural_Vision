@@ -34,6 +34,19 @@ FAIL = "FAIL"
 VALID_MODULES = {"body", "garment", "fitting", "common"}
 VALID_PHASES = {"P0", "P1", "P2", "P3"}
 VALID_M_LEVELS = {"M0", "M1", "M2"}
+VALID_LIFECYCLE_STATES = {"IMPLEMENTED", "VALIDATED", "CLOSED"}
+
+
+def _is_repo_relative_path(path: str) -> bool:
+    """True when path is repo-relative (no absolute path, no drive prefix)."""
+    if not isinstance(path, str) or not path.strip():
+        return False
+    p = path.strip().replace("\\", "/")
+    if p.startswith("/"):
+        return False
+    if len(p) >= 2 and p[1] == ":":
+        return False
+    return True
 
 
 class CheckResult:
@@ -74,6 +87,42 @@ def lint_plan(plan_path: Path) -> List[CheckResult]:
         results.append(CheckResult(FAIL, "plan_version", "Missing or invalid"))
     else:
         results.append(CheckResult(PASS, "plan_version", pv))
+
+    # closure policy + completion contract (required)
+    cpr = data.get("closure_policy_ref")
+    if not isinstance(cpr, str) or not _is_repo_relative_path(cpr):
+        results.append(CheckResult(FAIL, "closure_policy_ref", "Missing or invalid repo-relative path"))
+    else:
+        results.append(CheckResult(PASS, "closure_policy_ref", cpr))
+
+    scc = data.get("step_completion_contract")
+    if not isinstance(scc, dict):
+        results.append(CheckResult(FAIL, "step_completion_contract", "Missing or invalid"))
+    else:
+        req_closure = scc.get("closure_required")
+        req_report = scc.get("validation_report_required")
+        lifecycle_required = scc.get("lifecycle_required")
+        if req_closure is not True or req_report is not True:
+            results.append(CheckResult(
+                FAIL, "step_completion_contract:required_flags",
+                "closure_required and validation_report_required must both be true"
+            ))
+        elif not isinstance(lifecycle_required, list) or not all(
+            isinstance(x, str) for x in lifecycle_required
+        ):
+            results.append(CheckResult(
+                FAIL, "step_completion_contract:lifecycle_required",
+                "Must be an array of lifecycle state strings"
+            ))
+        else:
+            missing = [x for x in ("IMPLEMENTED", "VALIDATED", "CLOSED") if x not in lifecycle_required]
+            if missing:
+                results.append(CheckResult(
+                    FAIL, "step_completion_contract:lifecycle_required",
+                    f"Missing required states: {missing}"
+                ))
+            else:
+                results.append(CheckResult(PASS, "step_completion_contract", "closure/report/lifecycle required"))
 
     # rounds array (optional but validated)
     rounds = data.get("rounds")
@@ -269,6 +318,52 @@ def _lint_step(step: Any, idx: int, seen: Set[str], all_ids: Set[str],
         pass  # OK, optional
     else:
         results.append(CheckResult(WARN, f"{label}:evidence", "Present but not an object"))
+
+    # closure (required)
+    closure = step.get("closure")
+    if not isinstance(closure, dict):
+        results.append(CheckResult(FAIL, f"{label}:closure", "Missing or not an object"))
+        return
+
+    feature_id = closure.get("feature_id")
+    cpath = closure.get("closure_spec_path")
+    vpath = closure.get("validation_report_path")
+    lifecycle = closure.get("lifecycle_states_required")
+
+    if not isinstance(feature_id, str) or not feature_id.strip():
+        results.append(CheckResult(FAIL, f"{label}:closure:feature_id", "Missing or invalid"))
+    else:
+        results.append(CheckResult(PASS, f"{label}:closure:feature_id", feature_id))
+
+    if not isinstance(cpath, str) or not _is_repo_relative_path(cpath):
+        results.append(CheckResult(FAIL, f"{label}:closure:closure_spec_path", "Missing or invalid repo-relative path"))
+    elif not cpath.endswith(".md"):
+        results.append(CheckResult(FAIL, f"{label}:closure:closure_spec_path", "Must end with .md"))
+    else:
+        results.append(CheckResult(PASS, f"{label}:closure:closure_spec_path", cpath))
+
+    if not isinstance(vpath, str) or not _is_repo_relative_path(vpath):
+        results.append(CheckResult(FAIL, f"{label}:closure:validation_report_path", "Missing or invalid repo-relative path"))
+    elif not vpath.endswith(".md"):
+        results.append(CheckResult(FAIL, f"{label}:closure:validation_report_path", "Must end with .md"))
+    else:
+        results.append(CheckResult(PASS, f"{label}:closure:validation_report_path", vpath))
+
+    if not isinstance(lifecycle, list) or not all(isinstance(x, str) for x in lifecycle):
+        results.append(CheckResult(FAIL, f"{label}:closure:lifecycle_states_required", "Must be array of strings"))
+    else:
+        unknown = [x for x in lifecycle if x not in VALID_LIFECYCLE_STATES]
+        if unknown:
+            results.append(CheckResult(FAIL, f"{label}:closure:lifecycle_states_required", f"Unknown states: {unknown}"))
+        else:
+            missing = [x for x in ("IMPLEMENTED", "VALIDATED", "CLOSED") if x not in lifecycle]
+            if missing:
+                results.append(CheckResult(
+                    FAIL, f"{label}:closure:lifecycle_states_required",
+                    f"Missing required states: {missing}"
+                ))
+            else:
+                results.append(CheckResult(PASS, f"{label}:closure:lifecycle_states_required", ",".join(lifecycle)))
 
 
 # ── Output ───────────────────────────────────────────────────────────

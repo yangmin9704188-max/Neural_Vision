@@ -30,6 +30,7 @@ FAIL = "FAIL"
 
 CORE_TOOLS = {
     "doctor": "tools/ops/doctor.py",
+    "plan_lint": "tools/agent/plan_lint.py",
     "next_step": "tools/agent/next_step.py",
     "u2_smokes": "tools/smoke/run_u2_smokes.py",
 }
@@ -355,6 +356,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # 1. Doctor (always)
     results.append(run_tool(repo_root, CORE_TOOLS["doctor"], []))
+    results.append(run_tool(repo_root, CORE_TOOLS["plan_lint"], ["--plan", args.plan]))
 
     # 2. Mode-specific tools
     if args.mode == "full":

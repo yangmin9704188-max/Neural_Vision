@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+MASTER_PLAN_PATH = REPO_ROOT / "contracts" / "master_plan_v1.json"
 
 # Path classification for observed_paths (priority order: lower = higher priority)
 PATH_PRIORITY = {"RUN_EVIDENCE": 0, "MANIFEST": 1, "OTHER": 2, "SAMPLE": 3}
@@ -67,6 +68,112 @@ MARKERS = {
     "FITTING": ("<!-- GENERATED:BEGIN:FITTING -->", "<!-- GENERATED:END:FITTING -->"),
     "GARMENT": ("<!-- GENERATED:BEGIN:GARMENT -->", "<!-- GENERATED:END:GARMENT -->"),
 }
+
+
+def _load_master_plan() -> dict:
+    if not MASTER_PLAN_PATH.exists():
+        return {}
+    try:
+        with open(MASTER_PLAN_PATH, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
+def _module_steps_and_closure(master_plan: dict, module: str) -> tuple[set[str], dict[str, dict]]:
+    step_ids: set[str] = set()
+    closure_map: dict[str, dict] = {}
+    for step in master_plan.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        if (step.get("module") or "").lower() != module.lower():
+            continue
+        sid = step.get("step_id")
+        if not isinstance(sid, str) or not sid:
+            continue
+        step_ids.add(sid)
+        closure = step.get("closure")
+        if isinstance(closure, dict):
+            closure_map[sid] = closure
+    return step_ids, closure_map
+
+
+def _extract_event_paths(ev: dict) -> set[str]:
+    out: set[str] = set()
+    for key in ("evidence", "evidence_paths", "artifacts_touched"):
+        val = ev.get(key)
+        if isinstance(val, list):
+            for item in val:
+                if isinstance(item, str) and item.strip():
+                    out.add(item.strip().replace("\\", "/"))
+    for key in ("closure_spec_ref", "validation_report_ref"):
+        val = ev.get(key)
+        if isinstance(val, str) and val.strip():
+            out.add(val.strip().replace("\\", "/"))
+    return out
+
+
+def _compute_lifecycle_snapshot(events: list[dict], step_ids: set[str], closure_map: dict[str, dict]) -> dict:
+    """Compute lifecycle counters from progress events + closure paths."""
+    order = {"NONE": 0, "IMPLEMENTED": 1, "VALIDATED": 2, "CLOSED": 3}
+    state_by_step = {sid: 0 for sid in step_ids}
+
+    for ev in events:
+        sid = ev.get("step_id")
+        if sid not in step_ids:
+            continue
+        state = state_by_step.get(sid, 0)
+        status = str(ev.get("status") or "").upper()
+        lifecycle_state = str(ev.get("lifecycle_state") or "").upper()
+        paths = _extract_event_paths(ev)
+        if status in {"OK", "PASS"}:
+            state = max(state, order["IMPLEMENTED"])
+        if lifecycle_state in order:
+            state = max(state, order[lifecycle_state])
+
+        closure = closure_map.get(sid) or {}
+        report_path = str(closure.get("validation_report_path") or "").replace("\\", "/")
+        spec_path = str(closure.get("closure_spec_path") or "").replace("\\", "/")
+        has_report = any(p.startswith("reports/validation/") for p in paths)
+        has_spec = any(p.startswith("contracts/closure_specs/") for p in paths)
+        if report_path and report_path in paths:
+            has_report = True
+        if spec_path and spec_path in paths:
+            has_spec = True
+        if has_report:
+            state = max(state, order["VALIDATED"])
+        if has_spec:
+            state = max(state, order["CLOSED"])
+        state_by_step[sid] = state
+
+    total = len(step_ids)
+    implemented = sum(1 for v in state_by_step.values() if v >= order["IMPLEMENTED"])
+    validated = sum(1 for v in state_by_step.values() if v >= order["VALIDATED"])
+    closed = sum(1 for v in state_by_step.values() if v >= order["CLOSED"])
+    pending = max(0, total - implemented)
+    next_validate = sorted([sid for sid, v in state_by_step.items() if v == order["IMPLEMENTED"]])[:5]
+    next_close = sorted([sid for sid, v in state_by_step.items() if v == order["VALIDATED"]])[:5]
+    return {
+        "total": total,
+        "implemented": implemented,
+        "validated": validated,
+        "closed": closed,
+        "pending": pending,
+        "next_validate": next_validate,
+        "next_close": next_close,
+    }
+
+
+def _empty_lifecycle(total: int = 0) -> dict:
+    return {
+        "total": total,
+        "implemented": 0,
+        "validated": 0,
+        "closed": 0,
+        "pending": total,
+        "next_validate": [],
+        "next_close": [],
+    }
 
 
 def _parse_run_log(run_log_path: Path) -> dict:
@@ -215,7 +322,12 @@ def _latest_body_progress(max_items: int = 3) -> list[dict]:
 
 
 def _render_body(
-    curated: dict, geo: dict, warnings: list[str], *, body_progress: list[dict] | None = None
+    curated: dict,
+    geo: dict,
+    warnings: list[str],
+    *,
+    body_progress: list[dict] | None = None,
+    lifecycle: dict | None = None,
 ) -> str:
     try:
         from zoneinfo import ZoneInfo
@@ -230,6 +342,16 @@ def _render_body(
     if nw > 0:
         top3 = _sort_warnings(warnings)[:3]
         lines.append(f"- health_summary: {'; '.join(top3)}")
+    if lifecycle:
+        lines.append(f"- lifecycle_total_steps: {lifecycle.get('total', 0)}")
+        lines.append(f"- lifecycle_implemented: {lifecycle.get('implemented', 0)}")
+        lines.append(f"- lifecycle_validated: {lifecycle.get('validated', 0)}")
+        lines.append(f"- lifecycle_closed: {lifecycle.get('closed', 0)}")
+        lines.append(f"- lifecycle_pending: {lifecycle.get('pending', 0)}")
+        if lifecycle.get("next_validate"):
+            lines.append(f"- next_validate: {', '.join(lifecycle['next_validate'])}")
+        if lifecycle.get("next_close"):
+            lines.append(f"- next_close: {', '.join(lifecycle['next_close'])}")
     lines.append("")
 
     lines.append("### Curated ingest")
@@ -588,7 +710,7 @@ def _parse_brief_head_warnings(brief_head: list[str]) -> list[str]:
     return []
 
 
-def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
+def _render_module_brief(module: str, brief: dict, warnings: list[str], lifecycle: dict | None = None) -> str:
     soft = list(brief.get("path_hygiene") or [])
     soft.extend(brief.get("progress_hygiene") or [])
     brief_warn_codes = _parse_brief_head_warnings(brief.get("brief_head") or [])
@@ -601,6 +723,16 @@ def _render_module_brief(module: str, brief: dict, warnings: list[str]) -> str:
     if nw > 0:
         top3 = _sort_warnings(all_w)[:3]
         lines.append(f"- health_summary: {'; '.join(top3)}")
+    if lifecycle:
+        lines.append(f"- lifecycle_total_steps: {lifecycle.get('total', 0)}")
+        lines.append(f"- lifecycle_implemented: {lifecycle.get('implemented', 0)}")
+        lines.append(f"- lifecycle_validated: {lifecycle.get('validated', 0)}")
+        lines.append(f"- lifecycle_closed: {lifecycle.get('closed', 0)}")
+        lines.append(f"- lifecycle_pending: {lifecycle.get('pending', 0)}")
+        if lifecycle.get("next_validate"):
+            lines.append(f"- next_validate: {', '.join(lifecycle['next_validate'])}")
+        if lifecycle.get("next_close"):
+            lines.append(f"- next_close: {', '.join(lifecycle['next_close'])}")
     lines.append(f"- brief_path: {brief['brief_path']}")
     lines.append(f"- brief_mtime: {brief['brief_mtime']}")
     paths = brief.get("observed_paths") or []
@@ -1138,6 +1270,10 @@ def _render_m1_signals() -> str:
 
 def main() -> int:
     all_warnings = []
+    master_plan = _load_master_plan()
+    body_steps, body_closure = _module_steps_and_closure(master_plan, "body")
+    fitting_steps, fitting_closure = _module_steps_and_closure(master_plan, "fitting")
+    garment_steps, garment_closure = _module_steps_and_closure(master_plan, "garment")
 
     curated, w1 = _latest_curated()
     geo, w2 = _latest_geo()
@@ -1162,6 +1298,23 @@ def main() -> int:
             lab_roots.append((p, "garment"))
     blockers_content = _render_blockers(lab_roots)
     m1_signals_content = _render_m1_signals()
+
+    body_events = _read_lab_progress_events(REPO_ROOT, "body", max_events=5000)
+    body_lifecycle = _compute_lifecycle_snapshot(body_events, body_steps, body_closure) if body_steps else _empty_lifecycle(0)
+
+    fitting_lifecycle = _empty_lifecycle(len(fitting_steps))
+    if fit_r:
+        p = Path(fit_r).resolve()
+        if p.exists():
+            fitting_events = _read_lab_progress_events(p, "fitting", max_events=5000)
+            fitting_lifecycle = _compute_lifecycle_snapshot(fitting_events, fitting_steps, fitting_closure)
+
+    garment_lifecycle = _empty_lifecycle(len(garment_steps))
+    if gar_r:
+        p = Path(gar_r).resolve()
+        if p.exists():
+            garment_events = _read_lab_progress_events(p, "garment", max_events=5000)
+            garment_lifecycle = _compute_lifecycle_snapshot(garment_events, garment_steps, garment_closure)
 
     dep_warnings = {"BODY": [], "FITTING": [], "GARMENT": []}
     ledger = _load_dependency_ledger()
@@ -1208,9 +1361,11 @@ def main() -> int:
         w4.append(_warn_dep("ROUND_END_MISSING", "hygiene", expected))
 
     body_progress = _latest_body_progress(max_items=3)
-    body_content = _render_body(curated, geo, w1 + w2, body_progress=body_progress)
-    fitting_content = _render_module_brief("FITTING", fitting_brief, w3)
-    garment_content = _render_module_brief("GARMENT", garment_brief, w4)
+    body_content = _render_body(
+        curated, geo, w1 + w2, body_progress=body_progress, lifecycle=body_lifecycle
+    )
+    fitting_content = _render_module_brief("FITTING", fitting_brief, w3, lifecycle=fitting_lifecycle)
+    garment_content = _render_module_brief("GARMENT", garment_brief, w4, lifecycle=garment_lifecycle)
 
     try:
         text = OPS_STATUS.read_text(encoding="utf-8")

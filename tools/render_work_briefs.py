@@ -12,12 +12,13 @@ from datetime import datetime
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLAN_PATH = REPO_ROOT / "docs" / "ops" / "dashboard_legacy" / "PLAN_v0.yaml"
+MASTER_PLAN_PATH = REPO_ROOT / "contracts" / "master_plan_v1.json"
 LAB_ROOTS_PATH = REPO_ROOT / "ops" / "lab_roots.local.json"
 
 MODULES = ("body", "fitting", "garment")
 BRIEF_HEADER_KEYS = (
     "module", "updated_at", "run_id", "phase", "status",
-    "summary", "artifacts", "warnings", "next", "owner"
+    "summary", "lifecycle", "artifacts", "warnings", "next", "owner"
 )
 
 
@@ -62,6 +63,17 @@ def _load_plan() -> dict:
         return {}
 
 
+def _load_master_plan() -> dict:
+    """Load contracts/master_plan_v1.json for lifecycle/closure mapping."""
+    if not MASTER_PLAN_PATH.exists():
+        return {}
+    try:
+        with open(MASTER_PLAN_PATH, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
 def _plan_dod_total(plan: dict, module: str, step_id: str) -> int | None:
     """Get dod.total for step from PLAN."""
     mods = plan.get("modules", {})
@@ -71,6 +83,97 @@ def _plan_dod_total(plan: dict, module: str, step_id: str) -> int | None:
             dod = s.get("dod", {})
             return dod.get("total")
     return None
+
+
+def _module_steps_and_closure(master_plan: dict, module: str) -> tuple[set[str], dict[str, dict]]:
+    """Return (step_ids, closure_map) for module from master plan."""
+    step_ids: set[str] = set()
+    closure_map: dict[str, dict] = {}
+    for step in master_plan.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        if (step.get("module") or "").lower() != module.lower():
+            continue
+        sid = step.get("step_id")
+        if not isinstance(sid, str) or not sid:
+            continue
+        step_ids.add(sid)
+        closure = step.get("closure")
+        if isinstance(closure, dict):
+            closure_map[sid] = closure
+    return step_ids, closure_map
+
+
+def _extract_event_paths(ev: dict) -> set[str]:
+    out: set[str] = set()
+    for key in ("evidence", "evidence_paths", "artifacts_touched"):
+        val = ev.get(key)
+        if isinstance(val, list):
+            for item in val:
+                if isinstance(item, str) and item.strip():
+                    out.add(item.strip().replace("\\", "/"))
+    for key in ("closure_spec_ref", "validation_report_ref"):
+        val = ev.get(key)
+        if isinstance(val, str) and val.strip():
+            out.add(val.strip().replace("\\", "/"))
+    return out
+
+
+def _compute_lifecycle(events: list[dict], step_ids: set[str], closure_map: dict[str, dict]) -> dict:
+    """
+    Compute lifecycle snapshot for module plan steps.
+    State order: NONE < IMPLEMENTED < VALIDATED < CLOSED.
+    """
+    order = {"NONE": 0, "IMPLEMENTED": 1, "VALIDATED": 2, "CLOSED": 3}
+    rev = {v: k for k, v in order.items()}
+    state_by_step = {sid: 0 for sid in step_ids}
+
+    for ev in events:
+        sid = ev.get("step_id")
+        if sid not in step_ids:
+            continue
+        state = state_by_step.get(sid, 0)
+        status = str(ev.get("status") or "").upper()
+        lifecycle_state = str(ev.get("lifecycle_state") or "").upper()
+        paths = _extract_event_paths(ev)
+
+        if status in {"OK", "PASS"}:
+            state = max(state, order["IMPLEMENTED"])
+        if lifecycle_state in order:
+            state = max(state, order[lifecycle_state])
+
+        closure = closure_map.get(sid) or {}
+        report_path = str(closure.get("validation_report_path") or "").replace("\\", "/")
+        spec_path = str(closure.get("closure_spec_path") or "").replace("\\", "/")
+        has_report = any(p.startswith("reports/validation/") for p in paths)
+        has_spec = any(p.startswith("contracts/closure_specs/") for p in paths)
+        if report_path and report_path in paths:
+            has_report = True
+        if spec_path and spec_path in paths:
+            has_spec = True
+        if has_report:
+            state = max(state, order["VALIDATED"])
+        if has_spec:
+            state = max(state, order["CLOSED"])
+        state_by_step[sid] = state
+
+    total = len(step_ids)
+    implemented = sum(1 for v in state_by_step.values() if v >= order["IMPLEMENTED"])
+    validated = sum(1 for v in state_by_step.values() if v >= order["VALIDATED"])
+    closed = sum(1 for v in state_by_step.values() if v >= order["CLOSED"])
+    pending = max(0, total - implemented)
+    validating = sorted([sid for sid, v in state_by_step.items() if v == order["IMPLEMENTED"]])[:5]
+    closing = sorted([sid for sid, v in state_by_step.items() if v == order["VALIDATED"]])[:5]
+    return {
+        "total": total,
+        "implemented": implemented,
+        "validated": validated,
+        "closed": closed,
+        "pending": pending,
+        "step_states": {sid: rev[v] for sid, v in state_by_step.items()},
+        "next_validate": validating,
+        "next_close": closing,
+    }
 
 
 def _parse_progress_log(log_path: Path) -> tuple[list[dict], list[str]]:
@@ -166,12 +269,19 @@ def _render_brief(module: str, lab_root: Path, agg: dict, all_warnings: list[str
     dod_done = agg.get("dod_done", 0)
     last_note = (agg.get("last_note") or "")[:120]
     warns = agg.get("warnings", []) + all_warnings
+    lifecycle = agg.get("lifecycle") or {"total": 0, "implemented": 0, "validated": 0, "closed": 0, "pending": 0}
     status = "WARN" if warns else "OK"
     summary = f"last_step={last_step} dod_done={dod_done}"
     if last_note:
         summary = f"{summary} | {last_note[:80]}"
     summary = summary[:120]
     warnings_str = ",".join(warns[:5]) if warns else "0"
+    lifecycle_str = (
+        f"implemented={lifecycle['implemented']}/{lifecycle['total']}; "
+        f"validated={lifecycle['validated']}/{lifecycle['total']}; "
+        f"closed={lifecycle['closed']}/{lifecycle['total']}; "
+        f"pending={lifecycle['pending']}"
+    )
     next_line = f"Continue step {last_step}" if last_step != "N/A" else "Configure lab roots and PROGRESS_LOG"
 
     lines = [
@@ -185,6 +295,7 @@ def _render_brief(module: str, lab_root: Path, agg: dict, all_warnings: list[str
         "phase: N/A",
         f"status: {status}",
         f"summary: {summary}",
+        f"lifecycle: {lifecycle_str}",
         "artifacts: N/A",
         f"warnings: {warnings_str}",
         f"next: {next_line[:120]}",
@@ -196,7 +307,16 @@ def _render_brief(module: str, lab_root: Path, agg: dict, all_warnings: list[str
         f"- last_step_id: {last_step}",
         f"- dod_done_cumulative: {dod_done}",
         f"- last_event_ts: {agg.get('last_ts') or 'N/A'}",
+        f"- lifecycle_total_steps: {lifecycle['total']}",
+        f"- lifecycle_implemented: {lifecycle['implemented']}",
+        f"- lifecycle_validated: {lifecycle['validated']}",
+        f"- lifecycle_closed: {lifecycle['closed']}",
+        f"- lifecycle_pending: {lifecycle['pending']}",
     ]
+    if lifecycle.get("next_validate"):
+        lines.append(f"- next_validate: {', '.join(lifecycle['next_validate'])}")
+    if lifecycle.get("next_close"):
+        lines.append(f"- next_close: {', '.join(lifecycle['next_close'])}")
     if warns:
         lines.append("- warnings:")
         for w in warns[:5]:
@@ -220,6 +340,7 @@ def _write_brief(lab_root: Path, module: str, content: str) -> list[str]:
 def main() -> int:
     roots = _get_lab_roots()
     plan = _load_plan()
+    master_plan = _load_master_plan()
     total_warnings = []
 
     for module in MODULES:
@@ -235,6 +356,8 @@ def main() -> int:
 
         agg_map = _aggregate_by_module(events, plan)
         agg = agg_map.get(module, {"dod_done": 0, "last_step": None, "last_ts": None, "last_note": None, "warnings": []})
+        module_steps, closure_map = _module_steps_and_closure(master_plan, module)
+        agg["lifecycle"] = _compute_lifecycle(events, module_steps, closure_map)
 
         content = _render_brief(module, lab_root, agg, parse_warns)
         write_warns = _write_brief(lab_root, module, content)
