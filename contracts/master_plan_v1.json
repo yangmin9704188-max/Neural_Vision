@@ -2,6 +2,11 @@
     "plan_version":  "master_plan.v1",
     "generated_at":  "2026-02-09T20:13:36Z",
     "description":  "Neural Vision task graph ??P0 focused (U1 enforceable + U2 smoke harness)",
+    "governance":  {
+                       "common_step_owner_module":  "body",
+                       "common_step_execution":  "hub_only",
+                       "rule":  "C* steps are appended only by body main orchestrator"
+                   },
     "steps":  [
                   {
                       "step_id":  "C00",

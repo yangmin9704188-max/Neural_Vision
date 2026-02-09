@@ -8,6 +8,13 @@
 - Do: evidence-first, 링크로만 참조, data/**/exports/**는 로컬 전용
 - Don't: 모듈 간 파일 직접 수정 금지, 섹션 침범 금지
 
+## Common Step Ownership (C-steps)
+- Owner: Body main (Hub orchestrator) executes all `common` steps (`step_id` starts with `C`).
+- Fitting/Garment agents must not append `C*` milestones.
+- Module agents append only their module steps (`B*`, `F*`, `G*`) to their own progress logs.
+- Hub/body main validates readiness via `py tools/agent/next_step.py --module all --top 10` and appends `C*`.
+- Goal: prevent cross-agent conflicts on shared orchestration state.
+
 ## Write Boundary (facts-only)
 - data/**, exports/**는 로컬 전용, 커밋 금지
 - Hub가 외부 lab에 쓸 수 있는 경로는 `exports/brief/**` 뿐 (레거시 [EXPORT_CONTRACT_v0](docs/ops/dashboard_legacy/EXPORT_CONTRACT_v0.md) 인용)
