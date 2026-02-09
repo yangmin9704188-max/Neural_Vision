@@ -1,6 +1,17 @@
-{
-  "schema_version": "m1_signal.v1",
+﻿{
+  "schema_version": "m1_latest_signal.v1",
   "module": "garment",
   "m_level": "M1",
-  "run_dir_rel": "data/shared_m1/garment/g11_m1_local_v1"
+  "status": "OK",
+  "updated_at": "2026-02-09T19:36:20+09:00",
+  "run_id": "20260209_103620",
+  "run_dir_rel": "..\\NV_shared_data\\shared_m1\\garment\\20260209_103620",
+  "source_run_dir_rel": "..\\NV_shared_data\\shared_m1\\garment\\20260209_103548",
+  "required_files": [
+    "geometry_manifest.json",
+    "garment_proxy_meta.json"
+  ],
+  "optional_files_present": [
+    "garment_proxy_mesh.glb"
+  ]
 }
