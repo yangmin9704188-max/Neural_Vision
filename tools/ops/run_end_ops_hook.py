@@ -34,7 +34,7 @@ def _get_lab_roots() -> dict[str, Path | None]:
         cfg_path = REPO_ROOT / "ops" / "lab_roots.local.json"
         if cfg_path.exists():
             try:
-                with open(cfg_path, encoding="utf-8") as f:
+                with open(cfg_path, encoding="utf-8-sig") as f:
                     cfg = json.load(f)
                 for k, key in (("fitting", "FITTING_LAB_ROOT"), ("garment", "GARMENT_LAB_ROOT")):
                     if roots[k] is None and cfg.get(key):

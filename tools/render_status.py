@@ -573,6 +573,27 @@ def _extract_gate_codes_from_events(events: list[dict]) -> list[str]:
     return codes
 
 
+def _extract_round_end_fail_gate_codes(lab_root: Path, module: str, max_events: int = 200) -> list[str]:
+    """
+    Extract gate codes from FAIL round_end events in module progress log.
+    Used to surface fail-fast producer signals (e.g. RUN_MANIFEST_ROOT_MISSING) in STATUS.
+    """
+    events = _read_lab_progress_events(lab_root, module, max_events=max_events)
+    out: list[str] = []
+    for ev in events:
+        status = str(ev.get("status") or "").upper()
+        if status != "FAIL":
+            continue
+        et = str(ev.get("event_type") or ev.get("event") or "").lower()
+        if et != "round_end":
+            continue
+        for code in _extract_gate_codes_from_events([ev]):
+            if code:
+                out.append(code)
+    # Stable dedupe while preserving first occurrence.
+    return list(dict.fromkeys(out))
+
+
 def _aggregate_blockers_top_n(lab_roots: list[tuple[Path, str]], n: int = 5) -> list[tuple[str, int]]:
     """Aggregate gate codes from labs, return top n by count.
     STEP_ID_BACKFILLED resolves STEP_ID_MISSING 1:1 per module (net count only)."""
@@ -729,7 +750,7 @@ def _get_lab_root(module: str) -> str:
     lab_root = os.environ.get(env_key, "").strip()
     if not lab_root and LAB_ROOTS_PATH.exists():
         try:
-            with open(LAB_ROOTS_PATH, encoding="utf-8") as f:
+            with open(LAB_ROOTS_PATH, encoding="utf-8-sig") as f:
                 cfg = json.load(f)
             val = (cfg.get(env_key) or "").strip()
             if val:
@@ -1813,6 +1834,8 @@ def main() -> int:
         if p.exists():
             fitting_events = _read_lab_progress_events(p, "fitting", max_events=5000)
             fitting_lifecycle = _compute_lifecycle_snapshot(fitting_events, fitting_steps, fitting_closure)
+            for gate in _extract_round_end_fail_gate_codes(p, "fitting", max_events=200):
+                w3.append(_warn_dep(gate, "round_end_fail", "exports/progress/PROGRESS_LOG.jsonl"))
 
     garment_lifecycle = _empty_lifecycle(len(garment_steps))
     if gar_r:
@@ -1820,6 +1843,8 @@ def main() -> int:
         if p.exists():
             garment_events = _read_lab_progress_events(p, "garment", max_events=5000)
             garment_lifecycle = _compute_lifecycle_snapshot(garment_events, garment_steps, garment_closure)
+            for gate in _extract_round_end_fail_gate_codes(p, "garment", max_events=200):
+                w4.append(_warn_dep(gate, "round_end_fail", "exports/progress/PROGRESS_LOG.jsonl"))
 
     dep_warnings = {"BODY": [], "FITTING": [], "GARMENT": []}
     ledger = _load_dependency_ledger()

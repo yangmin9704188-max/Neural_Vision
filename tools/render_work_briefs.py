@@ -38,7 +38,7 @@ def _get_lab_roots() -> dict[str, Path]:
     if roots.get("fitting") is None or roots.get("garment") is None:
         if LAB_ROOTS_PATH.exists():
             try:
-                with open(LAB_ROOTS_PATH, encoding="utf-8") as f:
+                with open(LAB_ROOTS_PATH, encoding="utf-8-sig") as f:
                     cfg = json.load(f)
                 for k in ("fitting", "garment"):
                     if roots.get(k) is None and cfg.get(f"{k.upper()}_LAB_ROOT"):
@@ -197,6 +197,29 @@ def _parse_progress_log(log_path: Path) -> tuple[list[dict], list[str]]:
     return events, warnings
 
 
+def _extract_gate_codes(ev: dict) -> list[str]:
+    """Extract gate codes from gate_code/gate_codes and [CODE] warnings."""
+    codes: list[str] = []
+    raw = ev.get("gate_codes") or ev.get("gate_code")
+    if isinstance(raw, str) and raw:
+        codes.append(raw)
+    elif isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str) and item:
+                codes.append(item)
+    warnings = ev.get("warnings") or []
+    if isinstance(warnings, str):
+        warnings = [warnings]
+    if isinstance(warnings, list):
+        for w in warnings:
+            if isinstance(w, str) and w.startswith("[") and "]" in w:
+                end = w.find("]")
+                code = w[1:end].strip()
+                if code:
+                    codes.append(code)
+    return codes
+
+
 def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
     """Per module: dod_done, last_event_ts, last_step_id (valid only), last_note, warnings. UNSPECIFIED excluded from last_step.
     STEP_ID_BACKFILLED in gate_codes resolves STEP_ID_MISSING (1:1) for that module."""
@@ -234,15 +257,18 @@ def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
         if step_id == "UNSPECIFIED":
             by_mod[mod]["_un_specified"] += 1
 
-        gc = ev.get("gate_codes") or ev.get("gate_code")
-        if isinstance(gc, str):
-            gc = [gc] if gc else []
-        wrn = ev.get("warnings") or []
-        if isinstance(wrn, str):
-            wrn = [wrn] if wrn else []
-        has_backfill = (isinstance(gc, list) and "STEP_ID_BACKFILLED" in gc) or any(
-            "STEP_ID_BACKFILLED" in str(w) for w in wrn
-        )
+        codes = _extract_gate_codes(ev)
+        status = str(ev.get("status") or "").upper()
+        event_type = str(ev.get("event_type") or ev.get("event") or "").lower()
+        if status == "FAIL":
+            if codes:
+                by_mod[mod]["warnings"].extend(codes)
+            elif event_type == "round_end":
+                by_mod[mod]["warnings"].append("ROUND_END_FAIL")
+            else:
+                by_mod[mod]["warnings"].append("EVENT_FAIL")
+
+        has_backfill = "STEP_ID_BACKFILLED" in codes
         if has_backfill:
             by_mod[mod]["_backfilled"] += 1
 
@@ -251,6 +277,8 @@ def _aggregate_by_module(events: list[dict], plan: dict) -> dict[str, dict]:
         net = max(0, m["_un_specified"] - m["_backfilled"])
         for _ in range(net):
             m["warnings"].append("STEP_ID_MISSING")
+        # Stable dedupe while preserving first occurrence.
+        m["warnings"] = list(dict.fromkeys(m["warnings"]))
         del m["_un_specified"]
         del m["_backfilled"]
 
@@ -332,6 +360,8 @@ def _compute_next_line(module: str, last_step: str, warns: list[str], lifecycle:
     if any("STEP_ID_MISSING" in w for w in warn_upper):
         env_key = f"{module.upper()}_STEP_ID"
         return f"Recover step_id first ({env_key} or --{module}-step-id), then re-run hook"
+    if any("RUN_MANIFEST_ROOT_MISSING" in w for w in warn_upper):
+        return "Fail-fast: create root geometry_manifest.json, then rerun round end"
     if any(w.startswith("parse_fail:") or w.startswith("read_fail:") for w in warn_texts):
         return "Fix PROGRESS_LOG parse/read warning before continuing"
 

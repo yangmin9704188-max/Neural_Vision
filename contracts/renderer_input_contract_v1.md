@@ -138,3 +138,8 @@
   - `note`에 `referenced_line=<N>` 포함 (1-indexed)
 - 검증기(`validate_renderer_inputs`)는 tombstone의 `referenced_line`을 면책 처리(exempt)할 수 있다.
 
+
+## 10. round_end FAIL gate consumption (2026-02-10)
+- If a progress event has `event=round_end`, `status=FAIL`, and gate code `RUN_MANIFEST_ROOT_MISSING`, renderers must surface this warning in both WORK_BRIEF and STATUS.
+- Renderer/ops layer must not auto-create or auto-copy root `geometry_manifest.json` for this case.
+- Explicit producer FAIL gate has priority over heuristic run-dir scanning.

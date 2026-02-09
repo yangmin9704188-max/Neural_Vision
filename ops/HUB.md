@@ -137,3 +137,8 @@ One-liner run:
   - sibling-repo literals like `../fitting_lab`, `../garment_lab` are forbidden in executable scripts.
   - official interfaces only: ENV lab roots, `ops/lab_roots.local.json`, `ops/signals/m1/*/LATEST.json`.
 - Validator: `py tools/ops/validate_cross_repo_refs.py` (wired into `run_ops_loop`).
+
+## run_end hook fail-fast note (2026-02-10)
+- `tools/ops/run_end_ops_hook.py` is consumed in fail-fast mode from ops flow.
+- Missing `GARMENT_STEP_ID`/`FITTING_STEP_ID` (when corresponding lab roots are active) must return non-zero immediately.
+- Do not use implicit latest-run/step inference in end-of-round wiring.

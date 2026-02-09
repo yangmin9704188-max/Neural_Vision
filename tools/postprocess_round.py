@@ -1758,7 +1758,15 @@ def main():
             print("Warning: round_md_rel not available (round_num not detected from run_dir name). Ingest skipped.", file=sys.stderr)
         subprocess.run([sys.executable, str(project_root / "tools" / "render_dashboard_v0.py"), "--hub-root", str(project_root)], check=False)
         subprocess.run([sys.executable, str(project_root / "tools" / "publish_work_briefs_v0.py"), "--hub-root", str(project_root)], check=False)
-        subprocess.run([sys.executable, str(project_root / "tools" / "ops" / "run_end_ops_hook.py")], check=False)
+        hook_cmd = [sys.executable, str(project_root / "tools" / "ops" / "run_end_ops_hook.py")]
+        fitting_step = os.environ.get("FITTING_STEP_ID", "").strip()
+        garment_step = os.environ.get("GARMENT_STEP_ID", "").strip()
+        if fitting_step:
+            hook_cmd.extend(["--fitting-step-id", fitting_step])
+        if garment_step:
+            hook_cmd.extend(["--garment-step-id", garment_step])
+        # Fail-fast: do not swallow missing step-id / round-end failures from run_end_ops_hook.
+        subprocess.run(hook_cmd, check=True)
 
     print("\nPostprocessing complete!")
 
