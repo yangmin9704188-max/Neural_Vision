@@ -44,7 +44,8 @@ def safe_json_load(path: Path) -> Tuple[Optional[Any], Optional[str]]:
     Returns (data, None) on success or (None, error_message) on failure.
     """
     try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        # Accept UTF-8 with optional BOM from upstream generators.
+        text = path.read_text(encoding="utf-8-sig", errors="ignore")
     except OSError as exc:
         return None, f"Cannot read {path}: {exc}"
     try:
