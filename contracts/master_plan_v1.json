@@ -140,6 +140,37 @@
       "m_level": "M0"
     },
     {
+      "step_id": "B10_M1_PUBLISH",
+      "module": "body",
+      "phase": "P1",
+      "title": "Body publishes M1 run_dir to data/shared_m1/body + updates ops/signals/m1/body/LATEST.json",
+      "depends_on": [
+        "B01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/body/**",
+        "ops/signals/m1/body/**"
+      ],
+      "commands": [
+        "py modules/body/tools/publish_m1.py"
+      ],
+      "dod": [
+        "LATEST.json updated; run_dir_rel points to data/shared_m1/body/<run_id>; absolute paths forbidden"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "B10_M1_PUBLISH",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1"
+    },
+    {
       "step_id": "B02",
       "module": "body",
       "phase": "P1",
@@ -204,6 +235,37 @@
       },
       "round_id": "LEGACY",
       "m_level": "M0"
+    },
+    {
+      "step_id": "G10_M1_PUBLISH",
+      "module": "garment",
+      "phase": "P1",
+      "title": "Garment publishes M1 run_dir to data/shared_m1/garment + updates ops/signals/m1/garment/LATEST.json",
+      "depends_on": [
+        "G01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/garment/**",
+        "ops/signals/m1/garment/**"
+      ],
+      "commands": [
+        "py modules/garment/tools/publish_m1.py"
+      ],
+      "dod": [
+        "LATEST.json updated; run_dir_rel points to data/shared_m1/garment/<run_id>; absolute paths forbidden"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "G10_M1_PUBLISH",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1"
     },
     {
       "step_id": "G02",
@@ -272,6 +334,39 @@
       },
       "round_id": "LEGACY",
       "m_level": "M0"
+    },
+    {
+      "step_id": "F10_M1_E2E",
+      "module": "fitting",
+      "phase": "P2",
+      "title": "Fitting consumes body+garment M1 by signal; publishes fitting M1 and updates ops/signals/m1/fitting/LATEST.json",
+      "depends_on": [
+        "B10_M1_PUBLISH",
+        "G10_M1_PUBLISH",
+        "F01"
+      ],
+      "unlock": {
+        "requires_u1": true,
+        "requires_u2": false
+      },
+      "touched_paths": [
+        "modules/fitting/**",
+        "ops/signals/m1/fitting/**"
+      ],
+      "commands": [
+        "py modules/fitting/tools/consume_m1_and_run.py"
+      ],
+      "dod": [
+        "Consumes body+garment M1 by signal; publishes fitting M1 to data/shared_m1/fitting; updates LATEST.json"
+      ],
+      "evidence": {
+        "progress_event": {
+          "step_id": "F10_M1_E2E",
+          "status": "OK"
+        }
+      },
+      "round_id": "R13",
+      "m_level": "M1"
     },
     {
       "step_id": "F02",
@@ -424,6 +519,11 @@
       "round_id": "R12",
       "title": "M1 signals skeleton + guardrails",
       "description": "Track minimal m1 signal templates and add path guardrails in CI guard."
+    },
+    {
+      "round_id": "R13",
+      "title": "M1 publish/consume explicit contract steps + signal readiness in STATUS",
+      "description": "Add explicit M1 publish steps for body/garment, fitting consume E2E, and surface M1 signal readiness."
     }
   ]
 }
