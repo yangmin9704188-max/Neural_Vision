@@ -26,4 +26,7 @@ py tools/validate/validate_u1_garment.py --run-dir .tmp/garment_m0_u1
 ## Notes
 - All artifact paths in generated `geometry_manifest.json` are repo-relative file names (no absolute paths).
 - `generate_m0_fixture.py` is deterministic for the same mode/mesh option.
-- TODO(R11-common): when `append_progress_event` supports `m_level`, append an `OK` event for Garment U1-valid output at `M1`.
+- For M1 publish logging, append an explicit progress event:
+```powershell
+py tools/ops/append_progress_event.py --lab-root modules/garment --module garment --step-id G10_M1_PUBLISH --event note --status OK --m-level M1 --note "Garment U1-valid output published at M1"
+```
