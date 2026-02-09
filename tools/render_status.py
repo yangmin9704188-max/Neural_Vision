@@ -62,6 +62,7 @@ def _normalize_lines(lines: list[str]) -> list[str]:
 
 MARKERS = {
     "BLOCKERS": ("<!-- GENERATED:BEGIN:BLOCKERS -->", "<!-- GENERATED:END:BLOCKERS -->"),
+    "M1_SIGNALS": ("<!-- GENERATED:BEGIN:M1_SIGNALS -->", "<!-- GENERATED:END:M1_SIGNALS -->"),
     "BODY": ("<!-- GENERATED:BEGIN:BODY -->", "<!-- GENERATED:END:BODY -->"),
     "FITTING": ("<!-- GENERATED:BEGIN:FITTING -->", "<!-- GENERATED:END:FITTING -->"),
     "GARMENT": ("<!-- GENERATED:BEGIN:GARMENT -->", "<!-- GENERATED:END:GARMENT -->"),
@@ -629,8 +630,21 @@ def _ensure_markers(text: str) -> str:
         if match:
             insert = f"\n\n## BLOCKERS (generated)\n<!-- GENERATED:BEGIN:BLOCKERS -->\n- BLOCKERS: none observed\n<!-- GENERATED:END:BLOCKERS -->"
             text = text[: match.end(1)] + insert + text[match.start(2) :]
+    if "<!-- GENERATED:BEGIN:M1_SIGNALS -->" not in text:
+        pattern = r"(<!-- GENERATED:END:BLOCKERS -->)\s*(\n---)"
+        match = re.search(pattern, text)
+        if match:
+            insert = (
+                "\n\n## M1 Signals (generated)\n"
+                "<!-- GENERATED:BEGIN:M1_SIGNALS -->\n"
+                "- body: missing\n"
+                "- garment: missing\n"
+                "- fitting: missing\n"
+                "<!-- GENERATED:END:M1_SIGNALS -->"
+            )
+            text = text[: match.end(1)] + insert + text[match.start(2) :]
     for module, (mb, me) in MARKERS.items():
-        if module == "BLOCKERS":
+        if module in {"BLOCKERS", "M1_SIGNALS"}:
             continue
         if mb not in text or me not in text:
             section = module.lower().capitalize()
@@ -1096,6 +1110,32 @@ def _render_blockers(lab_roots: list[tuple[Path, str]]) -> str:
     return "\n".join(lines)
 
 
+def _render_m1_signals() -> str:
+    """Render M1 signal readiness from ops/signals/m1/*/LATEST.json."""
+    lines: list[str] = []
+    for module in ("body", "garment", "fitting"):
+        path = REPO_ROOT / "ops" / "signals" / "m1" / module / "LATEST.json"
+        if not path.exists():
+            lines.append(f"- {module}: missing")
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                payload = json.load(f)
+        except Exception:
+            lines.append(f"- {module}: invalid_json")
+            continue
+        if not isinstance(payload, dict):
+            lines.append(f"- {module}: invalid_payload")
+            continue
+        run_id = payload.get("run_id") or "N/A"
+        run_dir_rel = payload.get("run_dir_rel") or "N/A"
+        created_at_utc = payload.get("created_at_utc") or "N/A"
+        lines.append(
+            f"- {module}: run_id={run_id}; run_dir_rel={run_dir_rel}; created_at_utc={created_at_utc}"
+        )
+    return "\n".join(lines)
+
+
 def main() -> int:
     all_warnings = []
 
@@ -1121,6 +1161,7 @@ def main() -> int:
         if p.exists():
             lab_roots.append((p, "garment"))
     blockers_content = _render_blockers(lab_roots)
+    m1_signals_content = _render_m1_signals()
 
     dep_warnings = {"BODY": [], "FITTING": [], "GARMENT": []}
     ledger = _load_dependency_ledger()
@@ -1174,12 +1215,18 @@ def main() -> int:
     try:
         text = OPS_STATUS.read_text(encoding="utf-8")
     except Exception as e:
-        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT), warnings={len(all_warnings)+1}")
+        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT/M1), warnings={len(all_warnings)+1}")
         return 0
 
     text = _ensure_markers(text)
 
-    content_map = {"BLOCKERS": blockers_content, "BODY": body_content, "FITTING": fitting_content, "GARMENT": garment_content}
+    content_map = {
+        "BLOCKERS": blockers_content,
+        "M1_SIGNALS": m1_signals_content,
+        "BODY": body_content,
+        "FITTING": fitting_content,
+        "GARMENT": garment_content,
+    }
     for module, (mb, me) in MARKERS.items():
         content = content_map.get(module)
         if content is None:
@@ -1195,10 +1242,10 @@ def main() -> int:
         tmp_path.write_text(text, encoding="utf-8")
         os.replace(tmp_path, OPS_STATUS)
     except Exception as e:
-        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT), warnings={len(all_warnings)+1}")
+        print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT/M1), warnings={len(all_warnings)+1}")
         return 0
 
-    print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT), warnings={len(all_warnings)}")
+    print(f"updated ops/STATUS.md (BODY/FITTING/GARMENT/M1), warnings={len(all_warnings)}")
     return 0
 
 
