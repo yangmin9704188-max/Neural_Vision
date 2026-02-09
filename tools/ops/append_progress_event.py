@@ -37,11 +37,13 @@ def _resolve_log_path(lab_root: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Append progress event to PROGRESS_LOG.jsonl")
     parser.add_argument("--lab-root", required=True, help="Lab root (exports/progress under here)")
-    parser.add_argument("--module", required=True, choices=("body", "fitting", "garment"))
+    parser.add_argument("--module", required=True, choices=("common", "body", "fitting", "garment"))
     parser.add_argument("--step-id", required=True, help="e.g. F01, G12, B02")
     parser.add_argument("--event", required=True, help="e.g. milestone_passed, dod_checkpoint, note, run_finished")
     parser.add_argument("--run-id", default="N/A")
     parser.add_argument("--status", default="N/A", choices=("OK", "WARN", "FAIL", "N/A"))
+    parser.add_argument("--m-level", default="M0", choices=("M0", "M1", "M2"),
+                        help="Completion level for this event (default: M0)")
     parser.add_argument("--note", default="")
     parser.add_argument("--dod-done-delta", type=int, default=0)
     parser.add_argument("--evidence", action="append", default=[])
@@ -69,6 +71,7 @@ def main() -> int:
         "event": args.event,
         "run_id": args.run_id,
         "status": args.status,
+        "m_level": args.m_level,
         "dod_done_delta": args.dod_done_delta,
         "note": args.note,
         "evidence": args.evidence or [],
