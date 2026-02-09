@@ -1,0 +1,21 @@
+{
+  "policy_version": "parallel_execution_policy.v1",
+  "enforcement_start_ts": "2026-02-10T00:00:00+09:00",
+  "common_step_prefix": "C",
+  "common_step_owner_module": "body",
+  "allowed_common_event_modules": ["body", "common"],
+  "module_step_prefix": {
+    "body": "B",
+    "fitting": "F",
+    "garment": "G"
+  },
+  "lifecycle_sequence": ["IMPLEMENTED", "VALIDATED", "CLOSED"],
+  "lifecycle_requirements": {
+    "VALIDATED": {
+      "requires_any": ["validation_report_ref", "reports/validation/**"]
+    },
+    "CLOSED": {
+      "requires_any": ["closure_spec_ref", "contracts/closure_specs/**"]
+    }
+  }
+}

@@ -34,6 +34,49 @@ def _resolve_log_path(lab_root: Path) -> Path:
     return log_path
 
 
+def _load_parallel_policy(repo_root: Path) -> dict:
+    path = repo_root / "contracts" / "parallel_execution_policy_v1.json"
+    if not path.exists():
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _policy_errors(module: str, step_id: str, lifecycle_state: str | None, validation_report_ref: str, closure_spec_ref: str, repo_root: Path) -> list[str]:
+    errs: list[str] = []
+    policy = _load_parallel_policy(repo_root)
+    if not policy:
+        return errs
+
+    prefix = (step_id[:1] if step_id else "").upper()
+    common_prefix = str(policy.get("common_step_prefix", "C")).upper()
+    allowed_common_modules = {str(x).lower() for x in policy.get("allowed_common_event_modules", ["body", "common"])}
+    module_prefix = {k.lower(): str(v).upper() for k, v in (policy.get("module_step_prefix") or {}).items()}
+
+    if prefix == common_prefix:
+        if module.lower() not in allowed_common_modules:
+            errs.append(_warn("COMMON_STEP_MODULE_MISMATCH", f"C* must use module in {sorted(allowed_common_modules)}"))
+    elif prefix in {"B", "F", "G"}:
+        expected = None
+        for mod, pfx in module_prefix.items():
+            if pfx == prefix:
+                expected = mod
+                break
+        if expected and module.lower() != expected:
+            errs.append(_warn("STEP_MODULE_MISMATCH", f"{prefix}* must use module={expected}"))
+
+    state = (lifecycle_state or "").upper()
+    if state == "VALIDATED" and not validation_report_ref.strip():
+        errs.append(_warn("VALIDATED_REPORT_MISSING", "VALIDATED requires --validation-report-ref"))
+    if state == "CLOSED" and not closure_spec_ref.strip():
+        errs.append(_warn("CLOSED_SPEC_MISSING", "CLOSED requires --closure-spec-ref"))
+    return errs
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Append progress event to PROGRESS_LOG.jsonl")
     parser.add_argument("--lab-root", required=True, help="Lab root (exports/progress under here)")
@@ -55,6 +98,7 @@ def main() -> int:
     parser.add_argument("--evidence", action="append", default=[])
     parser.add_argument("--closure-spec-ref", default="", help="Repo-relative closure spec path")
     parser.add_argument("--validation-report-ref", default="", help="Repo-relative validation report path")
+    parser.add_argument("--skip-policy-check", action="store_true", help="Skip parallel execution policy checks")
     parser.add_argument("--gate-code", action="append", default=[], help="e.g. STEP_ID_MISSING")
     parser.add_argument("--soft-validate", action="store_true")
     parser.add_argument("--ts", default=None)
@@ -88,6 +132,22 @@ def main() -> int:
         warnings.append(_warn("VALIDATION_REPORT_REF_MISSING", "VALIDATED requires validation_report_ref"))
     if args.lifecycle_state == "CLOSED" and not args.closure_spec_ref:
         warnings.append(_warn("CLOSURE_SPEC_REF_MISSING", "CLOSED requires closure_spec_ref"))
+
+    if not args.skip_policy_check:
+        perrs = _policy_errors(
+            module=args.module,
+            step_id=args.step_id,
+            lifecycle_state=args.lifecycle_state,
+            validation_report_ref=args.validation_report_ref,
+            closure_spec_ref=args.closure_spec_ref,
+            repo_root=Path.cwd(),
+        )
+        if perrs:
+            print(
+                f"appended PROGRESS_LOG.jsonl (module={args.module}, step={args.step_id}, event={args.event}), "
+                f"warnings={len(warnings) + len(perrs)}"
+            )
+            return 1
 
     ev = {
         "ts": args.ts or _ts_now(),
