@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -120,6 +121,46 @@ def _copy(src_dir: Path, dst_dir: Path, filenames: Iterable[str]) -> list[str]:
     return copied
 
 
+def _append_m1_progress_event(
+    repo_root: Path,
+    run_id: str,
+    source_dir: Path,
+    run_dir: Path,
+) -> None:
+    """Best-effort append for Garment M1 publish. Never raises."""
+    appender = repo_root / "tools" / "ops" / "append_progress_event.py"
+    if not appender.exists():
+        print("WARN: append_progress_event.py not found; skipping progress append", file=sys.stderr)
+        return
+
+    garment_lab_root = repo_root / "modules" / "garment"
+    if not garment_lab_root.exists():
+        garment_lab_root = repo_root
+
+    source_manifest = _to_repo_rel_or_abs(source_dir / "geometry_manifest.json", repo_root)
+    published_manifest = _to_repo_rel_or_abs(run_dir / "geometry_manifest.json", repo_root)
+    run_dir_rel = _to_repo_rel_or_abs(run_dir, repo_root)
+
+    cmd = [
+        sys.executable,
+        str(appender),
+        "--lab-root", str(garment_lab_root),
+        "--module", "garment",
+        "--step-id", "G10_M1_PUBLISH",
+        "--event", "note",
+        "--run-id", run_id,
+        "--status", "OK",
+        "--m-level", "M1",
+        "--note", f"Garment M1 published: {run_dir_rel}",
+        "--evidence", source_manifest,
+        "--evidence", published_manifest,
+    ]
+    try:
+        subprocess.run(cmd, cwd=str(repo_root), capture_output=True, text=True, check=False)
+    except Exception as exc:
+        print(f"WARN: failed to append M1 progress event: {exc}", file=sys.stderr)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Publish Garment M1 shared artifacts")
     parser.add_argument(
@@ -136,6 +177,11 @@ def main() -> int:
         "--overwrite",
         action="store_true",
         help="Overwrite destination run directory if it already exists.",
+    )
+    parser.add_argument(
+        "--no-progress-event",
+        action="store_true",
+        help="Do not append G10_M1_PUBLISH event to PROGRESS_LOG.",
     )
     args = parser.parse_args()
 
@@ -185,6 +231,13 @@ def main() -> int:
     print(f"COPIED_OPTIONAL={','.join(copied_optional)}")
     print(f"RUN_DIR_ABS={run_dir.resolve()}")
     print(f"RUN_DIR_REL={run_dir_rel}")
+    if not args.no_progress_event:
+        _append_m1_progress_event(
+            repo_root=repo_root,
+            run_id=run_id,
+            source_dir=source_dir,
+            run_dir=run_dir,
+        )
     return 0
 
 
