@@ -20,6 +20,7 @@ REQUIRED_FILES = ("body_measurements_subset.json",)
 OPTIONAL_FILES = ("body_mesh.npz",)
 RUNTIME_TELEMETRY_NAME = "body_runtime_telemetry.json"
 CACHE_POLICY_NAME = "body_cache_policy.json"
+QUALITY_GATE_NAME = "body_quality_gate.json"
 
 
 def _utc_now_z() -> str:
@@ -254,6 +255,7 @@ def _write_cache_policy(
         "geometry_impl_version": _coerce_non_empty(current_keys.get("geometry_impl_version"), "UNSPECIFIED"),
         "dataset_version": _coerce_non_empty(current_keys.get("dataset_version"), "UNSPECIFIED"),
     }
+    version_keys_null_free = all(v is not None and str(v).strip() != "" for v in normalized_current.values())
 
     prev_keys, prev_warning = _load_prev_version_keys()
     changed: list[str] = []
@@ -261,10 +263,13 @@ def _write_cache_policy(
         for key in normalized_current:
             if normalized_current[key] != _coerce_non_empty(prev_keys.get(key), "UNSPECIFIED"):
                 changed.append(key)
+    expected_invalidate = len(changed) > 0
 
     warnings: list[str] = []
     if prev_warning:
         warnings.append(prev_warning)
+    if not version_keys_null_free:
+        warnings.append("VERSION_KEYS_NULL_OR_EMPTY")
 
     payload = {
         "schema_version": "body_cache_policy.v1",
@@ -278,12 +283,64 @@ def _write_cache_policy(
             "previous_version_keys": prev_keys,
             "current_version_keys": normalized_current,
             "changed_keys": changed,
-            "invalidate_cache": len(changed) > 0,
+            "invalidate_cache": expected_invalidate,
+        },
+        "validation": {
+            "version_keys_null_free": version_keys_null_free,
+            "version_keys_traceability": "geometry_manifest.version_keys",
+            "cache_invalidation_semantics_validated": expected_invalidate == (len(changed) > 0),
         },
         "warnings": warnings,
     }
     _write_json(out_dir / CACHE_POLICY_NAME, payload)
     return CACHE_POLICY_NAME
+
+
+def _write_quality_gate(
+    out_dir: Path,
+    run_id: str,
+    run_dir_rel: str,
+    args: argparse.Namespace,
+    violations: list[str],
+) -> tuple[str, str, list[str]]:
+    score = _coerce_float(args.calibration_quality_score, 0.0)
+    threshold = _coerce_float(args.quality_gate_threshold, 70.0)
+
+    if score < threshold:
+        exposure_state = "blocked"
+        decision_code = "CALIBRATION_SCORE_BELOW_THRESHOLD"
+    elif violations:
+        exposure_state = "degraded"
+        decision_code = "BUDGET_VIOLATION_DEGRADED"
+    else:
+        exposure_state = "promotable"
+        decision_code = "QUALITY_GATE_PASSED"
+
+    warnings: list[str] = []
+    if exposure_state == "blocked":
+        warnings.append("BODY_QUALITY_GATE_BLOCKED")
+    if exposure_state == "degraded":
+        warnings.append("BODY_QUALITY_GATE_DEGRADED")
+
+    payload = {
+        "schema_version": "body_quality_gate.v1",
+        "module_name": "body",
+        "run_id": run_id,
+        "run_dir_rel": run_dir_rel,
+        "calibration_quality_score": score,
+        "quality_gate_threshold": threshold,
+        "budget_violations": list(violations),
+        "exposure_state": exposure_state,
+        "decision_code": decision_code,
+        "deterministic_policy": {
+            "if_score_lt_threshold": "blocked",
+            "if_score_ge_threshold_and_budget_violation": "degraded",
+            "if_score_ge_threshold_and_no_budget_violation": "promotable",
+        },
+        "warnings": warnings,
+    }
+    _write_json(out_dir / QUALITY_GATE_NAME, payload)
+    return QUALITY_GATE_NAME, exposure_state, warnings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -302,6 +359,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--latency-budget-s", type=float, default=2.0, help="Latency budget (seconds)")
     parser.add_argument("--gpu-budget-s", type=float, default=0.5, help="GPU time budget (seconds)")
     parser.add_argument("--vram-budget-gb", type=float, default=6.0, help="VRAM peak budget (GB)")
+    parser.add_argument("--calibration-quality-score", type=float, default=85.0, help="Body calibration quality score [0,100]")
+    parser.add_argument("--quality-gate-threshold", type=float, default=70.0, help="Quality gate threshold (default: 70)")
     args = parser.parse_args(argv)
 
     source_dir = _resolve_source_dir(args)
@@ -332,9 +391,27 @@ def main(argv: list[str] | None = None) -> int:
             args=args,
             manifest=manifest,
         )
+        gate_name, exposure_state, gate_warnings = _write_quality_gate(
+            out_dir=out_dir,
+            run_id=run_id,
+            run_dir_rel=run_dir_rel,
+            args=args,
+            violations=violations,
+        )
         artifacts = list(manifest.get("artifacts", []))
-        artifacts.extend([f"{run_dir_rel}/{telemetry_name}", f"{run_dir_rel}/{cache_name}"])
+        artifacts.extend(
+            [
+                f"{run_dir_rel}/{telemetry_name}",
+                f"{run_dir_rel}/{cache_name}",
+                f"{run_dir_rel}/{gate_name}",
+            ]
+        )
         manifest["artifacts"] = artifacts
+        manifest["quality_gate"] = {
+            "calibration_quality_score": _coerce_float(args.calibration_quality_score, 0.0),
+            "threshold": _coerce_float(args.quality_gate_threshold, 70.0),
+            "exposure_state": exposure_state,
+        }
         if violations:
             warnings = manifest.get("warnings")
             if not isinstance(warnings, list):
@@ -342,6 +419,15 @@ def main(argv: list[str] | None = None) -> int:
             warnings = list(warnings)
             if "BODY_BUDGET_EXCEEDED" not in warnings:
                 warnings.append("BODY_BUDGET_EXCEEDED")
+            manifest["warnings"] = warnings
+        if gate_warnings:
+            warnings = manifest.get("warnings")
+            if not isinstance(warnings, list):
+                warnings = []
+            warnings = list(warnings)
+            for code in gate_warnings:
+                if code not in warnings:
+                    warnings.append(code)
             manifest["warnings"] = warnings
         _write_json(out_dir / MANIFEST_NAME, manifest)
     except Exception as exc:
