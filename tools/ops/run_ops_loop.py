@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""run_ops_loop.py — Standard ops loop entrypoint (Round 04, cleanup Round 09).
+"""run_ops_loop.py — Standard ops loop entrypoint (Round 04 / cleanup R09 / gate R10).
 
 Orchestrates the standard verification/progress workflow:
   - quick mode: doctor + next_step + render_status
   - full mode: doctor + u2_smokes + (optional u1 validators) + next_step + render_briefs+status
 
-With --restore-generated: restores ops/STATUS.md and removes .tmp_pr_body.txt
-after the loop, keeping the working tree clean.
+Options (composable):
+  --restore-generated   Restores ops/STATUS.md and removes .tmp_pr_body.txt after the loop.
+  --strict-clean        FAIL if working tree is dirty at start or end.
+  --allow-pre-dirty     With --strict-clean: downgrade pre-dirty to WARN (post-dirty still FAIL).
 
 Exit codes: 0 = PASS/WARN, 1 = FAIL
 """
@@ -192,6 +194,41 @@ def print_summary(results: List[ToolResult], mode: str, *,
     return 1 if worst == FAIL else 0
 
 
+# ── Git working-tree check (Round 10) ────────────────────────────────
+
+def _git_status_porcelain(repo_root: Path) -> Tuple[Optional[str], Optional[str]]:
+    """Run git status --porcelain.  Returns (stdout, error_msg).
+    On success error_msg is None; on failure stdout is None."""
+    try:
+        r = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(repo_root),
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=15,
+        )
+        if r.returncode == 0:
+            return r.stdout, None
+        return None, f"git status exit {r.returncode}: {(r.stderr or '').strip()[:120]}"
+    except FileNotFoundError:
+        return None, "git not found on PATH"
+    except Exception as exc:
+        return None, str(exc)
+
+
+def _is_clean(porcelain_output: str) -> bool:
+    return porcelain_output.strip() == ""
+
+
+def _dirty_files_summary(porcelain_output: str, max_lines: int = 20) -> str:
+    lines = [l for l in porcelain_output.strip().splitlines() if l.strip()]
+    shown = lines[:max_lines]
+    text = "\n".join(f"    {l}" for l in shown)
+    if len(lines) > max_lines:
+        text += f"\n    ... ({len(lines) - max_lines} more)"
+    return text
+
+
 # ── Post-loop cleanup (Round 09) ─────────────────────────────────────
 
 # Files to restore/remove when --restore-generated is active
@@ -257,7 +294,7 @@ def _cleanup_generated(repo_root: Path, *, json_output: bool = False) -> None:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Standard ops loop entrypoint (Round 04, cleanup Round 09)")
+        description="Standard ops loop entrypoint (Round 04 / cleanup R09 / gate R10)")
     parser.add_argument("--mode", type=str, default="quick",
                         choices=["quick", "full"],
                         help="Execution mode (default: quick)")
@@ -274,6 +311,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="Skip render_briefs/render_status")
     parser.add_argument("--restore-generated", action="store_true",
                         help="Restore ops/STATUS.md and remove temp files after loop (Round 09)")
+    parser.add_argument("--strict-clean", action="store_true",
+                        help="FAIL if working tree dirty at start or end (Round 10)")
+    parser.add_argument("--allow-pre-dirty", action="store_true",
+                        help="With --strict-clean: downgrade pre-dirty to WARN (Round 10)")
     parser.add_argument("--json", dest="json_output", action="store_true",
                         help="Output structured JSON")
     args = parser.parse_args(argv)
@@ -283,6 +324,32 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not repo_root:
         _safe_print("ERROR: Could not find repo root. Run from repo directory.")
         return 1
+
+    # ── 0. Pre-check: strict-clean gate (Round 10) ───────────────────
+    strict = args.strict_clean
+    pre_status = "clean"  # default for reporting when strict is OFF
+
+    if strict:
+        out, err = _git_status_porcelain(repo_root)
+        if err is not None:
+            # git failed → cannot guarantee cleanliness
+            _safe_print(f"[STRICT_CLEAN] pre-check ERROR: {err}")
+            _safe_print("[STRICT_CLEAN] pre=error post=skipped policy=FAIL")
+            return 1
+        if not _is_clean(out):
+            pre_status = "dirty"
+            if args.allow_pre_dirty:
+                _safe_print("[STRICT_CLEAN] pre=dirty (WARN, --allow-pre-dirty)")
+                _safe_print(_dirty_files_summary(out))
+            else:
+                _safe_print("[STRICT_CLEAN] pre=dirty policy=FAIL")
+                _safe_print(_dirty_files_summary(out))
+                _safe_print()
+                _safe_print("Workspace is dirty before ops loop. Commit or stash first,")
+                _safe_print("or use --allow-pre-dirty to downgrade to WARN.")
+                return 1
+        else:
+            pre_status = "clean"
 
     results: List[ToolResult] = []
 
@@ -337,6 +404,29 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 5. Post-loop cleanup (Round 09)
     if args.restore_generated:
         _cleanup_generated(repo_root, json_output=args.json_output)
+
+    # ── 6. Post-check: strict-clean gate (Round 10) ──────────────────
+    if strict:
+        out, err = _git_status_porcelain(repo_root)
+        if err is not None:
+            _safe_print(f"\n[STRICT_CLEAN] post-check ERROR: {err}")
+            _safe_print(f"[STRICT_CLEAN] pre={pre_status} post=error policy=FAIL")
+            return 1
+        post_clean = _is_clean(out)
+        post_status = "clean" if post_clean else "dirty"
+        policy = "FAIL" if not post_clean else ("WARN" if pre_status == "dirty" else "PASS")
+
+        if not args.json_output:
+            _safe_print()
+            _safe_print(f"[STRICT_CLEAN] pre={pre_status} post={post_status} policy={policy}")
+            if not post_clean:
+                _safe_print(_dirty_files_summary(out))
+
+        if not post_clean:
+            return 1
+    elif not args.json_output:
+        _safe_print()
+        _safe_print("[STRICT_CLEAN] policy=OFF")
 
     return exit_code
 
