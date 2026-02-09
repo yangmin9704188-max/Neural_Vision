@@ -187,8 +187,10 @@ def main() -> int:
                         help="FAIL if working tree dirty at start or end (Round 10)")
     parser.add_argument("--allow-pre-dirty", action="store_true",
                         help="With --strict-clean: downgrade pre-dirty to WARN (Round 10)")
+    parser.add_argument("--allow-missing-step-id", action="store_true",
+                        help="Allow UNSPECIFIED step IDs for run_finished append (legacy mode)")
     parser.add_argument("--require-step-id", action="store_true",
-                        help="(legacy) Require step IDs via env")
+                        help=argparse.SUPPRESS)
     parser.add_argument("--fitting-step-id", type=str, default=None,
                         help="(legacy) Fitting step ID override")
     parser.add_argument("--garment-step-id", type=str, default=None,
@@ -218,12 +220,29 @@ def main() -> int:
 
     warnings = 0
     roots = _get_lab_roots()
+    require_step_id = not args.allow_missing_step_id
 
     # Step IDs: CLI override > ENV
     fitting_step_raw = (args.fitting_step_id
                         or os.environ.get("FITTING_STEP_ID", "")).strip()
     garment_step_raw = (args.garment_step_id
                         or os.environ.get("GARMENT_STEP_ID", "")).strip()
+    module_step_inputs = (
+        ("fitting", roots["fitting"], fitting_step_raw),
+        ("garment", roots["garment"], garment_step_raw),
+    )
+    if require_step_id:
+        missing_modules = [
+            module
+            for module, lab_root, step_raw in module_step_inputs
+            if lab_root is not None and lab_root.exists() and not step_raw
+        ]
+        if missing_modules:
+            joined = ", ".join(missing_modules)
+            print(f"[STEP_ID_REQUIRED] missing step id for module(s): {joined}")
+            print("Provide --fitting-step-id/--garment-step-id or FITTING_STEP_ID/GARMENT_STEP_ID.")
+            return 1
+
     fitting_step = fitting_step_raw if fitting_step_raw else "UNSPECIFIED"
     garment_step = garment_step_raw if garment_step_raw else "UNSPECIFIED"
 

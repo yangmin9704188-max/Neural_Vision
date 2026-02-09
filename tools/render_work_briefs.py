@@ -282,7 +282,7 @@ def _render_brief(module: str, lab_root: Path, agg: dict, all_warnings: list[str
         f"closed={lifecycle['closed']}/{lifecycle['total']}; "
         f"pending={lifecycle['pending']}"
     )
-    next_line = f"Continue step {last_step}" if last_step != "N/A" else "Configure lab roots and PROGRESS_LOG"
+    next_line = _compute_next_line(module, last_step, warns, lifecycle)
 
     lines = [
         "# " + module.upper() + " Work Brief",
@@ -322,6 +322,29 @@ def _render_brief(module: str, lab_root: Path, agg: dict, all_warnings: list[str
         for w in warns[:5]:
             lines.append(f"  - {w}")
     return "\n".join(lines)
+
+
+def _compute_next_line(module: str, last_step: str, warns: list[str], lifecycle: dict) -> str:
+    """Compute next action using warnings and lifecycle first, then last_step fallback."""
+    warn_texts = [str(w) for w in warns]
+    warn_upper = [w.upper() for w in warn_texts]
+
+    if any("STEP_ID_MISSING" in w for w in warn_upper):
+        env_key = f"{module.upper()}_STEP_ID"
+        return f"Recover step_id first ({env_key} or --{module}-step-id), then re-run hook"
+    if any(w.startswith("parse_fail:") or w.startswith("read_fail:") for w in warn_texts):
+        return "Fix PROGRESS_LOG parse/read warning before continuing"
+
+    next_validate = lifecycle.get("next_validate") or []
+    if next_validate:
+        return f"Validate step {next_validate[0]}"
+    next_close = lifecycle.get("next_close") or []
+    if next_close:
+        return f"Close step {next_close[0]} (closure spec + validation report)"
+
+    if last_step != "N/A":
+        return f"Continue step {last_step}"
+    return "Configure lab roots and PROGRESS_LOG"
 
 
 def _write_brief(lab_root: Path, module: str, content: str) -> list[str]:
