@@ -1,0 +1,11 @@
+{
+  "user_id": "user_002",
+  "body_params": {
+    "height_m": 1.75,
+    "gender": "male"
+  },
+  "options": {
+    "pose_id": "PZ1",
+    "include_mesh": true
+  }
+}

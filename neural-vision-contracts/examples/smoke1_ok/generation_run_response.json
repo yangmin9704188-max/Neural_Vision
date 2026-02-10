@@ -1,0 +1,62 @@
+{
+  "gate": "PASS",
+  "warnings": [],
+  "manifest": {
+    "schema_version": "geometry_manifest.v1",
+    "module_name": "fitting",
+    "contract_version": "0.1.0",
+    "created_at": "2026-02-10T09:03:00Z",
+    "inputs_fingerprint": "sha256:d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5",
+    "version_keys": {
+      "snapshot_version": "0.1.0",
+      "semantic_version": "0.1.0",
+      "geometry_impl_version": "gen-v0.1.0",
+      "dataset_version": "sizekorea-v2.0"
+    },
+    "artifacts": [
+      "generation_delivery.json",
+      "gen_provenance.json",
+      "final_image.png"
+    ]
+  },
+  "run_id": "run_gen_001",
+  "data": {
+    "delivery": {
+      "schema_version": "generation_delivery.v1",
+      "contract_version": "0.1.0",
+      "created_at": "2026-02-10T09:03:00Z",
+      "version_keys": {
+        "snapshot_version": "0.1.0",
+        "semantic_version": "0.1.0",
+        "geometry_impl_version": "gen-v0.1.0",
+        "dataset_version": "sizekorea-v2.0"
+      },
+      "inputs": {
+        "body_signal_path": "data/m1/body/run_body_001/geometry_manifest.json",
+        "garment_signal_path": "data/m1/garment/run_garment_001/geometry_manifest.json",
+        "fitting_signal_path": "data/m1/fitting/run_fitting_001/geometry_manifest.json"
+      },
+      "outputs": {
+        "final_layer_result_path": "final_image.png",
+        "gen_provenance_path": "gen_provenance.json"
+      }
+    },
+    "provenance": {
+      "schema_version": "gen_provenance.v1",
+      "created_at": "2026-02-10T09:03:00Z",
+      "source_run_ids": {
+        "body_run_id": "run_body_001",
+        "garment_run_id": "run_garment_001",
+        "fitting_run_id": "run_fitting_001"
+      },
+      "handoff_paths": {
+        "fit_signal_path": "data/m1/fitting/run_fitting_001/fitting_facts_summary.json",
+        "provenance_path": "gen_provenance.json",
+        "condition_images_dir": "condition_images/",
+        "latent_meta_path": "latent_meta.json",
+        "embedding_path": "embedding.pt"
+      }
+    },
+    "image_url": "https://storage.neural-vision.dev/runs/run_gen_001/final_image.png"
+  }
+}

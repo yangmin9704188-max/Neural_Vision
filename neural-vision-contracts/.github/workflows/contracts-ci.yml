@@ -1,0 +1,107 @@
+name: Contracts CI
+
+on:
+  push:
+    paths:
+      - "neural-vision-contracts/**"
+  pull_request:
+    paths:
+      - "neural-vision-contracts/**"
+
+defaults:
+  run:
+    working-directory: neural-vision-contracts
+
+jobs:
+  validate-schemas:
+    name: Validate JSON Schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install jsonschema pyyaml
+
+      - name: Validate schemas are valid JSON
+        run: |
+          echo "=== Checking all schema files are valid JSON ==="
+          find schemas -name '*.schema.json' -exec python -c "
+          import json, sys
+          path = sys.argv[1]
+          try:
+              with open(path) as f:
+                  json.load(f)
+              print(f'  OK: {path}')
+          except Exception as e:
+              print(f'  FAIL: {path}: {e}')
+              sys.exit(1)
+          " {} \;
+
+      - name: Validate examples against schemas
+        run: python scripts/validate_examples.py
+
+  validate-openapi:
+    name: Validate & Bundle OpenAPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: pip install pyyaml
+
+      - name: Validate OpenAPI YAML is parseable
+        run: |
+          python -c "
+          import yaml, sys
+          with open('openapi/neural-vision-api.v1.yaml') as f:
+              spec = yaml.safe_load(f)
+          assert spec.get('openapi', '').startswith('3.1'), 'Not OpenAPI 3.1'
+          print('OpenAPI spec parsed successfully')
+          print(f'  Title: {spec[\"info\"][\"title\"]}')
+          print(f'  Version: {spec[\"info\"][\"version\"]}')
+          paths = list(spec.get('paths', {}).keys())
+          print(f'  Endpoints: {len(paths)}')
+          for p in paths:
+              print(f'    {p}')
+          "
+
+      - name: Bundle OpenAPI (inline $ref)
+        run: python scripts/bundle_openapi.py
+
+      - name: Upload bundled spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-bundle
+          path: neural-vision-contracts/openapi/dist/neural-vision-api.v1.bundle.yaml
+
+  validate-json-files:
+    name: Validate Example JSON files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check all JSON files are valid
+        run: |
+          echo "=== Checking all JSON files are parseable ==="
+          find examples -name '*.json' -exec python3 -c "
+          import json, sys
+          path = sys.argv[1]
+          try:
+              with open(path) as f:
+                  json.load(f)
+              print(f'  OK: {path}')
+          except Exception as e:
+              print(f'  FAIL: {path}: {e}')
+              sys.exit(1)
+          " {} \;
+        working-directory: neural-vision-contracts
