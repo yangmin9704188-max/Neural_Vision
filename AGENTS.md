@@ -18,10 +18,24 @@
 
 ## 2) “정본” 문서 인덱스(이 순서대로만 본다)
 ### Ops/항법(운영)
-- HUB: ./HUB.md
-- STATUS: ./STATUS.md
+- HUB: ./ops/HUB.md
+- STATUS: ./ops/STATUS.md
 - Ops Pack: ./Ops Automation Pack(v1.0).md
 - Repo map: ./project_map.md
+- Pipeline principle: ./docs/ops/PIPELINE_EXECUTION_PRINCIPLE_v1.md
+- Start task checklist: ./docs/ops/START_TASK_CHECKLIST_v1.md
+- Pipeline map: ./docs/ops/PIPELINE_MAP_MASTER_v1.md
+- Module plan (2026-02-09): ./docs/ops/PIPELINE_MODULE_PLAN_20260209.md
+
+### Unified Start Routine (Mandatory)
+- Start with `docs/ops/START_TASK_CHECKLIST_v1.md` and follow it in order.
+- Resolve execution root first:
+  - Body/Common (`B*`,`C*`): this repo only.
+  - Fitting (`F*`): `FITTING_LAB_ROOT` (external lab).
+  - Garment (`G*`): `GARMENT_LAB_ROOT` (external lab).
+- Pick one step via `py tools/agent/next_step.py --module all --top 5 --json`.
+- Module-specific commands are allowed, but DoD/evidence closure is judged by `contracts/master_plan_v1.json`.
+- Conflict rule: if module runbook conflicts with SSoT (`contracts/*`, `docs/ops/*`), follow SSoT first.
 
 ### Unlock/Phase(Freeze)
 - UNLOCK (U1/U2): ./unlock_conditions_u1_u2.md
