@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contracts/schemas/fitting_run_request.v1.schema.json",
+  "title": "fitting_run_request.v1",
+  "description": "Request schema for POST /api/v1/fitting/run. References body and garment signal runs to execute fitting computation.",
+  "type": "object",
+  "required": [
+    "body_run_id",
+    "garment_run_id"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "body_run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Run ID of a completed body/infer run"
+    },
+    "garment_run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Run ID of a completed seller/intake run"
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "quality_level": {
+          "type": "string",
+          "enum": ["fast", "standard", "high"],
+          "default": "standard",
+          "description": "Processing quality level"
+        },
+        "prefer_npz": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prefer garment_proxy.npz over .glb fallback"
+        }
+      },
+      "description": "Optional fitting options"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "description": "Optional idempotency key for deduplication"
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contracts/schemas/body_infer_request.v1.schema.json",
+  "title": "body_infer_request.v1",
+  "description": "Request schema for POST /api/v1/body/infer. Provides user body parameters for mesh and measurement inference.",
+  "type": "object",
+  "required": [
+    "user_id",
+    "body_params"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique user identifier"
+    },
+    "body_params": {
+      "type": "object",
+      "required": [
+        "height_m",
+        "gender"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "height_m": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "User height in meters"
+        },
+        "weight_kg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "User weight in kilograms (optional but recommended)"
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["male", "female", "unspecified"],
+          "description": "Gender for body model selection"
+        },
+        "age": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "User age (optional, used for model refinement)"
+        }
+      },
+      "description": "Body parameters for inference"
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "pose_id": {
+          "type": "string",
+          "default": "PZ1",
+          "description": "Pose identifier (default: PZ1)"
+        },
+        "include_mesh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to include body_mesh.npz in output"
+        }
+      },
+      "description": "Optional processing options"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "description": "Optional idempotency key for deduplication"
+    }
+  }
+}
