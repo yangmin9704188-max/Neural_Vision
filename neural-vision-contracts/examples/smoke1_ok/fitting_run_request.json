@@ -1,8 +1,0 @@
-{
-  "body_run_id": "run_body_001",
-  "garment_run_id": "run_garment_001",
-  "options": {
-    "quality_level": "standard",
-    "prefer_npz": true
-  }
-}
