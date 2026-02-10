@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fitting_facts_summary.v1",
+  "title": "fitting_facts_summary.v1 — U1 Freeze (Fitting)",
+  "description": "Minimal schema for fitting_facts_summary.json. Ref: unlock_conditions_u1_u2.md §2.3",
+  "type": "object",
+  "required": [
+    "garment_input_path_used",
+    "early_exit",
+    "early_exit_reason",
+    "warnings_summary",
+    "degraded_state"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "garment_input_path_used": {
+      "enum": ["npz", "glb_fallback"],
+      "description": "Which garment input was used (Freeze §2.3)"
+    },
+    "early_exit": {
+      "type": "boolean",
+      "description": "True if hard gate triggered early exit"
+    },
+    "early_exit_reason": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "null" }
+      ],
+      "description": "Reason string when early_exit=true; null otherwise"
+    },
+    "warnings_summary": {
+      "type": "array",
+      "items": {},
+      "description": "Array of warnings (structured list)"
+    },
+    "degraded_state": {
+      "enum": ["none", "high_warning_degraded"],
+      "description": "Degraded state indicator (Freeze §2.1 missingness policy)"
+    }
+  }
+}

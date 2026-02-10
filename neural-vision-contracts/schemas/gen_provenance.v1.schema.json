@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contracts/schemas/gen_provenance.v1.schema.json",
+  "title": "gen_provenance.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "created_at",
+    "source_run_ids",
+    "handoff_paths"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gen_provenance.v1"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "source_run_ids": {
+      "type": "object",
+      "required": [
+        "body_run_id",
+        "garment_run_id",
+        "fitting_run_id"
+      ],
+      "properties": {
+        "body_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "garment_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fitting_run_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "handoff_paths": {
+      "type": "object",
+      "required": [
+        "fit_signal_path",
+        "provenance_path",
+        "condition_images_dir",
+        "latent_meta_path",
+        "embedding_path"
+      ],
+      "properties": {
+        "fit_signal_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provenance_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "condition_images_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "latent_meta_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "embedding_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
